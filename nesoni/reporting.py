@@ -49,6 +49,9 @@ class Reporter(object):
     def close(self):
         self.f.close()
 
+    def write(self, text):
+        self.f.write(text)
+
     def heading(self, text):
         print >> self.f, '<h2>%s</h2>' % text
 
