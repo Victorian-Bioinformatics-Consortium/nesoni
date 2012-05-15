@@ -1,0 +1,210 @@
+
+0.69 - Added Working and Reference objects, make-reference: tool.
+
+0.68 - less threatening error messages
+
+0.67 - fix problem with peek_and_pipe in CPython: need to flush in order to seek
+
+0.66 - fixes to legion timestamp logic
+       NMF now fits linear model for non-zero class-memberships, 
+       uses unmoderated t-test to calculate significance 
+
+0.65 - bugfix in "reconsensus:"
+
+0.64 - make system now uses timestamps
+
+0.63 - Bugfix: force manager to start before using subprocess.Popen
+       so it doesn't inherit any pipes
+       Non-negative Matrix Factorization
+
+0.62 - Some rather violent internal surgery exposes core nesoni tools using the config.py
+       system.
+       Prefered names of "samshrimp:", "samconsensus:", etc are now "shrimp:", "consensus:", etc.
+       If GENBANK ACCESSION (or VERSION) is "unknown", name on first line is used instead as sequence name.
+
+0.61 - config.py allows reification of tool invocation, invocation of nesoni tools from within Python.
+       (Not all tools use this yet!)
+       Added "samimport:", "igv-plots:", "stats:", "as-fasta:", "as-gff:"
+       "samfilter:" is more memory efficient
+       "samcount:" can use alignments filtered by "samfilter:"
+       Various changes make it possible to choose a random best alignment for each read rather
+       than all or none as previously.
+
+0.60 - Support GFF files in samcount
+
+0.59 - Added support for doing a contrast to test-counts
+       samconsensus now reports the expected number of miscalled SNPs and indels
+
+0.58 - samconsensus --trim does no longer affects alignments that go to the very start or end of the sequence
+
+0.57 - fix major bug in alignment filtering
+       - was previously letting all alignments through to the monogamy-filtering stage
+       -- in monogamous mode (default), all read pairs with multiple alignments were discarded,
+          even if there was a clear best
+
+0.56 - nesoni clip default quality cutoff changed from 20 to 10
+       nesoni clip and samshrimp auto-detect quality offset (damn you, Illumina!)
+       test-counts now has --quantile-norm option
+       BUG FIX: test-counts was reporting log_e fold changes as log_2, now outputs correct values
+           (see glmLRT in edgeR)
+
+0.54 - fix typo bug in sam.py
+       nway nexus format uses ACGT- where possible
+       consequences computed in samconsensus, carried through nway and fisher
+
+0.53 - statistics on fragment size in samfilter
+
+0.52 - new "batch:" command
+       download remote files using lftp
+
+0.51 - improvements to "test-counts:"
+
+0.50 - samshrimp runs samtools faidx reference.fa
+       samshrimp no longer copies reads (shrimp can cope with anything we throw at it now)
+       samcount uses genbank file in reference alignment directory
+       test-counts updated
+       buffer process speeds things up a bit
+       samconsensus reports total snps, insertions, deletions
+       clip --fasta yes no longer outputs multi-line fasta files
+
+0.49 - samconsensus .gff files use Sequence Ontology terms 
+       Added --majority option to samconsensus
+
+0.48 - Fix bug calling insertions in samconsensus (wasn't counting reads that had no insertion)
+       New options for samconsensus:
+       --trim (default 5)
+       --whole-read-only
+       Useful header information in .gff files produced by samconsensus.
+
+0.47 - samshrimp now makes a copy of genbank records given as reference
+       samshrimp now creates individual fasta files for each reference sequence
+       samshrimp now creates individual genbank files for each reference sequence,
+          if reference given as genbank
+       Forgot to import re in io.
+
+0.46 - Added --strand-cutoff to samconsensus
+       More concise evidence format, no '"'s.
+
+0.45 - --sam-unaligned and --half-paired options in samshrimp
+       nesoni core tool added.
+       Check for presence or gmapper-ls, rmapper-ls, samtools.
+
+0.44 - --cs option in samshrimp
+
+0.43 - oodles more options for nesoni clip
+
+0.42 - start phasing out Cython
+       many modules work with pypy
+       samfilter now produces unmapped_single.fq and unmapped_paired.fq
+       Illumina adaptor sequences from 2011-01-11
+       statistics.py now returns 1.0 if probability_of_absolute_majority(x,y) is called with x==y, instead of crashing
+         (was causing are rare crash with ambiguity code consensus calling)
+
+0.41 - nesoni samshrimp: Use --half-paired option by default
+       nesoni clip: Show total number of reads clipped at start and end
+
+0.40 - Fix serious bug in samcount, counts were previously somewhat wrong
+       SAM depth strand specific plots: strand now correctly taken from first read of fragment 
+
+0.39 - Speedup to SAM code
+       consequences depth correction warns rather than failing if not enough sane positions
+
+0.38 - Default -h changed in SHRiMP 2.0.2
+
+0.37 - Report correct reference sequence in sam report.txt
+       Changes to samcount
+
+0.36 - Some Cython versions don't export global variables? EMPTY_EVIDENCE duplicated into sam.py
+
+0.35 - sam* tools may work
+       fill-scaffolds allows custom scaffold spec
+
+0.34 - this is the point at which nesoni officially becomes a giant hairball
+       added nesoni fill-scaffolds
+       added nesoni pastiche
+
+0.33 - nesoni consequences attempts to correct for uneven coverage based on k-mer frequency, position in sequence
+       nesoni consequences only outputs interesting coverage
+
+0.32 - unbreak kmer tools
+
+0.31 - make nesoni nway more scalable
+
+0.30 - change to nesoni shrimp help text
+
+0.29 - nesoni shrimp specified a --threshold
+       nesoni consensus --fidelity becomes --infidelity, is in terms of absolute score, hits less than infidelity above --threshold discarded
+       nesoni consensus has new consensus calling system 
+       read sequences in GENBANK format
+
+0.28 - support crossover "x" in colorspace edit strings
+
+0.27 - work around Cython 12.1 bugs
+
+0.26 - more sensible defaults for nesoni consensus
+       added --whole-read-only option to nesoni consensus
+
+0.25 - consensus now uses read order rather than names to pair up reads\
+       added nesoni reconsensus
+       fixed error in ambiguous amino acid comparison for 'B' (affects nesoni consequences)
+
+0.24 - nesoni shrimp outputs alignments in order
+       graph layout improvements in nesoni graph
+       abort if reference file empty in nesoni shrimp
+
+0.23 - band-limited Needleman-Wunsch alignment in nesoni consequences (O(n*band) rather than O(n^2))
+
+0.22 - pair seperation now measured including reads themselves in nensoni consensus
+       --strand-specific option in nesoni consensus
+
+0.21 - nesoni shred deals with comments correctly
+
+0.20 - nesoni consequences deals with missing locus_tag, skips CDS records with strange locations
+       nesoni shrimp fails earlier on non-existant file (eg shrimp-optins)
+       most commands will now show an error on a mis-spelt option
+
+0.19 - nesoni consensus creates new file, "consensus_log.txt" containing
+       parameters and former contents of "read_stats.txt"
+
+0.18 - cope with -R option being passed to SHRiMP (adds extra column containing read sequence)
+
+0.17 - bugfix in consensus -- was not correctly discarding polygamous hits
+       graph layout can now merge kmers differing by a single SNP or indel
+
+0.16 - refinements to graph viewer
+
+0.15 - added --shadow option to nesoni clean,
+
+0.14 - bugfix in consequences
+       nesoni shrimp now strips comments from read names
+
+0.13 - fisher diff was only looking at one evidence file if multiple reference sequences were given, fixed
+
+0.12 - re-enable gc for everything but nesoni consensus
+       stopped Bio.pairwise2 unnecessarily spitting out many alignments in nesoni consequences
+
+0.11 - ambiguous depth is no longer divided by the number of alignments per read
+       added option --monogamous
+
+0.10 - worked around very weird bug in "compare_to_string" in treemaker
+       (char * was not being passed correctly to function)
+       added nesoni clean
+
+0.9 - added kmer analysis modules
+      added test script for nesoni consensus
+
+0.8 - nesoni fisher now works on directories, like other tools
+
+0.7 - added pairspan depth output to nesoni consensus
+
+0.6 - added nesoni shred tool
+
+0.5 - nesoni consequences
+      - if stop codon already exists before end (wtf?!), warn and ignore in new protein
+      - handle ambiguity codes correctly for start codon change detection
+      - handle amino acid ambiguity correctly
+      - global align proteins with indels
+
+0.4 - indicate impure insertions in lowercase
+    - ignore impure insertions in nesoni consequences
+

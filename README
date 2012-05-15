@@ -1,0 +1,126 @@
+==========
+  Nesoni 
+==========
+
+Nesoni is a high-throughput sequencing data analysis toolset,
+which the VBC has developed to cope with the flood of Illumina, 
+454, and SOLiD data now being produced. 
+
+Our work is largely with bacterial genomes, and the design tradeoffs 
+in nesoni reflect this.
+
+Nesoni focusses on analysing the alignment of reads to a reference 
+genome. Use of the SHRiMP read aligner is automated by nesoni.
+We use SHRiMP as it is able to detect small insertions and deletions 
+in addition to SNPs. Output from other aligners may be imported in 
+SAM format.
+
+Nesoni can call a consensus of read alignments, taking care to
+indicate ambiguity. This can then be used in various ways: to determine
+the protein level changes resulting from SNPs and indels, to find 
+differences between multiple strains, or to produce n-way comparison data 
+suitable for phylogenetic analysis in SplitsTree4.
+
+
+~ Requirements
+==============
+
+Python 2.6 or higher. Use of PyPy where possible is highly recommended 
+for performance.
+
+Required Python libraries:
+* BioPython (compiled modules may need to be disabled when installing in PyPy)
+
+Optional Python libraries (used by non-core nesoni tools)
+* matplotlib
+* Cython
+* Numpy
+
+External programs:
+* SHRiMP
+* samtools
+
+R+ libraries required by R+ nesoni library and "test-counts:":
+* edgeR from BioConductor
+* limma from BioConductor
+
+Optional R+ libraries:
+* seriation
+* gplots
+
+~ Installation
+==============
+
+    python setup.py install
+
+Optional:
+
+    R CMD INSTALL nesoni-r
+
+
+~ Using nesoni
+==============
+
+Type
+
+    nesoni
+
+for usage instructions.
+
+nesoni can also be used without installing:
+
+    ./nesoni_scripts/nesoni 
+
+
+~ Consensus policy
+==================
+
+When calling a consensus, we have found that it is common to find borderline cases
+containing a mixture of different bases or insertions. If these are simply called
+as the most common element of the mixture, comparisons between consensii tend to
+yield many false positives not well supported by the evidence.
+
+Therefore nesoni consensus features a --purity option to flag these borderline cases
+with a specified level of strictness.
+
+In consensus.fa and alignment.maf, purity failures are indicated with:
+
+   IUPAC ambiguity codes or N for mixtures of observed bases
+   N                          for impure deletions
+   lowercase letters          for impure insertions
+
+The tools that analyse the output of nesoni consensus follow a policy of ignoring 
+these impure calls, thereby only reporting differences well supported by evidence.
+
+
+Alternatively, you can use nesoni fisher, which uses Fisher's Exact Test to compare
+the observed mixtures directly, without referring to the called consensus.
+
+
+~ Treemaker
+===========
+
+treemaker is a key-value store, used internally by nesoni and included in this tarball. 
+It has capabilities similar to bsddb.btopen in the python standard library. You can get, 
+set, and modify keys, and traverse keys in order from a given starting key.
+
+treemaker follows the "cache oblivious" design philosophy. Writes and in-order reads 
+require only serial file access. The cache utilization on random reads is also good.
+(However if you have a large number of random reads to perform as a set, it may be 
+worthwhile sorting the keys before retrieving them.)
+
+treemaker is able to modify a value in a store without retrieving it, the actual 
+update is deferred to a more convenient time. This is very useful for large numbers 
+of random writes, such as in constructing an inverted index.
+
+The performance is similar to performing an on disk merge sort, then using bisection 
+search to retrieve values. However the merging occurs in the background, and the 
+database is always live, you can retrieve keys at any time. If you have multiple 
+CPUs, merge operations can run in parallel.
+
+treemaker uses memory mapping, and therefore requires a 64-bit CPU for large
+data sets.
+
+If you have a lot of data, you might find it useful.
+
+

@@ -1,0 +1,13 @@
+global-include *.py *.pyx
+exclude release.py
+exclude nesoni2
+exclude nesoni_vbc
+include README
+include CHANGES
+include COPYING
+include MANIFEST
+include MANIFEST.in
+include test/data/*
+exclude test/output/*
+include nesoni-r/*
+include nesoni-r/R/*
