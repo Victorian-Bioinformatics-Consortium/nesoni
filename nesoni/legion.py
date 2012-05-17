@@ -453,7 +453,7 @@ def _make_inner(action):
     if cores > 1:
         coordinator().trade_cores(1, cores)
     try:        
-        config.write_colored_text(sys.stderr, '\n'+action.describe(action.__class__.__name__)+'\n')
+        config.write_colored_text(sys.stderr, '\n'+action.describe()+'\n')
         
         if LOCAL.abort_make:
             raise grace.Error('%s would be run. Stopping here.' % action.ident())
@@ -628,7 +628,7 @@ def run_toolbox(action_classes):
     commands = { }
     help = [ '\nAvailable tools:\n\n' ]
     for item in action_classes:
-        name = item.__name__.lower().replace('_','-').strip('-')
+        name = item.shell_name()
         commands[ name ] = item
         help.append('    %s\n' % config.colored(1,name+':'))
         help.append(config.wrap(item.help_short, 70, '        ') + '\n\n')

@@ -3,15 +3,15 @@ from nesoni import io, bio, grace, sam, config
 
 import os, sys, subprocess
 
-
-def cutoff_interpreter(cutoff_string):
-    if cutoff_string.endswith('%'):
-        mult = float(cutoff_string[:-1]) / 100.0 * 10.0
-        return lambda length: length*mult
-    else:
-        value = int(cutoff_string)
-        return lambda length: value
-
+#
+#def cutoff_interpreter(cutoff_string):
+#    if cutoff_string.endswith('%'):
+#        mult = float(cutoff_string[:-1]) / 100.0 * 10.0
+#        return lambda length: length*mult
+#    else:
+#        value = int(cutoff_string)
+#        return lambda length: value
+#
 
 
 SHRIMP_HELP = """\

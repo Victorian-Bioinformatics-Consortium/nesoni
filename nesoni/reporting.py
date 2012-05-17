@@ -64,10 +64,12 @@ class Reporter(object):
            title = os.path.split(filename)[1] 
         return '<a href="%s">%s</a>' % (relative, title)
 
-    def get(self, filename, name=None, title=None):
+    def get(self, filename, name=None, title=None, prefix=None):
         if name is None:
             name = os.path.split(filename)[1]
-        dest = self.workspace / (self.file_prefix+name)
+        if prefix is None:
+            prefix = self.file_prefix
+        dest = self.workspace / (prefix+name)
         shutil.copyfile(filename, dest)
         return self.href(dest, title)
     

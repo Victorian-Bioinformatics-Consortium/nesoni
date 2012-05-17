@@ -135,13 +135,32 @@ unsigned.col <- hsv(h=seq(0.95,1.15, length.out=256)%%1.0, v=seq(0,1, length.out
 signed.col <- hsv(h=(sign(seq(-1.0,1.0, length.out=256))*0.2+0.8)%%1.0, v=1,s=abs(seq(-1,1,length.out=256)))
 
 hmap.elist <- function(filename.prefix, elist, 
-                       min.sd=0.0, min.span=0.0, 
+                       min.sd=0.0, min.span=0.0, min.svd=0.0, svd.rank=NULL,
                        annotation=c('gene', 'product'), 
                        res=150, row.labels=NA, margins=c(20,20), 
                        main='log2 expression\ndifference from\nrow average', ...) {
-    sd <- sqrt(row.apply(elist$E, var))
-    span <- row.apply(elist$E, max) - row.apply(elist$E, min)
-    keep <- (sd >= min.sd & span >= min.span)
+    keep <- rep(TRUE, nrow(elist$E))
+
+    if (min.sd > 0.0) {
+        sd <- sqrt(row.apply(elist$E, var))
+        keep <- (keep & sd >= min.sd)
+    }
+    
+    if (min.span > 0.0) {    
+        span <- row.apply(elist$E, max) - row.apply(elist$E, min)
+        keep <- (keep & span >= min.span)
+    }
+    
+    if (min.svd > 0.0) {
+        if (is.null(svd.rank))
+            svd.rank <- ncol(elist$E)-1
+        s <- svd(t(scale(t(elist$E), center=TRUE,scale=FALSE)), nu=svd.rank,nv=svd.rank)
+        cat('SVD d diagonal:\n')
+        print(s$d[1:svd.rank])
+        mag <- sqrt( rowSums(s$u*s$u) * nrow(s$u) / ncol(s$u) )
+        keep <- (keep & mag >= min.svd)
+    }
+    
     elist <- elist[keep,]
     
     if (is.na(row.labels))

@@ -1149,7 +1149,7 @@ if (length(ORDER)) {
 }
 
 elist <- voom(dgelist)
-hmap.elist(PREFIX, elist, min.sd=MIN_SD, min.span=MIN_SPAN, reorder.columns=REORDER_COLUMNS)
+hmap.elist(PREFIX, elist, min.sd=MIN_SD, min.span=MIN_SPAN, min.svd=MIN_SVD, svd.rank=SVD_RANK, reorder.columns=REORDER_COLUMNS)
 
 """
 
@@ -1163,6 +1163,9 @@ Hierachical clustering and ordering of rows is performed using the "seriation" p
 @config.Int_flag('min_max', 'Exclude genes with no sample having at least this many reads')
 @config.Float_flag('min_sd', 'Exclude genes with less than this standard deviation of log2 expression levels')
 @config.Float_flag('min_span', 'Exclude genes where there is no pair of samples that differ in log2 expression by this much')
+@config.Float_flag('min_svd', 'Using the SVD of log2 expression levels, '
+                              'exclude genes where the sum of squares of the U matrix row for the gene is less than this many standard deviations.')
+@config.Int_flag('svd_rank', 'Only use the top this many columns of the SVD U matrix when applying --min-svd.')
 @config.Bool_flag('reorder_columns', 'Cluster and optimally order columns as well as rows.')
 @config.String_flag('norm_file', 'Use normalization produced by "norm-from-counts:".')
 @config.Positional('counts', 'File containing output from "samcount:"')
@@ -1173,6 +1176,8 @@ class Heatmap(config.Action_with_prefix):
     min_max = 0
     min_sd = 0.0
     min_span = 0.0
+    min_svd = 0.0
+    svd_rank = None
     reorder_columns = False
     norm_file = None
     order = [ ]
@@ -1185,6 +1190,8 @@ class Heatmap(config.Action_with_prefix):
             MIN_MAX=self.min_max,
             MIN_SD=self.min_sd,
             MIN_SPAN=self.min_span,
+            MIN_SVD=self.min_svd,
+            SVD_RANK=self.svd_rank,
             REORDER_COLUMNS=self.reorder_columns,
             NORM_FILE=self.norm_file,
             ORDER=self.order,

@@ -3,7 +3,7 @@ import grace, config
 
 import sys
 
-VERSION='0.69'
+VERSION='0.70'
 
 BOLD = '\x1b[1m'
 END = '\x1b[m'
@@ -136,6 +136,8 @@ from samcount import Count
 from runr import Test_counts, Heatmap, Compare_tests, Norm_from_counts, NMF
 from trivia import As_fasta, As_gff, Sample, Stats
 from igv import Make_genome, IGV_plots, As_userplots 
+from workflows import Analyse_sample
+
 from legion import *
 
 def get_actions():

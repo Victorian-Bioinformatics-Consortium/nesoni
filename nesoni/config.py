@@ -37,11 +37,11 @@ def write_colored_text(file, text):
         text = strip_color(text)
     file.write(text)
 
-def wrap(text, width, prefix=''):
+def wrap(text, width, prefix='', suffix=''):
     result = [ ]
     for line in text.rstrip().split('\n'):
         result.extend(textwrap.wrap(line.rstrip(), width, break_on_hyphens=False, break_long_words=False) or [''])
-    return prefix + ('\n'+prefix).join(result)
+    return prefix + (suffix+'\n'+prefix).join(result)
 
 
 def get_flag_value(args, option, conversion_function):
@@ -295,7 +295,16 @@ class Configurable_metaclass(type):
                     if parameter not in parameters:
                         parameters += (parameter,)
         dictionary['parameters'] = parameters + dictionary.get('parameters',())
-        return type.__new__(self, name, bases, dictionary)
+        
+        result = type.__new__(self, name, bases, dictionary)
+        
+        #for name in dictionary:
+        #    if not isinstance(getattr(result,name), types.FunctionType): continue
+        #    entries = [ ]
+        #    exits = [ ]
+        #    for item in
+        
+        return result 
 
 
 class Configurable(object):
@@ -370,9 +379,13 @@ class Configurable(object):
             default_command(args)
         
         execute(args, commands, outer_default_command)
+
+    @classmethod
+    def shell_name(self):
+        return self.__name__.lower().replace('_','-').strip('-')
     
     def ident(self):
-        return self.__class__.__name__.lower().replace('_','-')
+        return self.shell_name()
     
     def __repr__(self):
         return '<'+self.ident()+'>'
@@ -385,20 +398,28 @@ class Configurable(object):
             if c: return c
         return 0
     
-    def describe(self, invocation='[...]', show_help=False):
+    def describe(self, invocation=None, show_help=False):
+        if invocation is None:
+            invocation = self.shell_name() + ':'
+    
         desc = [ colored(1, invocation) ]
         
         flags = [ item for item in self.parameters if isinstance(item, Flag) ]
         non_flags = [ item for item in self.parameters if not isinstance(item, Flag) ]
         
+        if show_help:
+            suffix = ''
+        else:
+            suffix = colored(2, ' \\')
+        
         for parameter in flags + non_flags:
             line = parameter.describe_shell(parameter.get(self), show_help)
             if line:
-                desc.append(wrap(line,67,'    '))
+                desc.append(wrap(line,67,'    ',suffix))
                 if show_help and parameter.help:
                     desc.append(colored(30,wrap(parameter.help,65,'    # ')))
        
-        return '\n'.join( desc ) + '\n'
+        return (suffix+'\n').join( desc ) + '\n'
     
     def check_sanity(self):
         pass
@@ -413,7 +434,15 @@ class Action(Configurable):
 
     def cores_required(self):
         return 1
-        
+    
+    def make(self):
+        from nesoni import legion
+        legion.make(self)
+
+    def process_make(self):
+        from nesoni import legion
+        legion.process_make(self)
+
 
 @Positional('prefix', 'Prefix for output files.')
 class Action_with_prefix(Action):
@@ -494,7 +523,7 @@ def report_exception():
         '\n\n')
 
 
-def shell_run(action, args, invocation='...'):
+def shell_run(action, args, invocation=None):
     args_needed = False
     for item in action.parameters:
         if isinstance(item, Positional) or (isinstance(item, Section) and not item.empty_is_ok):

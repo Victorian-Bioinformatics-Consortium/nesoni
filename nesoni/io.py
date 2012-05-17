@@ -6,7 +6,7 @@ Read and write various types of file / directory
 
 from nesoni import grace, legion
 
-import os, cPickle, sys, re, weakref, collections, csv, subprocess, gzip, bz2
+import os, cPickle, sys, re, weakref, collections, csv, subprocess, gzip, bz2, itertools
 
 STREAM_PROCESS = weakref.WeakKeyDictionary()
 def close(f):
@@ -558,11 +558,13 @@ def guess_quality_offset(filename):
     try:
         min_value = chr(255)
         #max_value = chr(0)
-        for item in read_sequences(filename, qualities=True):
+        for i, item in enumerate(read_sequences(filename, qualities=True)):
             if len(item) == 2: return 33 #Not fastq
             
             min_value = min(min_value, min(item[2]))
             #max_value = max(max_value, max(item[2]))
+            
+            if i >= 100000: break
         
         low = ord(min_value)
         #high = ord(max_value)
@@ -572,6 +574,15 @@ def guess_quality_offset(filename):
     finally:
         grace.status('')
 
+
+def check_name_uniqueness(filenames):
+    """ Check first few read names are unique """
+    names = set()
+    for filename in filenames:
+        for i, (name, seq) in io.read_sequences(filename):
+            assert name not in names, 'Duplicate sequence name: '+name
+            names.add(name)
+            if i >= 1000: break
 
 
 def write_fasta(f, name, sequence, qual=None):

@@ -1,4 +1,7 @@
 
+0.70 - No longer check if alignment is close to gmapper threshold in consensus: 
+       (too many things can go wrong, benefit is dubious)
+
 0.69 - Added Working and Reference objects, make-reference: tool.
 
 0.68 - less threatening error messages

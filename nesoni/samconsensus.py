@@ -178,10 +178,10 @@ def filter(working_dir, infidelity, is_monogamous, output_userplots, output_stra
     workspace = working_directory.Working(working_dir, must_exist=True)
     reference = workspace.get_reference()
     
-    if 'shrimp_cutoff' in workspace.param:
-        calc_cutoff = samshrimp.cutoff_interpreter(workspace.param['shrimp_cutoff'])
-    else:
-        calc_cutoff = lambda length: -1
+    #if 'shrimp_cutoff' in workspace.param:
+    #    calc_cutoff = samshrimp.cutoff_interpreter(workspace.param['shrimp_cutoff'])
+    #else:
+    #    calc_cutoff = lambda length: -1
 
     depths = { }
     for name, length in reference.get_lengths():
@@ -211,7 +211,7 @@ def filter(working_dir, infidelity, is_monogamous, output_userplots, output_stra
     fragment_insert_total = 0.0
     
     n_polygamous = 0
-    n_possibly_polygamous = 0
+    #n_possibly_polygamous = 0
     any_pairs = False
     
     n_single_unmapped = 0
@@ -289,10 +289,10 @@ def filter(working_dir, infidelity, is_monogamous, output_userplots, output_stra
             #if is_monogamous: continue
         
         fragment_bases = sum( len(item.seq) for item in fragment_alignments[0][1] )
-        if fragment_alignments[0][0] < calc_cutoff(fragment_bases) + infidelity:
-            fragment_is_monogamous = False
-            n_possibly_polygamous += 1
-            #if is_monogamous: continue
+        #if fragment_alignments[0][0] < calc_cutoff(fragment_bases) + infidelity:
+        #    fragment_is_monogamous = False
+        #    n_possibly_polygamous += 1
+        #    #if is_monogamous: continue
         
         #Emit
         #TODO: mark non-primary alignments
@@ -360,16 +360,16 @@ def filter(working_dir, infidelity, is_monogamous, output_userplots, output_stra
     log.datum(workspace.name, 'hit multiple locations' + (' (discarded)' if is_monogamous else ''), n_polygamous)
 
 
-    if n_possibly_polygamous:
-       #log.log(
-       #    '%15s' % grace.pretty_number(n_possibly_polygamous) + 
-       #    ' scored too little to be confident of unique location' + 
-       #    (' (discarded)' if is_monogamous else '') + '\n'
-       #)
-       log.datum(workspace.name,
-           'scored too little to be confident of unique location' + (' (discarded)' if is_monogamous else ''),
-           n_possibly_polygamous
-       )
+    #if n_possibly_polygamous:
+    #   #log.log(
+    #   #    '%15s' % grace.pretty_number(n_possibly_polygamous) + 
+    #   #    ' scored too little to be confident of unique location' + 
+    #   #    (' (discarded)' if is_monogamous else '') + '\n'
+    #   #)
+    #   log.datum(workspace.name,
+    #       'scored too little to be confident of unique location' + (' (discarded)' if is_monogamous else ''),
+    #       n_possibly_polygamous
+    #   )
        
     if n_kept_paired:
        #log.log('%15s' % grace.pretty_number(n_kept_paired) + ' pairs kept\n')
