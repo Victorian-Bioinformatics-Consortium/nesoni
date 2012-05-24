@@ -11,7 +11,7 @@ Metainformation about tools will hopefully allow
 """
 
 
-import sys, os, pickle, traceback, textwrap, re, copy
+import sys, os, pickle, traceback, textwrap, re, copy, functools, types
 
 class Error(Exception): 
     pass
@@ -285,6 +285,16 @@ def help(short, extra=''):
     return func
 
 
+def _wrap(func, before, after):
+    @functools.wraps(func)
+    def inner(self, *args,**kwargs):
+        before(self)
+        try:
+            return func(self,*args,**kwargs)
+        finally:
+            after(self)
+    return inner
+
 class Configurable_metaclass(type):
     def __new__(self, name, bases, dictionary):
         # Inherit parameters from all bases    
@@ -298,11 +308,19 @@ class Configurable_metaclass(type):
         
         result = type.__new__(self, name, bases, dictionary)
         
-        #for name in dictionary:
-        #    if not isinstance(getattr(result,name), types.FunctionType): continue
-        #    entries = [ ]
-        #    exits = [ ]
-        #    for item in
+        for name in dictionary:
+            if not isinstance(dictionary[name], types.FunctionType): continue
+            
+            func = dictionary[name]
+            entries = [ ]
+            exits = [ ]
+            before_name = '_before_'+name
+            after_name = '_after_'+name
+            for item in result.mro():
+                if before_name in item.__dict__ or after_name in item.__dict__:
+                    func = _wrap(func,item.__dict__.get(before_name,lambda self:None),
+                                      item.__dict__.get(after_name,lambda self:None))
+            setattr(result, name, func) 
         
         return result 
 
@@ -410,7 +428,7 @@ class Configurable(object):
         if show_help:
             suffix = ''
         else:
-            suffix = colored(2, ' \\')
+            suffix = ' \\'
         
         for parameter in flags + non_flags:
             line = parameter.describe_shell(parameter.get(self), show_help)
@@ -419,7 +437,7 @@ class Configurable(object):
                 if show_help and parameter.help:
                     desc.append(colored(30,wrap(parameter.help,65,'    # ')))
        
-        return (suffix+'\n').join( desc ) + '\n'
+        return (colored(2,suffix)+'\n').join( desc ) + '\n'
     
     def check_sanity(self):
         pass
@@ -494,7 +512,7 @@ class Action_filter(Action_with_optional_input, Action_with_optional_output):
 class Action_with_output_dir(Action):
     output_dir = None
     def ident(self):
-        return Action.ident(self) + '--' + self.output_dir
+        return Action.ident(self) + '--' + self.output_dir    
 
 
 @Positional('working_dir', 'Directory for input and output files.')

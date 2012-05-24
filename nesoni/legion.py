@@ -4,7 +4,7 @@ __all__ = """
    generate 
    remake_needed remake_clear
    future parallel_imap parallel_map parallel_for
-   process barrier stage
+   process barrier stage stage_function
    make process_make 
    Execute Make
    run_script run_toolbox
@@ -236,6 +236,7 @@ def subprocess_Popen(*args, **kwargs):
 LOCAL = threading.local()
 def set_locals():
     LOCAL.abort_make = False
+    LOCAL.do_nothing = False 
     LOCAL.time = 0 #Note: do not run this code before the year 1970
     LOCAL.parallels = [ ]
 set_locals()
@@ -257,14 +258,17 @@ def abort_makes():
     """
     LOCAL.abort_make = True
 
+def do_nothing():
+    LOCAL.do_nothing = True
 
 
 
 
-def _run_future(time,abort_make, func, args, kwargs, sender):
+def _run_future(time,abort_make,do_nothing, func, args, kwargs, sender):
     set_locals()
     LOCAL.time = time
     LOCAL.abort_make = abort_make
+    LOCAL.do_nothing = do_nothing
     result = None
     exception = None
     try:
@@ -291,7 +295,7 @@ def future(func, *args, **kwargs):
     receiver, sender = multiprocessing.Pipe(False)
 
     #Give core to process we start
-    p = start_process(_run_future,LOCAL.time,LOCAL.abort_make,func,args,kwargs,sender)
+    p = start_process(_run_future,LOCAL.time,LOCAL.abort_make,LOCAL.do_nothing,func,args,kwargs,sender)
     
     #Get another for ourselves
     coordinator().acquire_core()
@@ -380,11 +384,19 @@ def stage(func, *args, **kwargs):
     result = None
     try:
         result = func(*args, **kwargs)
-        barrier()    
     finally:
+        barrier()    
         LOCAL.parallels = old
         return lambda: result
 
+
+def stage_function(func):
+    """ Ensure processes started by a function or method complete
+        before the function returns.
+    """
+    def inner(*args, **kwargs):
+        return stage(func, *args, **kwargs)
+    return inner
     
 
 # parallel()
@@ -435,7 +447,10 @@ def _run_and_save_state(action, timestamp):
     if os.path.exists(filename):
         os.unlink(filename)
     
-    result = action.run()
+    if LOCAL.do_nothing:
+        result = None
+    else:
+        result = action.run()
     
     LOCAL.time = max(LOCAL.time, timestamp)
     action.timestamp = timestamp
@@ -576,17 +591,25 @@ Execute a script.
 @config.Int_flag('cores', 'Approximate number of cores to use.')
 @config.Bool_flag('force', 'Force everything to be recomputed.')
 @config.Bool_flag('show', 'Show the first actions that would be made, then abort.')
+@config.Bool_flag('done', 
+    'Do nothing, but mark all actions as done. '
+    'This might be useful if there is a trivial parameter change you don\'t want to re-run. '
+    'To re-run from a particular point, use this option then delete files from .state/ as needed.')
 class Make(config.Action):
     cores = multiprocessing.cpu_count()
     force = False
     show = False
+    done = False
     
-    def run(self):
+    def _before_run(self):
         coordinator().set_cores(self.cores)
         if self.force:
             remake_needed()
         if self.show:
             abort_makes()
+        if self.done:
+            do_nothing()
+
 
 @config.help("""\
 Execute a script.
@@ -598,10 +621,7 @@ class Make_script(Make):
     script_parameters = [ ]
 
     def run(self):
-        super(Make_script,self).run()
-        
-        self.function(*self.script_parameters)
-        barrier()
+        stage(self.function, *self.script_parameters)
 
 
 def run_script(function):

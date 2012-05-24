@@ -89,7 +89,9 @@ How to use the relative strand of fragment and feature:
 pool    - data is not single stranded, use both strands
 forward - only count fragments on the same strand
 reverse - only count fragments on the opposite strand
-both    - output forward and reverse counts separately\
+both    - output forward and reverse counts separately
+
+This option MUST be specified explicitly.\
 """)
 @config.String_flag('qualifiers', 'Comma separated list of feature qualifiers to take from annotation file.') 
 @config.Int_flag('min_score', 'Minimum fragment score. Note: 10 points equals 1 matched base.')
@@ -101,7 +103,7 @@ class Count(config.Action_with_prefix):
     filter = 'poly'
     types = 'CDS'
     locii = None
-    strand = 'pool'
+    strand = None  #It is not good to have a default, this needs to be specified explicitly
     qualifiers = 'gene,product'
     min_score = None
     min_size = None
@@ -239,7 +241,7 @@ def count_run(
     qualifiers, use_strand, merge_filename, limit, output_prefix, filenames):
     
     log = grace.Log()
-
+    
     if filter_mode == 'poly':
         use_bam_filename = 'alignments.bam'
         use_only_top = True
@@ -266,6 +268,7 @@ def count_run(
     else:
         locii = None
 
+    assert use_strand is not None, 'You must now explicitly specify --strand'
     assert use_strand in ('pool','forward','reverse','both'), "Can't understand --strand specification."
     
     from Bio import Seq, SeqIO

@@ -1,6 +1,9 @@
 
 import sys, os, glob
 
+if not os.path.exists('output'):
+    os.mkdir('output')
+
 SCRIPT = '../nesoni_scripts/nesoni'
 
 def run_nesoni(command, same_python=True):

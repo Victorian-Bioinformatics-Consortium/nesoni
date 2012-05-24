@@ -105,7 +105,7 @@ class Filter(config.Action_with_working_dir):
     def run(self, log=None):
         if log is None:
             log = grace.Log()
-            log.attach(open(os.path.join(output_dir, 'consensus_log.txt'), 'wb'))
+            log.attach(open(os.path.join(self.working_dir, 'consensus_log.txt'), 'wb'))
         filter(self.working_dir, self.infidelity, self.monogamous, self.userplots, self.strand_specific, self.random, log)    
 
 

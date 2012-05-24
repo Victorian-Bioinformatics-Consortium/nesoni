@@ -403,13 +403,13 @@ def read_genbank_sequence(filename, genbank_callback=None):
     f = open_possibly_compressed_file(filename)
     
     for record in SeqIO.parse(f,'genbank'):
-        #Hideous hack: samshrimp makes a copy of each record in a genbank file
-        if genbank_callback: genbank_callback(record)
-        
         name = record.id
         if name == '' or name == 'unknown':
             name = record.name
         assert name, 'GENBANK file contains record with no accession or name' 
+        
+        #Hideous hack: samshrimp makes a copy of each record in a genbank file
+        if genbank_callback: genbank_callback(name, record)
         
         yield name, record.seq.tostring()    
     f.close()

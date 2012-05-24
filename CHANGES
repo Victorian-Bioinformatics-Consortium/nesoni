@@ -1,4 +1,9 @@
 
+0.71 - Fix bug that caused filter: to immediately throw an exception.
+       count: --strand must now be specified explicitly.
+       shrimp: per-sequence genbank files are now named consistently with sequence name
+       nesoni R package moves plotting related things to plotting.R
+
 0.70 - No longer check if alignment is close to gmapper threshold in consensus: 
        (too many things can go wrong, benefit is dubious)
 

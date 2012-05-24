@@ -172,7 +172,7 @@ class Shrimp(config.Action_with_output_dir):
         reference_genbank_file = open(reference_genbank_filename,'wb')
         any_genbank = [ False ]
         
-        def genbank_callback(record):
+        def genbank_callback(name, record):
             """ Make a copy of any genbank files passed in. """
             from Bio import SeqIO
             
@@ -180,7 +180,7 @@ class Shrimp(config.Action_with_output_dir):
             
             f = open(os.path.join(
                 self.output_dir,
-                grace.filesystem_friendly_name(record.id) + '.gbk'
+                grace.filesystem_friendly_name(name) + '.gbk'
             ), 'wb')
             SeqIO.write([record], f, 'genbank')
             f.close()
