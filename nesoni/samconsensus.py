@@ -102,11 +102,11 @@ class Filter(config.Action_with_working_dir):
     def check_sanity(self):
         grace.require_samtools()
 
+    def log_filename(self):
+        return os.path.join(self.working_dir,'consensus_log.txt')
+
     def run(self, log=None):
-        if log is None:
-            log = grace.Log()
-            log.attach(open(os.path.join(self.working_dir, 'consensus_log.txt'), 'wb'))
-        filter(self.working_dir, self.infidelity, self.monogamous, self.userplots, self.strand_specific, self.random, log)    
+        filter(self.working_dir, self.infidelity, self.monogamous, self.userplots, self.strand_specific, self.random, self.log)    
 
 
 
@@ -939,16 +939,14 @@ class Reconsensus(config.Action_with_working_dir):
             desc += '\n' + consensus.consensus_calling_advice(self.strand_cutoff, self.indel_prior, self.prior_weight, 'The per-strand coverage required is:\n', proportion=self.majority)
         return desc    
     
+    def log_filename(self):
+        return os.path.join(self.working_dir,'consensus_log.txt')
 
-    def run(self, log=None):
-        invocation = config.strip_color(self.describe('nesoni '+self.__class__.__name__.lower()))
-        
-        if log is None:
-            log = grace.Log()
-            log.attach(open(os.path.join(self.working_dir, 'consensus_log.txt'), 'wb'))
+    def run(self):
+        invocation = config.strip_color(self.describe())
         
         consensus_run(
-            invocation=invocation, filter_needed=False, log=log, whole_read_only=self.whole_read_only, 
+            invocation=invocation, filter_needed=False, log=self.log, whole_read_only=self.whole_read_only, 
             trim=self.trim, p_cutoff=self.cutoff, stranded_p_cutoff=self.strand_cutoff, 
             indel_prior=self.indel_prior, prior_weight=self.prior_weight, proportion=self.majority, 
             use_ambiguity_codes=self.ambiguity_codes, default_transl_table=self.transl_table, 
@@ -962,12 +960,12 @@ Make consensus calls for SNPs and indels based on the directory created by "shri
 
 """ + CONSENSUS_BLURB)
 class Consensus(Filter, Reconsensus):
-    def run(self, log=None):
-        if log is None:
-            log = grace.Log()
-            log.attach(open(os.path.join(self.working_dir, 'consensus_log.txt'), 'wb'))
-        Filter.run(self, log)
-        Reconsensus.run(self, log)
+    def log_filename(self):
+        return os.path.join(self.working_dir,'consensus_log.txt')
+
+    def run(self):
+        Filter.run(self)
+        Reconsensus.run(self)
 
 
 

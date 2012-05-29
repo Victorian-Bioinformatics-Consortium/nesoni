@@ -56,7 +56,7 @@ for prefix3, is_sam in outer:
             
             run_nesoni(('sam' if is_sam else '') + 'consensus: ' + name + ' ' + sep_option + monogamous_option)
             
-            run_nesoni(('sam' if is_sam else '') +'reconsensus: ' + name)
+         #   run_nesoni(('sam' if is_sam else '') +'reconsensus: ' + name)
             
             if not is_sam:
                 run_nesoni('tosam ' + name)

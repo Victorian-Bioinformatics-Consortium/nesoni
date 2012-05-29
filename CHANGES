@@ -1,4 +1,8 @@
 
+0.72 - Tools now log command line invocation
+       import: can import BAM files
+       shrimp: shrimp-options: -h now works again 
+
 0.71 - Fix bug that caused filter: to immediately throw an exception.
        count: --strand must now be specified explicitly.
        shrimp: per-sequence genbank files are now named consistently with sequence name

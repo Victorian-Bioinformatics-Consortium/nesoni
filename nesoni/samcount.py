@@ -119,7 +119,7 @@ class Count(config.Action_with_prefix):
             min_score=self.min_score, min_size=self.min_size, max_size=self.max_size, 
             filter_mode=self.filter, equalize=self.equalize, types=self.types, locii=self.locii, 
             qualifiers=self.qualifiers, use_strand=self.strand, merge_filename=None, limit=None, 
-            output_prefix=self.prefix, filenames=self.filenames
+            output_prefix=self.prefix, filenames=self.filenames, log=self.log
         )
 
 #
@@ -238,9 +238,7 @@ def tab_encode(listing):
 
 def count_run(
     min_score, min_size, max_size, filter_mode, equalize, types, locii,
-    qualifiers, use_strand, merge_filename, limit, output_prefix, filenames):
-    
-    log = grace.Log()
+    qualifiers, use_strand, merge_filename, limit, output_prefix, filenames, log):
     
     if filter_mode == 'poly':
         use_bam_filename = 'alignments.bam'
@@ -561,7 +559,7 @@ def count_run(
         total_hits = [ min_hits ] * n_samples
 
     f = open(output_prefix + '.txt', 'wb')
-    log.attach(open(output_prefix + '_log.txt', 'wb'))
+    #log.attach(open(output_prefix + '_log.txt', 'wb'))
 
     print >> f, tab_encode(
         [ 'Feature' ] +

@@ -11,7 +11,7 @@ Metainformation about tools will hopefully allow
 """
 
 
-import sys, os, pickle, traceback, textwrap, re, copy, functools, types
+import sys, os, pickle, traceback, textwrap, re, copy, functools, types, datetime
 
 class Error(Exception): 
     pass
@@ -150,6 +150,10 @@ class Hidden(Parameter):
 class Positional(Parameter): 
     def shell_name(self):
         return '%s' % self.name.replace('_','-').lower()
+    
+    def parse(self, obj, string):
+        expect_no_further_flags([string])
+        return string
     
     def describe_shell(self, value, verbose=True):
         if value is None:
@@ -462,11 +466,80 @@ class Action(Configurable):
         legion.process_make(self)
 
 
+
+class Action_with_log(Action):
+    log_filename = NotImplemented
+    
+    _log_level = 0
+    
+    def _before_run(self):
+        if self._log_level == 0:
+            filename = self.log_filename()
+            if os.path.exists(filename):
+                os.unlink(filename)
+        
+            self._log_start = datetime.datetime.now()
+        
+            import nesoni
+            from nesoni import grace
+            self.log = grace.Log()
+            self.log.quietly_log(
+               '\n'+
+               strip_color(self.describe())+'\n'+
+               'from '+os.getcwd()+'\n\n'+    
+               'nesoni '+nesoni.VERSION+'\n\n'
+            )
+        self._log_level = self._log_level + 1
+    
+    def _after_run(self):
+        self._log_level = self._log_level - 1
+        if self._log_level == 0:
+            now = datetime.datetime.now()
+            self.log.quietly_log(
+                '\n' +
+                ' started '+self._log_start.strftime('%_d %B %Y %_I:%M %p') + '\n'
+                'finished '+now.strftime('%_d %B %Y %_I:%M %p') + '\n'
+                'run time '+str( datetime.timedelta(seconds=int((now-self._log_start).total_seconds())) )
+            )
+
+            filename = self.log_filename()
+            if os.path.exists(os.path.split(filename)[0] or '.'):
+                self.log.attach(open(self.log_filename(),'ab'))
+            self.log.close()
+            del self.log
+            del self._log_start
+            del self._log_level
+
+
 @Positional('prefix', 'Prefix for output files.')
-class Action_with_prefix(Action):
+class Action_with_prefix(Action_with_log):
     prefix = None
     def ident(self):
         return super(Action_with_prefix,self).ident() + '--' + self.prefix 
+
+    def log_filename(self):
+        return self.prefix + '_log.txt'
+
+
+@Positional('output_dir', 'Directory for output files (will be created if does not exist).')
+class Action_with_output_dir(Action_with_log):
+    output_dir = None
+    def ident(self):
+        return Action.ident(self) + '--' + self.output_dir    
+
+    def log_filename(self):
+        return os.path.join(self.output_dir, self.shell_name() + '_log.txt')
+
+
+@Positional('working_dir', 'Directory for input and output files.')
+class Action_with_working_dir(Action_with_log):
+    working_dir = None
+    def ident(self):
+        return Action.ident(self) + '--' + self.working_dir
+
+    def log_filename(self):
+        return os.path.join(self.working_dir, self.shell_name() + '_log.txt')
+
 
 
 @String_flag('output', 'Output file (defaults to stdout). If filename ends with .gz or .bz2 it will be compressed appropriately.')
@@ -488,7 +561,7 @@ class Action_with_optional_output(Action):
         if self.output is not None:
             f.close()
 
-@String_flag('input', 'Input file (defaults to stdin). The file may be compressed with gzip or bzip2.')
+@String_flag('input', 'Input file (defaults to stdin). The file may be compressed with gzip or bzip2 or be a BAM file.')
 class Action_with_optional_input(Action):
     input = None
 
@@ -507,19 +580,6 @@ class Action_with_optional_input(Action):
 class Action_filter(Action_with_optional_input, Action_with_optional_output):
     pass
 
-
-@Positional('output_dir', 'Directory for output files (will be created if does not exist).')
-class Action_with_output_dir(Action):
-    output_dir = None
-    def ident(self):
-        return Action.ident(self) + '--' + self.output_dir    
-
-
-@Positional('working_dir', 'Directory for input and output files.')
-class Action_with_working_dir(Action):
-    working_dir = None
-    def ident(self):
-        return Action.ident(self) + '--' + self.working_dir
 
 
 
@@ -547,7 +607,7 @@ def shell_run(action, args, invocation=None):
         if isinstance(item, Positional) or (isinstance(item, Section) and not item.empty_is_ok):
             args_needed = True
 
-    if (args_needed and not args) or '-h' in args or '--help' in args:
+    if (args_needed and not args) or args == ['-h'] or args == ['--help']:
         write_colored_text(sys.stdout, 
             '\n'+action.describe(invocation, True)+'\n'+
             wrap(action.help, 70)+'\n\n\n'

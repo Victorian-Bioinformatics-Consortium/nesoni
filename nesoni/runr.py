@@ -819,58 +819,58 @@ class Test_counts(config.Action_with_prefix):
         )
 
 
-def test_counts_main(args):
-    #use_expr, args = grace.get_option_value(args, '--use', str, '')
-    min_count, args = grace.get_option_value(args, '--min-count', int, 10)
-    #tagwise, args = grace.get_option_value(args, '--tagwise', grace.as_bool, False)
-    #trend, args = grace.get_option_value(args, '--trend', grace.as_bool, True)
-    #prior_n, args = grace.get_option_value(args, '--prior', float, 0.0)
-    constant_term, args = grace.get_option_value(args, '--constant-term', grace.as_bool, True)
-    
-    mode, args = grace.get_option_value(args, '--mode', str, 'voom')
-    
-    quantile_norm, args = grace.get_option_value(args, '--quantile-norm', grace.as_bool, False)
-    
-    fdr, args = grace.get_option_value(args, '--fdr', float, 0.01)
-    output_all, args = grace.get_option_value(args, '--output-all', grace.as_bool, True)
-    only_tell, args = grace.get_option_value(args, '--tell', grace.as_bool, False)
-    
-    if len(args) < 2:
-        print >> sys.stderr, TEST_COUNTS_HELP
-        
-        for mode in ('voom', 'nullvoom', 'poisson', 'common', 'trend'):
-            print >> sys.stderr, '='*20
-            print >> sys.stderr, '--mode', mode
-            print >> sys.stderr, MODE_HELP[mode]
-        
-        raise grace.Help_shown()
-    
-    output_prefix, filename, args = args[0], args[1], args[2:]
-    
-    test_terms = [ ]
-    with_terms = [ ]
-    contrast_weights = [ ]
-    use_terms = [ ]
-    def default(args):
-        grace.expect_no_further_options(args)
-        test_terms.extend(args)
-    def with_(args):    
-        grace.expect_no_further_options(args)
-        with_terms.extend(args)
-    def contrast(args):
-        # -1 is not a flag... grace.expect_no_further_options(args)
-        contrast_weights.extend([ float(item) for item in args ])
-    def use(args):
-        grace.expect_no_further_options(args)
-        use_terms.extend(args)
-    
-    grace.execute(args, {'with': with_, 'contrast':contrast, 'use':use}, default)
-
-    test_counts_run(    
-        min_count, constant_term, mode, quantile_norm, fdr, output_all, only_tell,
-        output_prefix, filename, test_terms, with_terms, contrast_weights, use_terms,
-        None
-    )
+#def test_counts_main(args):
+#    #use_expr, args = grace.get_option_value(args, '--use', str, '')
+#    min_count, args = grace.get_option_value(args, '--min-count', int, 10)
+#    #tagwise, args = grace.get_option_value(args, '--tagwise', grace.as_bool, False)
+#    #trend, args = grace.get_option_value(args, '--trend', grace.as_bool, True)
+#    #prior_n, args = grace.get_option_value(args, '--prior', float, 0.0)
+#    constant_term, args = grace.get_option_value(args, '--constant-term', grace.as_bool, True)
+#    
+#    mode, args = grace.get_option_value(args, '--mode', str, 'voom')
+#    
+#    quantile_norm, args = grace.get_option_value(args, '--quantile-norm', grace.as_bool, False)
+#    
+#    fdr, args = grace.get_option_value(args, '--fdr', float, 0.01)
+#    output_all, args = grace.get_option_value(args, '--output-all', grace.as_bool, True)
+#    only_tell, args = grace.get_option_value(args, '--tell', grace.as_bool, False)
+#    
+#    if len(args) < 2:
+#        print >> sys.stderr, TEST_COUNTS_HELP
+#        
+#        for mode in ('voom', 'nullvoom', 'poisson', 'common', 'trend'):
+#            print >> sys.stderr, '='*20
+#            print >> sys.stderr, '--mode', mode
+#            print >> sys.stderr, MODE_HELP[mode]
+#        
+#        raise grace.Help_shown()
+#    
+#    output_prefix, filename, args = args[0], args[1], args[2:]
+#    
+#    test_terms = [ ]
+#    with_terms = [ ]
+#    contrast_weights = [ ]
+#    use_terms = [ ]
+#    def default(args):
+#        grace.expect_no_further_options(args)
+#        test_terms.extend(args)
+#    def with_(args):    
+#        grace.expect_no_further_options(args)
+#        with_terms.extend(args)
+#    def contrast(args):
+#        # -1 is not a flag... grace.expect_no_further_options(args)
+#        contrast_weights.extend([ float(item) for item in args ])
+#    def use(args):
+#        grace.expect_no_further_options(args)
+#        use_terms.extend(args)
+#    
+#    grace.execute(args, {'with': with_, 'contrast':contrast, 'use':use}, default)
+#
+#    test_counts_run(    
+#        min_count, constant_term, mode, quantile_norm, fdr, output_all, only_tell,
+#        output_prefix, filename, test_terms, with_terms, contrast_weights, use_terms,
+#        None
+#    )
 
 def test_counts_run(
     min_count, constant_term, mode, quantile_norm, fdr, output_all, only_tell,

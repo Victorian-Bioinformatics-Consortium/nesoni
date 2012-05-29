@@ -2,7 +2,7 @@
 __all__ = """
    coordinator
    generate 
-   remake_needed remake_clear
+   remake_needed remake_clear do_nothing
    future parallel_imap parallel_map parallel_for
    process barrier stage stage_function
    make process_make 
@@ -335,7 +335,6 @@ def parallel_for(iterable):
     def thread_for(func):
         for item in parallel_imap(func, iterable):
             pass
-        return func
     return thread_for
 
 
@@ -387,7 +386,7 @@ def stage(func, *args, **kwargs):
     finally:
         barrier()    
         LOCAL.parallels = old
-        return lambda: result
+    return result
 
 
 def stage_function(func):

@@ -95,7 +95,10 @@ class Workspace(object):
     _object_filename = object_filename
     
     # A single step down the path of darkness, what's the worst that can happen?
-    __div__ = relative_path_as_path
+    def __div__(self, path):
+        if not isinstance(path, basestring):
+            path = os.path.join(*path)
+        return self.relative_path_as_path(path)
 
 
 def run(args, stdin=None, stdout=subprocess.PIPE, stderr=None):
@@ -209,6 +212,10 @@ def open_possibly_compressed_file(filename):
     #    return filename #Whatever
         
     #peek, f = peek_and_pipe(open_possibly_remote_file(filename), 4)
+
+    from nesoni import sam    
+    if sam.is_bam(filename):
+        return sam.open_bam(filename)
     
     f = open(filename,'rb')
     peek = f.read(4)

@@ -3,7 +3,7 @@ import grace, config
 
 import sys
 
-VERSION='0.70'
+VERSION='0.72'
 
 BOLD = '\x1b[1m'
 END = '\x1b[m'

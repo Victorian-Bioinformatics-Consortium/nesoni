@@ -146,11 +146,19 @@ def is_bam(filename):
     import gzip
     try:
         f = gzip.open(filename,'rb')
+        magic = f.read(4)
+        f.close()
     except IOError:
         return False
-    magic = f.read(4)
-    f.close()
     return magic == 'BAM\x01'
+
+def open_bam(filename):
+    process = io.run([
+        'samtools', 'view', '-h',
+        io.abspath(filename),
+    ])    
+    return process.stdout
+
 
 
 def bam_headers(filename):

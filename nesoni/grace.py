@@ -220,7 +220,7 @@ def require_shrimp_1():
     except OSError:
         raise Error("Couldn't run 'rmapper-ls'. SHRiMP 1 not installed?")
 
-def require_shrimp_2():
+def get_shrimp_2_version():
     try:
         text = subprocess.Popen(['gmapper-ls'], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[1]
     except OSError:
@@ -229,14 +229,17 @@ def require_shrimp_2():
     for line in text.split('\n'):
         parts = line.strip().split()
         if len(parts) >= 2 and parts[0] == 'SHRiMP':
-            version_parts = parts[1].split('.')
-            major = int(version_parts[0])
-            minor = int(version_parts[1])
-            if major < 2 or (major == 2 and minor < 1):
-                raise Error("SHRiMP version 2.1 or higher required")
-            return
-            
-    raise Error("'gmapper-ls' did not output a version as expected. Confused.")
+            return parts[1]
+
+    raise Error("gmapper-ls didn't output a version number as expected")
+
+def require_shrimp_2():
+    version = get_shrimp_2_version()
+    version_parts = version.split('.')
+    major = int(version_parts[0])
+    minor = int(version_parts[1])
+    if major < 2 or (major == 2 and minor < 1):
+        raise Error("SHRiMP version 2.1 or higher required")
 
 def require_samtools():
     try:
