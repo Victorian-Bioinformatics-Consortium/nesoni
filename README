@@ -28,13 +28,14 @@ suitable for phylogenetic analysis in SplitsTree4.
 Python 2.6 or higher. Use of PyPy where possible is highly recommended 
 for performance.
 
-Required Python libraries:
-* BioPython (compiled modules may need to be disabled when installing in PyPy)
+Recommended Python libraries:
+* BioPython 
+  - for reading GenBank files 
+  - compiled modules may need to be disabled when installing in PyPy
 
 Optional Python libraries (used by non-core nesoni tools)
 * matplotlib
-* Cython
-* Numpy
+* numpy
 
 External programs:
 * SHRiMP
@@ -69,7 +70,7 @@ for usage instructions.
 
 nesoni can also be used without installing:
 
-    ./nesoni_scripts/nesoni 
+    ./nesoni-script 
 
 
 ~ Consensus policy

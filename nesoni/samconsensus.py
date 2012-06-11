@@ -1151,7 +1151,8 @@ def consensus_run(
         expected_miscalls += ref.expected_miscalls
         expected_miscalled_changes += ref.expected_miscalled_changes
     
-        annotation_filename = io.abspath(working_dir, grace.filesystem_friendly_name(rname) + '.gbk')
+        #annotation_filename = io.abspath(working_dir, grace.filesystem_friendly_name(rname) + '.gbk')
+        annotation_filename = reference / (grace.filesystem_friendly_name(rname) + '.gbk')
         if os.path.exists(annotation_filename):
             from Bio import SeqIO
             annotation_file = open(annotation_filename, 'rb')

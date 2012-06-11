@@ -29,4 +29,11 @@ setup(name='nesoni',
       },
       
       scripts=['nesoni_scripts/nesoni'],
+
+      classifiers = [
+          'License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)',
+      ],
+      url = 'http://bioinformatics.net.au/software.nesoni.shtml',
+      author = 'Paul Harrison',
+      author_email = 'paul.harrison@monash.edu',
 )

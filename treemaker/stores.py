@@ -3,91 +3,42 @@
     Key value store, with fast writing, semigroup update semantics
 
 """
-
-cdef extern from *:
-    ctypedef char* const_char_ptr "const char*"
-    ctypedef void** const_void_ptr_ptr "const void**"
-
-cdef extern from "Python.h":
-    int PyObject_AsReadBuffer(object obj, const_void_ptr_ptr buffer, Py_ssize_t *buffer_len)
-    object PyString_FromStringAndSize(char *v, int len)
     
-    ctypedef struct FILE
-    FILE* PyFile_AsFile(object)
-    void  fprintf(FILE* f, char* s, char* s)
-    
-    ctypedef unsigned long size_t
-    FILE *fopen(char *path, char *mode)
-    int fclose(FILE *fp)
-    size_t fwrite(void *ptr, size_t size, size_t nmemb, FILE *stream)
-    int fputc(int c, FILE *stream)
-    long ftell(FILE *stream)
-    
-    int memcmp(void *s1, void *s2, size_t n)
-
-ctypedef FILE *FILE_ptr
-ctypedef char *char_ptr
-    
-import sys, os, mmap, heapq, itertools
-
-from treemaker import worker_pool
-
-cdef inline int compare_strings(char *str1, long len1, char *str2, long len2):
-    cdef long min_length
-    if len1 < len2:
-        min_length = len1
-    else:
-        min_length = len2
-        
-    cdef int result = memcmp(
-        str1,
-        str2,
-        min_length
-    )
-        
-    if not result:
-        if len1 < len2:
-            result = -1
-        elif len1 > len2:
-            result = 1
-        
-    return result
+import sys, os, mmap, heapq, itertools, struct
 
 
-cdef inline void write_int64(FILE_ptr f, long value):
-    fwrite( &value, 8, 1, f )
+def write_int64(f, value):
+    f.write(struct.pack('<q', value))
 
-cdef inline str string_from_int64(long value):
-    return PyString_FromStringAndSize(<char*>&value, 8)
+def string_from_int64(value):
+    return struct.pack('<q', value)
 
-cdef inline long int64_from_string(string): #TODO: restore to str string when Cython is fixed
-    return (<long*><char*>string)[0]
+def int64_from_string(string): #TODO: restore to str string when Cython is fixed
+    return struct.unpack('<q', string)[0]
 
-cdef inline void write_int(FILE_ptr f, long value):
+def write_int(f, value):
     """ Write an unsigned integer, concisely """
 
     while value >= 128:
-        fputc( (value&127)|128, f )
+        f.write( chr( (value&127)|128 ) )
         value >>= 7
-    fputc( value, f )
+    f.write(chr(value))
 
-cdef inline long read_int(char **data):
+def read_int(data, offset):
     """ Read a concise unsigned integer """
 
-    cdef long result = 0
-    cdef unsigned char x
-    cdef int shift = 0
-    
+    result = 0
+    shift = 0
     while True:
-        x = data[0][0]
-        data[0] += 1        
-        result += (<long>(x&127)) << shift
+        x = ord(data[offset])
+        offset += 1
+        result += (x&127) << shift
         if (x&128) == 0: break
         shift += 7
-    return result
+    return result, offset
 
 
-cpdef remove_tree(path):
+def remove_tree(path):
     if not os.path.exists(path): return
     
     for filename in os.listdir(path):
@@ -97,15 +48,10 @@ cpdef remove_tree(path):
     os.rmdir(path)
 
 
-cpdef make_tree(path, sequence):
-    cdef long i, j, ones, left_loc, right_loc
-    
-    #TODO: restore when Cython is fixed
-    #cdef str key, value
-    
-    cdef int n_levels = 0
-    cdef FILE_ptr files[64]    
-    cdef long last[64]
+def make_tree(path, sequence):
+    n_levels = 0
+    files = [ ]
+    last = [ ]
 
     remove_tree(path)
     os.mkdir(path)
@@ -120,29 +66,27 @@ cpdef make_tree(path, sequence):
         
         while n_levels <= ones:
             filename = os.path.join(path, str(n_levels))
-            files[n_levels] = fopen(filename, 'wb')
-            last[n_levels] = 0
+            files.append( open(filename, 'wb') )
+            last.append( 0 )
             n_levels += 1            
 
-        # last[ones] = levels[ones].tell()
-        
         if ones:
             left_loc = last[ones-1]
             for j in xrange(ones):            
-                last[j] = ftell(files[j])
+                last[j] = files[j].tell()
             right_loc = last[ones-1]
             
             write_int(files[ones], left_loc)
             
             # Right should not be far from left,
-            # write as a relative position to safe space
+            # write as a relative position to save space
             write_int(files[ones], right_loc - left_loc)
             
-        write_int(files[ones], len(key))        
-        fwrite( <char*>key, len(key), 1, files[ones] )
+        write_int(files[ones], len(key))
+        files[ones].write(key)        
 
         write_int(files[ones], len(value))
-        fwrite( <char*>value, len(value), 1, files[ones] )
+        files[ones].write(value)
         
         i += 1
 
@@ -156,16 +100,10 @@ cpdef make_tree(path, sequence):
             write_int64(files[i+1], last[i])
             
     for i in xrange(n_levels): 
-        fclose(files[i])
+        files[i].close()
 
 
-cdef class Cursor
-
-cdef class Tree:
-    cdef public object path, levels
-    cdef Py_ssize_t sizes[64]
-    cdef char_ptr maps[64]
-
+class Tree:
     def __init__(self, path):
         self.path = path
         self.levels = [ ]
@@ -175,104 +113,88 @@ cdef class Tree:
              f = open(filename,'rb')
              self.levels.append(mmap.mmap(f.fileno(), 0, prot=mmap.PROT_READ))
              f.close()
-      
-        for i in xrange(len(self.levels)):
-            #self.sizes[i] = len(self.levels[i])
-            PyObject_AsReadBuffer(self.levels[i], <const_void_ptr_ptr>&(self.maps[i]),
-                <Py_ssize_t*>&(self.sizes[i]))
+
+        self.sizes = [ len(item) for item in self.levels ]      
 
     def __dealloc__(self):
         for level in self.levels:
             level.close()
 
-    cpdef size(self):
-        return sum([ len(item) for item in self.levels ])
+    def size(self):
+        return sum(self.sizes)
 
-    cpdef Cursor cursor(self):
+    def cursor(self):
         if not self.levels: return None
         return Cursor(self, len(self.levels)-1, 0, None)
         
 
-cdef class Cursor:
-    cdef public Tree tree
-    cdef public Cursor successor
-    cdef public long level
-
-    cdef public long left_loc, right_loc, key_length
-    cdef char *data_ptr
-
-    def __cinit__(Cursor self, Tree tree, long level, long position, Cursor successor):
+class Cursor:
+    def __init__(self, tree, level, position, successor):
         self.tree = tree
         self.level = level
         #self.position = position
         self.successor = successor
         
-        self.data_ptr = tree.maps[level] + position
+        #self.data_ptr = tree.maps[level] + position
+        self.data = tree.levels[level]
+        self.offset = position
+        
         if level:
-            self.left_loc = read_int(&self.data_ptr)
-            self.right_loc = self.left_loc + read_int(&self.data_ptr)
-        self.key_length = read_int(&self.data_ptr)
+            self.left_loc, self.offset = read_int(self.data, self.offset)
+            self.right_loc, self.offset = read_int(self.data, self.offset)
+            self.right_loc += self.left_loc
+        self.key_length, self.offset = read_int(self.data, self.offset)
 
-    def __cmp__(Cursor self, Cursor other):
-        return compare_strings(self.data_ptr,self.key_length,other.data_ptr,other.key_length)
-    cpdef int compare(Cursor self, Cursor other):
-        return compare_strings(self.data_ptr,self.key_length,other.data_ptr,other.key_length)
-
-    # This is weirdly broken.
-    #cpdef int compare_to_string(Cursor self, char *string, long length):        
-    #    return compare_strings(self.data_ptr,self.key_length,string,length)
-
-    cpdef int compare_to_str(Cursor self, string): #TODO: restore to str string when Cython is fixed        
-        cdef char *str_ptr = string
-        return compare_strings(self.data_ptr,self.key_length,str_ptr, len(string))
+    def __cmp__(self, other):
+        return cmp(self.key(), other.key())
         
-    cpdef str key(Cursor self):
-        return PyString_FromStringAndSize(self.data_ptr, self.key_length)
-        
-    cpdef str value(Cursor self):
-        cdef char *value_ptr = self.data_ptr + self.key_length
-        cdef long value_length = read_int(&value_ptr)
-    
-        return PyString_FromStringAndSize(value_ptr, value_length)
+    compare = __cmp__
 
-    cpdef Cursor left(Cursor self):
+    def compare_to_str(self, string):        
+        return cmp(self.key(), string)
+        
+    def key(self):
+        return self.data[self.offset:self.offset+self.key_length]
+        
+    def value(self):
+        value_length, value_offset = read_int(self.data,self.offset+self.key_length)
+        return self.data[value_offset:value_offset+value_length]
+
+    def left(self):
         if self.level == 0: return None
         
         return Cursor(self.tree, self.level-1, self.left_loc, self)
 
-    cpdef Cursor right(Cursor self):
+    def right(self):
         if self.level == 0: return None
 
-        cdef long new_level = self.level-1
-        cdef long new_position = self.right_loc
+        new_level = self.level-1
+        new_position = self.right_loc
         
         while new_position == self.tree.sizes[new_level] - 8:
             if new_level == 0: return None
         
-            new_position = (<long*>(self.tree.maps[new_level]+new_position))[0]            
+            new_position = int64_from_string(self.tree.levels[new_level][new_position:new_position+8])
             new_level -= 1
         
         return Cursor(self.tree, new_level, new_position, 
                       self.successor)
     
-    cpdef Cursor next(Cursor self):
-        cdef Cursor right = self.right()
+    def next(self):
+        right = self.right()
         if right is None: return self.successor
         return left_most(right)
 
 
-cpdef Cursor left_most(Cursor cursor):
+def left_most(cursor):
     if not cursor: return None
     while cursor.level > 0:
         cursor = cursor.left()
     return cursor
 
 
-cdef class Cursor_merge(object):
-    cdef Cursor cursor1, cursor2
-    cdef object reducer
-
-    def __cinit__(self, cursor1, cursor2, reducer):
+class Cursor_merge(object):
+    def __init__(self, cursor1, cursor2, reducer):
         self.cursor1 = cursor1
         self.cursor2 = cursor2
         self.reducer = reducer
@@ -280,7 +202,7 @@ cdef class Cursor_merge(object):
     def __iter__(self):
         return self
 
-    def __next__(self):        
+    def next(self):        
         if self.cursor1 is None:
             if self.cursor2 is None:
                 raise StopIteration()
@@ -294,7 +216,7 @@ cdef class Cursor_merge(object):
             self.cursor1 = self.cursor1.next()
             return result
         
-        cdef int comparison = self.cursor1.compare(self.cursor2)
+        comparison = self.cursor1.compare(self.cursor2)
         
         if comparison < 0:
             result = (self.cursor1.key(), self.cursor1.value())
@@ -313,11 +235,10 @@ cdef class Cursor_merge(object):
             return result
 
 
-cdef class Cursor_merge_all:
-    cdef list cursor_heap # heap of (cursor, priority)
-    cdef object reducer
-
-    def __cinit__(self, cursors, reducer):
+class Cursor_merge_all:
+    # cursor_heap = heap of (cursor, priority)
+    
+    def __init__(self, cursors, reducer):
         # Cursors should be passed as a list from newest to oldest
 
         self.reducer = reducer    
@@ -329,7 +250,7 @@ cdef class Cursor_merge_all:
     def __iter__(self):
         return self
 
-    def __next__(self):
+    def next(self):
         if not self.cursor_heap:
             raise StopIteration()
         
@@ -348,17 +269,15 @@ cdef class Cursor_merge_all:
         return (heap_items[0][0].key(), result)
 
 
-cdef class Skip_discardables:
-    cdef object cursor_merger, is_discardable
-
-    def __cinit__(self, cursor_merger, is_discardable):
+class Skip_discardables:
+    def __init__(self, cursor_merger, is_discardable):
         self.cursor_merger = cursor_merger
         self.is_discardable = is_discardable
     
     def __iter__(self):
         return self
     
-    def __next__(self):
+    def next(self):
         result = self.cursor_merger.next() #May throw Stop_iteration, that's fine
         while self.is_discardable(result[1]):
             result = self.cursor_merger.next()
@@ -367,11 +286,11 @@ cdef class Skip_discardables:
 
 
 
-cpdef _default_is_final(item): return True
-cpdef _default_is_discardable(item): return False
-cpdef _default_reducer(item_older, item_newer): return item_newer
+def _default_is_final(item): return True
+def _default_is_discardable(item): return False
+def _default_reducer(item_older, item_newer): return item_newer
 
-cdef class Store:
+class Store:
     """ Key-value store with per-key reductions
     
         Default behaviour is to over-write existing keys,
@@ -382,14 +301,14 @@ cdef class Store:
     
     """
 
-    cdef public object path, trees, cursors, next_tree_id, read_only
-    cdef public object memory, memory_size
-    cdef public object lock, busy_paths,
-    # merger_processes
-    #cdef public object manager, worker_pool, unbusy_queue
-    cdef public object pool
-
-    cdef public object default_value, is_discardable, is_final, reducer
+    #cdef public object path, trees, cursors, next_tree_id, read_only
+    #cdef public object memory, memory_size
+    #cdef public object lock, busy_paths,
+    ## merger_processes
+    ##cdef public object manager, worker_pool, unbusy_queue
+    #cdef public object pool
+    #
+    #cdef public object default_value, is_discardable, is_final, reducer
 
     def __init__(self, 
                  path, 
@@ -414,34 +333,22 @@ cdef class Store:
         self.memory_size = memory_size
         self.memory = { }
         
-        #self.manager = multiprocessing.Manager()
-        #self.lock = self.manager.Lock()
-        #self.merger_processes = [ ]
-        self.busy_paths = set()
-        
-        #self.unbusy_queue = self.manager.Queue()
-        #self.unbusy_inpipe, self.unbusy_outpipe = multiprocessing.Pipe(False)
-        #self.worker_pool = multiprocessing.Pool()
-        
-        self.lock = worker_pool.Lock()
-        self.pool = worker_pool.Worker_pool(do_mergedown, (self.lock,self.reducer))
-        
         self.trees = [ ]
         
         self._clean_house()
         self._remap()
 
-    cpdef close(self):
+    def close(self):
         self.flush()
         self.finish_merging()
     
-    cpdef destroy(self):
+    def destroy(self):
         """ Delete entire store directory """
         self.clear()
         self.close()
         os.rmdir(self.path)
     
-    cpdef _clean_house(self):
+    def _clean_house(self):
         """ Called by init. """
         if self.read_only: return
         
@@ -460,8 +367,8 @@ cdef class Store:
                remove_tree(tree2)
                os.rename(full_name, tree1)      
                 
-    cpdef _remap(self):
-        self.lock.acquire()
+    def _remap(self):
+        #self.lock.acquire()
     
         list_numbers = [ int(filename) 
                          for filename in os.listdir(self.path)
@@ -479,7 +386,7 @@ cdef class Store:
             if not os.path.exists(filename): break
             self.trees.append( Tree(filename) )
                 
-        self.lock.release()
+        #self.lock.release()
         
         self.cursors = [ ]
         for tree in self.trees[::-1]: #Note reverse order!
@@ -487,7 +394,7 @@ cdef class Store:
             if cursor is not None: self.cursors.append(cursor)
         
     
-    cpdef clear(self):
+    def clear(self):
         self.finish_merging()
     
         for tree in self.trees:
@@ -497,86 +404,31 @@ cdef class Store:
         self._remap()
 
     
-    cpdef finish_merging(self, wait=True):
-        #still_waiting = [ ]
-        #any = False
-        #for item in self.merger_processes:
-        #    if not wait and item[0].is_alive():
-        #        still_waiting.append(item)
-        #        continue
-        #    
-        #    #if item[0].is_alive(): print 'wait!'
-        #    
-        #    item[0].join()
-        #    self.busy_paths.remove(item[1])
-        #    self.busy_paths.remove(item[2])
-        #    #print 'done', item[1], item[2]
-        #    any = True
-        #
-        #self.merger_processes = still_waiting
-        #
-        
-        #any = False
-        #while self.busy_paths and (wait or not self.unbusy_queue.empty()):
-        #    self.busy_paths.remove( self.unbusy_queue.get() )
-        #    any = True
-
-        any = False
-        while self.busy_paths:
-            try:
-                result = self.pool.get(wait)
-            except worker_pool.Empty:
-                break
-            
-            for path in result:
-                self.busy_paths.remove(path)
-            any = True
-        
-        if any:
-            self._remap()
-            
-        return any
+    def finish_merging(self, wait=True):
+        return False
         
     
-    cpdef start_merging(self, all=False):
+    def start_merging(self, all=False):
         self.finish_merging(False)
         
         pos = len(self.trees)-2
         while pos >= 0:
-            if self.trees[pos].path not in self.busy_paths and \
-               self.trees[pos+1].path not in self.busy_paths and \
-               (all or self.trees[pos].size() <= self.trees[pos+1].size() * 2):
+            if (all or self.trees[pos].size() <= self.trees[pos+1].size() * 2):
                 path1 = self.trees[pos].path
                 path2 = self.trees[pos+1].path
-                self.busy_paths.add(path1)
-                self.busy_paths.add(path2)
-                #print 'merge', path1, path2
                 
                 if pos == 0:
                     is_discardable_if_needed = self.is_discardable
                 else:
                     is_discardable_if_needed = None
                 
-                #process = multiprocessing.Process(
-                #    target=do_mergedown,
-                #    args=(self.path, path1, path2,
-                #          self.reducer, is_discardable_if_needed,
-                #          self.lock, self.unbusy_queue))
-                #process.start()
-                #self.merger_processes.append((process,path1,path2))
-                
-                #self.worker_pool.apply_async(
-                #    do_mergedown,
-                #    (self.lock, self.reducer, self.path, path1, path2,
-                #     self.reducer, is_discardable_if_needed))
-
-                self.pool.put((
-                     self.path, path1, path2,
-                     is_discardable_if_needed))
+                do_mergedown(self.reducer, self.path, path1, path2, is_discardable_if_needed)
                 
                 pos -= 2
             else:
                 pos -= 1
+        
+        self._remap()
 
 
     def optimize(self):
@@ -588,7 +440,7 @@ cdef class Store:
             self.finish_merging(True)        
 
     
-    cpdef flush(self):
+    def flush(self):
         if not self.memory: return
         
         tempname = os.path.join(self.path, 'newtree')
@@ -620,11 +472,9 @@ cdef class Store:
         return self._get(key)
     
     def _get(self, key):
-        cdef Cursor cursor
-
-        if self.busy_paths:
-            if self.finish_merging(False):
-                self.start_merging()
+        #if self.busy_paths:
+        #    if self.finish_merging(False):
+        #        self.start_merging()
         
         if key in self.memory:
             result = self.memory[key]
@@ -632,10 +482,6 @@ cdef class Store:
         else:
             result = None
             
-        #cdef char *key_ptr = key
-        #cdef long key_len = len(key)
-        cdef int comparison
-        
         for cursor in self.cursors:
             while cursor:
                 comparison = cursor.compare_to_str(key)
@@ -696,7 +542,7 @@ cdef class Store:
             
             
 
-def do_mergedown(lock, reducer, path, path1, path2, is_discardable):
+def do_mergedown(reducer, path, path1, path2, is_discardable):
     name1 = os.path.split(path1)[1]
     name2 = os.path.split(path2)[1]
     
@@ -704,10 +550,10 @@ def do_mergedown(lock, reducer, path, path1, path2, is_discardable):
     new_filename_build = new_filename_base + '-build'
     new_filename_ready = new_filename_base + '-ready'
     
-    lock.acquire()
+    #lock.acquire()
     tree1 = Tree(path1)
     tree2 = Tree(path2)
-    lock.release()
+    #lock.release()
     
     merger = Cursor_merge(
                 left_most(tree1.cursor()),
@@ -723,33 +569,29 @@ def do_mergedown(lock, reducer, path, path1, path2, is_discardable):
         remove_tree(new_filename_build)
         raise
         
-    lock.acquire()
+    #lock.acquire()
     os.rename(new_filename_build, new_filename_ready)
     remove_tree(path1)
     remove_tree(path2)
     os.rename(new_filename_ready, path1)
-    lock.release()
-    
-    #unbusy_queue.put(path1)
-    #unbusy_queue.put(path2)
-    return path1, path2    
+    #lock.release()
 
 
 _counting_store_default = string_from_int64(0)
 
-cpdef _counting_store_is_final(item): 
+def _counting_store_is_final(item): 
     return False
 
-cpdef _counting_store_is_discardable(item): 
+def _counting_store_is_discardable(item): 
     return item == _counting_store_default
 
-cpdef _counting_store_reduce(item_older, item_newer):
+def _counting_store_reduce(item_older, item_newer):
     return string_from_int64(int64_from_string(item_older) + int64_from_string(item_newer))
 
-cpdef _counting_store_iter_filter(pair):
+def _counting_store_iter_filter(pair):
     return (pair[0], int64_from_string(pair[1]))
 
-cdef class Counting_store(Store):
+class Counting_store(Store):
     """ Store for counting strings with """
     
     def __init__(self, path, **kwargs):
@@ -778,29 +620,29 @@ cdef class Counting_store(Store):
 
 _count_and_shadow_store_default = string_from_int64(0) * 2
 
-cpdef _count_and_shadow_store_is_final(item): 
+def _count_and_shadow_store_is_final(item): 
     return False
 
 # Discard shadow if count == 0
-cpdef _count_and_shadow_store_is_discardable(item): 
+def _count_and_shadow_store_is_discardable(item): 
     return item[:8] == _counting_store_default
 
-cpdef _count_and_shadow_store_reduce(item_older, item_newer):
+def _count_and_shadow_store_reduce(item_older, item_newer):
     older_count = int64_from_string(item_older[0:8])
     older_shadow = int64_from_string(item_older[8:16])
     newer_count = int64_from_string(item_newer[0:8])
     newer_shadow = int64_from_string(item_newer[8:16])
     return string_from_int64(older_count+newer_count) + string_from_int64(max(older_shadow,newer_shadow))
 
-cpdef _count_and_shadow_decode(item):
+def _count_and_shadow_decode(item):
     count = int64_from_string(item[0:8])
     shadow = int64_from_string(item[8:16])
     return (count, shadow)
 
-cpdef _count_and_shadow_store_iter_filter(pair):
+def _count_and_shadow_store_iter_filter(pair):
     return (pair[0], _count_and_shadow_decode(pair[1]))
 
-cdef class Count_and_shadow_store(Store):
+class Count_and_shadow_store(Store):
     """ Store for counting strings with """
     
     def __init__(self, path, **kwargs):
@@ -828,13 +670,13 @@ cdef class Count_and_shadow_store(Store):
 
 
 
-cpdef _general_store_is_discardable(item): 
+def _general_store_is_discardable(item): 
     return item == ''
     
-cpdef _general_store_is_final(item): 
+def _general_store_is_final(item): 
     return item == '' or item[0] == 'S'
 
-cpdef _general_store_reduce(item_older, item_newer):
+def _general_store_reduce(item_older, item_newer):
     #Delete
     if item_newer == '': 
         return item_newer
@@ -852,23 +694,21 @@ cpdef _general_store_reduce(item_older, item_newer):
         #to set or append
         return item_older + item_newer[1:]
 
-cpdef _general_store_iter_filter(pair):
+def _general_store_iter_filter(pair):
     return (pair[0], pair[1][1:])        
 
-cpdef _general_store_iter_keys_filter(pair):
+def _general_store_iter_keys_filter(pair):
     return pair[0]        
 
-cpdef _identity(x): return x
+def _identity(x): return x
 
-cdef class General_store(Store):
+class General_store(Store):
     """ Store that allows setting, deleting and appending 
     
         You can specify functions to encode and decode values.
         If you will be using append_to, the decoder
         should cope with encoded values being concatenated together.
     """
-    
-    cdef public object value_encoder, value_decoder
 
     def __init__(self, path,
                  value_encoder=_identity,
@@ -926,13 +766,13 @@ cdef class General_store(Store):
 
 
 
-cpdef _int_list_store_encode(values):
+def _int_list_store_encode(values):
     return ''.join([ string_from_int64(item) for item in values ])
     
-cpdef _int_list_store_decode(str string):
+def _int_list_store_decode(string):
     return [ int64_from_string(string[i:i+8]) for i in xrange(0,len(string),8) ]
 
-cdef class Int_list_store(General_store):
+class Int_list_store(General_store):
     def __init__(self, path, **kwargs):
         General_store.__init__(self, path,
             value_encoder=_int_list_store_encode,

@@ -1295,6 +1295,9 @@ normalizing multipliers as calculated by EdgeR using Trimmed Mean of M-values no
 class Norm_from_counts(config.Action_with_prefix):
     tmm = True
 
+    def log_filename(self):
+        return self.prefix + '-norm_log.txt'
+
     def run(self):
         run_script(NORMALIZATION_SCRIPT,
             PREFIX=self.prefix,

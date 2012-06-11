@@ -1,7 +1,7 @@
 global-include *.py *.pyx
 exclude release.py
-exclude nesoni2
-exclude nesoni_vbc
+include nesoni-script
+include nesoni_scripts/*
 include README
 include CHANGES
 include COPYING

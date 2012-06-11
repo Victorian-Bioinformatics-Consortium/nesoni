@@ -1,5 +1,5 @@
 
-from nesoni import io, bio, grace, sam, config
+from nesoni import io, bio, grace, sam, config, working_directory
 
 import os, sys, subprocess
 
@@ -157,59 +157,64 @@ class Shrimp(config.Action_with_output_dir):
         
         #Create working directory
         
-        workspace = io.Workspace(self.output_dir)
+        workspace = working_directory.Working(self.output_dir, must_exist=False)
+        workspace.setup_reference(self.references)        
+        reference = workspace.get_reference()
+        reference_filename = reference.reference_fasta_filename()
         
-        workspace.update_param( 
-            shrimp_cutoff = cutoff
-        )
-        
-        #Make copy of reference sequences
-        
-        reference_filename = io.abspath(self.output_dir,'reference.fa')
-        reference_file = open(reference_filename,'wb')
-        
-        reference_genbank_filename = io.abspath(self.output_dir,'reference.gbk')
-        reference_genbank_file = open(reference_genbank_filename,'wb')
-        any_genbank = [ False ]
-        
-        def genbank_callback(name, record):
-            """ Make a copy of any genbank files passed in. """
-            from Bio import SeqIO
-            
-            SeqIO.write([record], reference_genbank_file, 'genbank')
-            
-            f = open(os.path.join(
-                self.output_dir,
-                grace.filesystem_friendly_name(name) + '.gbk'
-            ), 'wb')
-            SeqIO.write([record], f, 'genbank')
-            f.close()
-            
-            any_genbank[0] = True
-        
-        for filename in self.references:
-            for name, sequence in io.read_sequences(filename, genbank_callback=genbank_callback):
-                #Don't retain any comment
-                name = name.split()[0]
-                io.write_fasta(reference_file, name, sequence.upper())
-                
-                f = open(os.path.join(
-                    self.output_dir,
-                    grace.filesystem_friendly_name(name) + '.fa'
-                ), 'wb')
-                io.write_fasta(f, name, sequence.upper())
-                f.close()
-                
-        
-        reference_file.close()
-        reference_genbank_file.close()
-        if not any_genbank[0]:
-            os.unlink(reference_genbank_filename)
-
-        # Create an index of the reference sequences
-        io.execute([
-            'samtools', 'faidx', reference_filename
-        ])
+        #workspace = io.Workspace(self.output_dir)
+        #
+        #workspace.update_param( 
+        #    shrimp_cutoff = cutoff
+        #)
+        #
+        ##Make copy of reference sequences
+        #
+        #reference_filename = io.abspath(self.output_dir,'reference.fa')
+        #reference_file = open(reference_filename,'wb')
+        #
+        #reference_genbank_filename = io.abspath(self.output_dir,'reference.gbk')
+        #reference_genbank_file = open(reference_genbank_filename,'wb')
+        #any_genbank = [ False ]
+        #
+        #def genbank_callback(name, record):
+        #    """ Make a copy of any genbank files passed in. """
+        #    from Bio import SeqIO
+        #    
+        #    SeqIO.write([record], reference_genbank_file, 'genbank')
+        #    
+        #    f = open(os.path.join(
+        #        self.output_dir,
+        #        grace.filesystem_friendly_name(name) + '.gbk'
+        #    ), 'wb')
+        #    SeqIO.write([record], f, 'genbank')
+        #    f.close()
+        #    
+        #    any_genbank[0] = True
+        #
+        #for filename in self.references:
+        #    for name, sequence in io.read_sequences(filename, genbank_callback=genbank_callback):
+        #        #Don't retain any comment
+        #        name = name.split()[0]
+        #        io.write_fasta(reference_file, name, sequence.upper())
+        #        
+        #        f = open(os.path.join(
+        #            self.output_dir,
+        #            grace.filesystem_friendly_name(name) + '.fa'
+        #        ), 'wb')
+        #        io.write_fasta(f, name, sequence.upper())
+        #        f.close()
+        #        
+        #
+        #reference_file.close()
+        #reference_genbank_file.close()
+        #if not any_genbank[0]:
+        #    os.unlink(reference_genbank_filename)
+        #
+        ## Create an index of the reference sequences
+        #io.execute([
+        #    'samtools', 'faidx', reference_filename
+        #])
         
         #Run shrimp
         
@@ -224,10 +229,10 @@ class Shrimp(config.Action_with_output_dir):
         
         sam_eater = sam.Bam_writer(temp_filename)
         
-        if self.cs:
-            program = 'gmapper-cs'
-        else:
-            program = 'gmapper-ls'
+        #if self.cs:
+        #    program = 'gmapper-cs'
+        #else:
+        #    program = 'gmapper-ls'
         
         sam_header_sent = [False]
         n_seen = [0]
@@ -312,7 +317,7 @@ class Shrimp(config.Action_with_output_dir):
             
             grace.status('')
             
-            full_param = [ program ] + options + reads_parameters + [ reference_filename ]
+            full_param = reference.shrimp_command(self.cs, options + reads_parameters)
             
             print >> sys.stderr, 'Running', ' '.join(full_param)
             

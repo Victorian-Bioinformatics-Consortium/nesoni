@@ -1,4 +1,8 @@
 
+0.73 - heatmap: slightly smarter
+       clip: converted to new style
+       treemaker no longer depends on Cython
+
 0.72 - Tools now log command line invocation
        import: can import BAM files
        shrimp: shrimp-options: -h now works again 

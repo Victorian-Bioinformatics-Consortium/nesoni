@@ -3,7 +3,7 @@ import grace, config
 
 import sys
 
-VERSION='0.72'
+VERSION='0.73'
 
 BOLD = '\x1b[1m'
 END = '\x1b[m'
@@ -129,6 +129,7 @@ samcount, for analysis with BioConductor packages.
 """ % { 'BOLD' : '\x1b[1m', 'END' : '\x1b[m', 'VERSION' : VERSION }
 
 from reference_directory import Make_reference
+from clip import Clip
 from samimport import Import
 from samshrimp import Shrimp
 from samconsensus import Filter, Reconsensus, Consensus
@@ -289,9 +290,9 @@ def get_commands():
     def pastiche(args):
         grace.load('pastiche').pastiche(args)
 
-    @add
-    def clip(args):
-        grace.load('clip').clip(args)
+    #@add
+    #def clip(args):
+    #    grace.load('clip').clip(args)
     
     @add
     def plot_counts(args):

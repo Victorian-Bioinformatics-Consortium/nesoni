@@ -120,7 +120,7 @@ Nesoni provides the following specific usage information when run with no parame
 <!--#include virtual="bot.html" -->
 """
 
-os.environ['PATH'] = '/opt/python/bin:' + os.environ['PATH']
+os.environ['PATH'] = '/bio/sw/python/bin:' + os.environ['PATH']
 
 # RAGE
 os.system('rm MANIFEST')

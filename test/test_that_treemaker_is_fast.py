@@ -2,8 +2,8 @@
 import sys, os
 sys.path.insert(0, os.path.join(os.path.split(__file__)[0], '../'))
 
-import pyximport
-pyximport.install()
+#import pyximport
+#pyximport.install()
 
 import time, sys, os
 

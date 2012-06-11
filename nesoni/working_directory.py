@@ -12,8 +12,8 @@ class Working(io.Workspace):
             self.set_reference(filenames[0])
             return
         
-        path = self.object_filename('reference')
-        reference_directory.Make_reference(path, filenames).run()
+        path = self / 'reference'
+        reference_directory.Make_reference(path, filenames=filenames).run()
         self.set_reference(path)
 
     def get_reference(self):

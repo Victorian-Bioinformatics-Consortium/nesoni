@@ -7,16 +7,44 @@ class Reference(io.Workspace):
     def __init__(self, working_dir, must_exist):
         super(Reference,self).__init__(working_dir, must_exist)        
     
-    def set_sequences(self, filenames):
+    def set_sequences(self, filenames):        
+        reference_genbank_filename = self / 'reference.gbk'
+        reference_filename = self / 'reference.fa'
+
+        reference_genbank_file = open(reference_genbank_filename,'wb')
+        any_genbank = [ False ]
+
+        def genbank_callback(name, record):
+            """ Make a copy of any genbank files passed in. """
+            from Bio import SeqIO
+            
+            SeqIO.write([record], reference_genbank_file, 'genbank')
+            
+            f = open(self / (grace.filesystem_friendly_name(name) + '.gbk'), 'wb')
+            SeqIO.write([record], f, 'genbank')
+            f.close()
+            
+            any_genbank[0] = True
+        
         lengths = [ ]
-        f = self.open('reference.fa', 'wb')
+        f = open(reference_filename, 'wb')
         for filename in filenames:
-            for name, seq in io.read_sequences(filename):
+            for name, seq in io.read_sequences(filename, genbank_callback=genbank_callback):
                 name = name.split()[0]
                 lengths.append( (name, len(seq)) )
                 io.write_fasta(f, name, seq)
         f.close()        
         self.set_object(lengths, 'reference-lengths.pickle.gz')
+        
+        reference_genbank_file.close()
+        if not any_genbank[0]:
+            os.unlink(reference_genbank_filename)
+            
+        # Create an index of the reference sequences for samtools
+        io.execute([
+            'samtools', 'faidx', reference_filename
+        ])
+
     
     def get_lengths(self):
         #Legacy working directory
@@ -43,9 +71,14 @@ class Reference(io.Workspace):
         ])
         grace.status('')
     
-    def shrimp_command(self, cs=False):
+    def shrimp_command(self, cs=False, parameters = [ ]):
+        """ Parameters:
+            First any parameters, then
+            Single read file [ 'r.fa' ]
+            Two paired reads file [ '-1', 'r1.fa', '-2', 'r2.fa' ]
+        """
         suffix = '-cs' if cs else '-ls'
-        result = [ 'gmapper' + suffix ]
+        result = [ 'gmapper' + suffix ] + parameters
         mmap_name = self.object_filename('reference' + suffix)
         if os.path.exists(mmap_name + '.genome'):
             result.extend([ '--load', mmap_name ])

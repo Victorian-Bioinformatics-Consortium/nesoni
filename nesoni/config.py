@@ -72,6 +72,8 @@ def expect_no_further_flags(args):
     for arg in args:
         if arg.startswith('-'):
             raise Error('Unexpected flag "%s"' % arg)
+        if arg.endswith(':'):
+            raise Error('Unexpected section "%s"' % arg)
 
 
 def execute(args, commands, default_command):
@@ -267,7 +269,7 @@ class Main_section(Section):
 
 class Configurable_section(Section):
     def __init__(self, name, help='', empty_is_ok=True):
-        super(Configurable_section,self).__init__(name,help,True,empty_is_ok)
+        super(Configurable_section,self).__init__(name,help=help,allow_flags=True,empty_is_ok=empty_is_ok)
 
     def parse(self, obj, args):
         new = self.get(obj)()

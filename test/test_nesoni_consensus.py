@@ -33,7 +33,8 @@ for prefix3, is_sam in outer:
             print
             
             for filename in glob.glob(os.path.join(name, '*')):
-                os.unlink(filename)            
+                if not os.path.isdir(filename):
+                    os.unlink(filename)            
             
             run_nesoni(r""" \
                 %sshrimp: %s \

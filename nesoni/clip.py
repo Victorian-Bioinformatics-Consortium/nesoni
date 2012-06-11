@@ -7,7 +7,7 @@ Clip based on quality and presence of adaptor sequence
 
 import sys, os, itertools, collections
 
-from nesoni import grace, io, bio
+from nesoni import grace, io, bio, config
 
 ADAPTORS = """
 #2011-01-11 Illumina adapter sequences
@@ -317,309 +317,374 @@ def deinterleave(iterator):
         item2 = iterator.next()
         yield (item1, item2)
 
-def clip(args):
-    log = grace.Log()
-    
-    quality_cutoff, args = grace.get_option_value(args, '--quality', int, 10)
-    qoffset, args = grace.get_option_value(args, '--qoffset', int, None)
-    clip_ambiguous, args = grace.get_option_value(args, '--clip-ambiguous', grace.as_bool, True)
-    length_cutoff, args = grace.get_option_value(args, '--length', int, 24)
-    adaptor_cutoff, args = grace.get_option_value(args, '--match', int, 10)
-    max_error, args = grace.get_option_value(args, '--max-errors', int, 1)
-    adaptor_set, args = grace.get_option_value(args, '--adaptors', str, 'truseq-adapter,truseq-srna,genomic,multiplexing,pe,srna')
-    disallow_homopolymers, args = grace.get_option_value(args, '--homopolymers', grace.as_bool, False)
-    reverse_complement, args = grace.get_option_value(args, '--revcom', grace.as_bool, False)
-    trim_start, args = grace.get_option_value(args, '--trim-start', int, 0)
-    trim_end, args = grace.get_option_value(args, '--trim-end', int, 0)
-    output_fasta, args = grace.get_option_value(args, '--fasta', grace.as_bool, False)
-    use_gzip, args = grace.get_option_value(args, '--gzip', grace.as_bool, True)
-    output_rejects, args = grace.get_option_value(args, '--rejects', grace.as_bool, False)
-    grace.expect_no_further_options(args)
 
-    if len(args) < 1:
-        print >> sys.stderr, CLIP_HELP
-        raise grace.Help_shown()
+@config.help("""\
+Clip adaptors and low quality bases from Illumina reads or read pairs.
+""")
+@config.String_flag('adaptors',
+    'Which adaptors to use. '
+    'Comma seperated list from: \n'
+    'truseq-adapter,truseq-srna,genomic,multiplexing,pe,srna,dpnii,nlaiii\n'
+    'or "none".'
+)
+@config.Int_flag('match',
+    'Minimum length adaptor match.'
+)
+@config.Int_flag('max_errors',
+    'Maximum errors in adaptor match.\n'
+    'Note: slow for N > 1'
+)
+@config.Bool_flag('clip_ambiguous', 
+    'Clip ambiguous bases, eg N'
+)
+@config.Int_flag('quality',  
+    'Quality cutoff'
+)
+@config.Int_flag('qoffset',
+    'Quality character offset.\n'
+    'sanger: 33, solexa: 59, illumina: 64\n'
+    'Will guess if not given.'
+)
+@config.Int_flag('length',
+    'Reads shorter than this will be discarded.'
+)
+@config.Bool_flag('homopolymers',  
+    'Set to yes to *remove* reads containing all the same base.'
+) 
+@config.Int_flag('trim_start',
+    'Trim NNN bases from start of each read irrespective of quality.'
+)
+@config.Int_flag('trim_end',                      
+    'Trim NNN bases from end of each read irrespective of quality.'
+)
+@config.Bool_flag('revcom',
+    'Reverse complement all reads.\n'
+    'ie convert opp-out pairs to opp-in'
+)
+@config.Bool_flag('fasta',
+    'Output in fasta rather than fastq format.'
+)
+@config.Bool_flag('gzip',
+    'Gzip output.'
+)
+@config.Bool_flag('rejects',  
+    'Output rejected reads in separate file.'
+)
+@config.Section('reads', 'Files containing unpaired reads.')
+@config.Section('interleaved', 'Files containing interleaved read pairs.')
+@config.Grouped_section('pairs', 'Pair of files containing read pairs.') 
+class Clip(config.Action_with_prefix):
+    quality = 10
+    qoffset = None
+    clip_ambiguous = True
+    length = 24
+    match = 10
+    max_errors = 1
+    adaptors = 'truseq-adapter,truseq-srna,genomic,multiplexing,pe,srna'
+    homopolymers = False
+    revcom = False
+    trim_start = 0
+    trim_end = 0
+    fasta = False
+    gzip = True
+    rejects = False
     
-    prefix = args[0]
-    args = args[1:]
+    reads = [ ]
+    pairs = [ ]
+    interleaved = [ ]
 
-    iterators = [ ]
-    any_paired = [ False ]
-    
-    filenames = [ ]
-
-    def reads_command(args):
-        filenames.extend(args)
-        for filename in args:
-            iterators.append(itertools.izip(
-                io.read_sequences(filename, qualities=True)
-            ))
-    def pairs_command(args):
-        assert len(args) == 2, 'Expected a pair of files for "pairs" section'
-        filenames.extend(args)
-        any_paired[0] = True
-        iterators.append(itertools.izip(
-            io.read_sequences(args[0], qualities=True),
-            io.read_sequences(args[1], qualities=True)
-        ))
+    def run(self):
+        log = self.log
         
-    def interleaved_command(args):
-        filenames.extend(args)
-        any_paired[0] = True
-        for filename in args:
+        #quality_cutoff, args = grace.get_option_value(args, '--quality', int, 10)
+        #qoffset, args = grace.get_option_value(args, '--qoffset', int, None)
+        #clip_ambiguous, args = grace.get_option_value(args, '--clip-ambiguous', grace.as_bool, True)
+        #length_cutoff, args = grace.get_option_value(args, '--length', int, 24)
+        #adaptor_cutoff, args = grace.get_option_value(args, '--match', int, 10)
+        #max_error, args = grace.get_option_value(args, '--max-errors', int, 1)
+        #adaptor_set, args = grace.get_option_value(args, '--adaptors', str, 'truseq-adapter,truseq-srna,genomic,multiplexing,pe,srna')
+        #disallow_homopolymers, args = grace.get_option_value(args, '--homopolymers', grace.as_bool, False)
+        #reverse_complement, args = grace.get_option_value(args, '--revcom', grace.as_bool, False)
+        #trim_start, args = grace.get_option_value(args, '--trim-start', int, 0)
+        #trim_end, args = grace.get_option_value(args, '--trim-end', int, 0)
+        #output_fasta, args = grace.get_option_value(args, '--fasta', grace.as_bool, False)
+        #use_gzip, args = grace.get_option_value(args, '--gzip', grace.as_bool, True)
+        #output_rejects, args = grace.get_option_value(args, '--rejects', grace.as_bool, False)
+        #grace.expect_no_further_options(args)
+        
+        prefix = self.prefix
+        log_name = os.path.split(prefix)[1]
+        
+        quality_cutoff = self.quality
+        qoffset = self.qoffset
+        clip_ambiguous = self.clip_ambiguous
+        length_cutoff = self.length
+        adaptor_cutoff = self.match
+        max_error = self.max_errors
+        adaptor_set = self.adaptors
+        disallow_homopolymers = self.homopolymers
+        reverse_complement = self.revcom
+        trim_start = self.trim_start
+        trim_end = self.trim_end
+        output_fasta = self.fasta
+        use_gzip = self.gzip
+        output_rejects = self.rejects
+    
+        iterators = [ ]        
+        filenames = [ ]
+        any_paired = False
+        
+        for filename in self.reads:
+            filenames.append(filename)
+            iterators.append(itertools.izip(
+                 io.read_sequences(filename, qualities=True)
+            ))
+        
+        for pair_filenames in self.pairs:
+            assert len(pair_filenames) == 2, 'Expected a pair of files for "pairs" section.'
+            filenames.extend(pair_filenames)
+            any_paired = True
+            iterators.append(itertools.izip(
+                io.read_sequences(pair_filenames[0], qualities=True),
+                io.read_sequences(pair_filenames[1], qualities=True)
+            ))
+        
+        for filename in self.interleaved:
+            filenames.extend(filename)
+            any_paired = True
             iterators.append(deinterleave(
                 io.read_sequences(filename, qualities=True)
             ))
         
-    grace.execute(args, {
-        'reads' : reads_command,
-        'interleaved' : interleaved_command,
-        'pairs' : pairs_command,
-    })
+        fragment_reads = (2 if any_paired else 1)
+        read_in_fragment_names = [ 'read-1', 'read-2' ] if any_paired else [ 'read' ]
+        
+        assert iterators, 'Nothing to clip'
     
-    fragment_reads = (2 if any_paired[0] else 1)
+        if qoffset is None:
+            guesses = [ io.guess_quality_offset(filename) for filename in filenames ]
+            assert len(set(guesses)) == 1, 'Conflicting quality offset guesses, please specify manually.'
+            qoffset = guesses[0]
+            log.log('FASTQ offset seems to be %d\n' % qoffset)    
     
-    assert iterators, 'Nothing to clip'
-
-    if qoffset is None:
-        guesses = [ io.guess_quality_offset(filename) for filename in filenames ]
-        assert len(set(guesses)) == 1, 'Conflicting quality offset guesses, please specify manually.'
-        qoffset = guesses[0]
-        log.log('FASTQ offset seems to be %d\n' % qoffset)    
-
-    quality_cutoff_char = chr(qoffset + quality_cutoff)
+        quality_cutoff_char = chr(qoffset + quality_cutoff)
+        
+        #log.log('Minimum quality:        %d (%s)\n' % (quality_cutoff, quality_cutoff_char))
+        #log.log('Clip ambiguous bases:   %s\n' % (grace.describe_bool(clip_ambiguous)))
+        #log.log('Minimum adaptor match:  %d bases, %d errors\n' % (adaptor_cutoff, max_error))
+        #log.log('Minimum length:         %d bases\n' % length_cutoff)
+        
+        adaptor_seqs = [ ]
+        adaptor_names = [ ]
+        if adaptor_set and adaptor_set.lower() != 'none':
+            for item in adaptor_set.split(','):
+                item = item.strip().lower() + ' '
+                any = False
+                for line in ADAPTORS.strip().split('\n'):
+                    if line.startswith('#'): continue
+                    if not line.lower().startswith(item): continue
+                    any = True
+                    name, seq = line.rsplit(None, 1)
+                    seq = seq.replace('U','T')
+                    
+                    #if seq in adaptor_seqs: print 'Dup', name
+                    adaptor_seqs.append(seq)
+                    adaptor_names.append(name)
+                    adaptor_seqs.append(bio.reverse_complement(seq))
+                    adaptor_names.append(name)
+                if not any:
+                    raise grace.Error('Unknown adaptor set: ' + item)
+        
+        matcher = Matcher(adaptor_seqs, adaptor_names, max_error)
+        
+        start_clips = [ collections.defaultdict(list) for i in xrange(fragment_reads) ]
+        end_clips = [ collections.defaultdict(list) for i in xrange(fragment_reads) ]
     
-    log.log('Minimum quality:        %d (%s)\n' % (quality_cutoff, quality_cutoff_char))
-    log.log('Clip ambiguous bases:   %s\n' % (grace.describe_bool(clip_ambiguous)))
-    log.log('Minimum adaptor match:  %d bases, %d errors\n' % (adaptor_cutoff, max_error))
-    log.log('Minimum length:         %d bases\n' % length_cutoff)
-    
-    adaptor_seqs = [ ]
-    adaptor_names = [ ]
-    if adaptor_set and adaptor_set.lower() != 'none':
-        for item in adaptor_set.split(','):
-            item = item.strip().lower() + ' '
-            any = False
-            for line in ADAPTORS.strip().split('\n'):
-                if line.startswith('#'): continue
-                if not line.lower().startswith(item): continue
-                any = True
-                name, seq = line.rsplit(None, 1)
-                seq = seq.replace('U','T')
-                
-                #if seq in adaptor_seqs: print 'Dup', name
-                adaptor_seqs.append(seq)
-                adaptor_names.append(name)
-                adaptor_seqs.append(bio.reverse_complement(seq))
-                adaptor_names.append(name)
-            if not any:
-                raise grace.Error('Unknown adaptor set: ' + item)
-    
-    matcher = Matcher(adaptor_seqs, adaptor_names, max_error)
-    
-    start_clips = [ collections.defaultdict(list) for i in xrange(fragment_reads) ]
-    end_clips = [ collections.defaultdict(list) for i in xrange(fragment_reads) ]
-
-    if output_fasta:
-        suffix = '.fa'
-        write_sequence = io.write_fasta_single_line
-    else:
-        suffix = '.fq'
-        write_sequence = io.write_fastq
-
-    if use_gzip:
-        opener = lambda filename: io.open_gzip_writer(filename + '.gz')
-    else:
-        opener = lambda filename: open(filename, 'wb')    
-    f_single = opener(prefix + '_single' + suffix)
-    if fragment_reads == 2:
-        f_paired = opener(prefix + '_paired' + suffix)
-    if output_rejects:
-        f_reject = opener(prefix + '_rejected' + suffix)
-    
-    n_single = 0
-    n_paired = 0
-    
-    n_in_single = 0
-    n_in_paired = 0
-    total_in_length = [ 0 ] * fragment_reads
-    
-    n_out = [ 0 ] * fragment_reads
-    n_q_clipped = [ 0 ] * fragment_reads
-    n_a_clipped = [ 0 ] * fragment_reads
-    n_homopolymers = [ 0 ] * fragment_reads
-    total_out_length = [ 0 ] * fragment_reads
-    
-    log.attach(open(prefix + '_log.txt', 'wb'))
-    
-    for iterator in iterators:
-      for fragment in iterator:
-        if (n_in_single+n_in_paired) % 10000 == 0:
-            grace.status('Clipping fragment %s' % grace.pretty_number(n_in_single+n_in_paired))
-    
-        if len(fragment) == 1:
-            n_in_single += 1
+        if output_fasta:
+            suffix = '.fa'
+            write_sequence = io.write_fasta_single_line
         else:
-            n_in_paired += 1
-        
-        graduates = [ ]
-        rejects = [ ]
-        for i, (name, seq, qual) in enumerate(fragment):
-            name = name.split()[0]
-            seq = seq.upper()
-            total_in_length[i] += len(seq)
-                                
-            start = trim_start
-            best_start = 0
-            best_len = 0
-            for j in xrange(len(seq)-trim_end):
-                if qual[j] < quality_cutoff_char or \
-                   (clip_ambiguous and seq[j] not in 'ACGT'):
-                    if best_len < j-start:
-                        best_start = start
-                        best_len = j-start
-                    start = j + 1
-            j = len(seq)-trim_end
-            if best_len < j-start:
-                best_start = start
-                best_len = j-start
+            suffix = '.fq'
+            write_sequence = io.write_fastq
     
-            clipped_seq = seq[best_start:best_start+best_len]
-            clipped_qual = qual[best_start:best_start+best_len]
-            if len(clipped_seq) < length_cutoff:
-                n_q_clipped[i] += 1
-                rejects.append( (name,seq,qual,'quality') ) 
-                continue
-    
-            match = matcher.match(clipped_seq)
-            if match and match[0] >= adaptor_cutoff:
-                clipped_seq = clipped_seq[match[0]:]
-                clipped_qual = clipped_qual[match[0]:]
-                start_clips[i][match[0]].append( match[1][0] )
-                if len(clipped_seq) < length_cutoff:
-                    n_a_clipped[i] += 1 
-                    rejects.append( (name,seq,qual,'adaptor') ) 
-                    continue
-        
-            match = matcher.match(bio.reverse_complement(clipped_seq))
-            if match and match[0] >= adaptor_cutoff:
-                clipped_seq = clipped_seq[: len(clipped_seq)-match[0] ]    
-                clipped_qual = clipped_qual[: len(clipped_qual)-match[0] ]    
-                end_clips[i][match[0]].append( match[1][0] )
-                if len(clipped_seq) < length_cutoff:
-                    n_a_clipped[i] += 1 
-                    rejects.append( (name,seq,qual,'adaptor') ) 
-                    continue
-
-            if disallow_homopolymers and len(set(clipped_seq)) <= 1:
-                n_homopolymers[i] += 1
-                rejects.append( (name,seq,qual,'homopolymer') ) 
-                continue
-    
-            graduates.append( (name, clipped_seq, clipped_qual) )
-            n_out[i] += 1
-            total_out_length[i] += len(clipped_seq)
-
+        if use_gzip:
+            opener = lambda filename: io.open_gzip_writer(filename + '.gz')
+        else:
+            opener = lambda filename: open(filename, 'wb')    
+        f_single = opener(prefix + '_single' + suffix)
+        if fragment_reads == 2:
+            f_paired = opener(prefix + '_paired' + suffix)
         if output_rejects:
-            for name,seq,qual,reason in rejects:
-                write_sequence(f_reject, name + ' ' + reason, seq, qual)
-         
-        if graduates:
-            if reverse_complement:
-                graduates = [
-                    (name, bio.reverse_complement(seq), qual[::-1])
-                    for name, seq, qual in graduates
-                ]
+            f_reject = opener(prefix + '_rejected' + suffix)
         
-            if len(graduates) == 1:
-                this_f = f_single
-                n_single += 1
+        n_single = 0
+        n_paired = 0
+        
+        n_in_single = 0
+        n_in_paired = 0
+        total_in_length = [ 0 ] * fragment_reads
+        
+        n_out = [ 0 ] * fragment_reads
+        n_q_clipped = [ 0 ] * fragment_reads
+        n_a_clipped = [ 0 ] * fragment_reads
+        n_homopolymers = [ 0 ] * fragment_reads
+        total_out_length = [ 0 ] * fragment_reads
+        
+        #log.attach(open(prefix + '_log.txt', 'wb'))
+        
+        for iterator in iterators:
+          for fragment in iterator:
+            if (n_in_single+n_in_paired) % 10000 == 0:
+                grace.status('Clipping fragment %s' % grace.pretty_number(n_in_single+n_in_paired))
+        
+            if len(fragment) == 1:
+                n_in_single += 1
             else:
-                assert len(graduates) == 2
-                this_f = f_paired
-                n_paired += 1
+                n_in_paired += 1
             
-            for name, seq, qual in graduates:
-                write_sequence(this_f, name, seq, qual)
-    
-    grace.status('')
-    
-    if output_rejects:
-        f_reject.close()
-    if fragment_reads == 2:
-        f_paired.close()
-    f_single.close()
-    
-    def summarize_clips(clips):
-        total = 0
-        for i in clips:
-            total += len(clips[i])
-        log.log(' %d reads\n' % total) 
+            graduates = [ ]
+            rejects = [ ]
+            for i, (name, seq, qual) in enumerate(fragment):
+                name = name.split()[0]
+                seq = seq.upper()
+                total_in_length[i] += len(seq)
+                                    
+                start = trim_start
+                best_start = 0
+                best_len = 0
+                for j in xrange(len(seq)-trim_end):
+                    if qual[j] < quality_cutoff_char or \
+                       (clip_ambiguous and seq[j] not in 'ACGT'):
+                        if best_len < j-start:
+                            best_start = start
+                            best_len = j-start
+                        start = j + 1
+                j = len(seq)-trim_end
+                if best_len < j-start:
+                    best_start = start
+                    best_len = j-start
         
-        if not clips:
-            return
-
-        for i in xrange(min(clips), max(clips)+1):
-            item = clips[i]
-            log.quietly_log('%3d bases: %10d ' % (i, len(item)))
-            if item:
-                avg_errors = float(sum( item2[0] for item2 in item )) / len(item)
-                log.quietly_log(' avg errors: %5.2f  ' % avg_errors)
+                clipped_seq = seq[best_start:best_start+best_len]
+                clipped_qual = qual[best_start:best_start+best_len]
+                if len(clipped_seq) < length_cutoff:
+                    n_q_clipped[i] += 1
+                    rejects.append( (name,seq,qual,'quality') ) 
+                    continue
+        
+                match = matcher.match(clipped_seq)
+                if match and match[0] >= adaptor_cutoff:
+                    clipped_seq = clipped_seq[match[0]:]
+                    clipped_qual = clipped_qual[match[0]:]
+                    start_clips[i][match[0]].append( match[1][0] )
+                    if len(clipped_seq) < length_cutoff:
+                        n_a_clipped[i] += 1 
+                        rejects.append( (name,seq,qual,'adaptor') ) 
+                        continue
+            
+                match = matcher.match(bio.reverse_complement(clipped_seq))
+                if match and match[0] >= adaptor_cutoff:
+                    clipped_seq = clipped_seq[: len(clipped_seq)-match[0] ]    
+                    clipped_qual = clipped_qual[: len(clipped_qual)-match[0] ]    
+                    end_clips[i][match[0]].append( match[1][0] )
+                    if len(clipped_seq) < length_cutoff:
+                        n_a_clipped[i] += 1 
+                        rejects.append( (name,seq,qual,'adaptor') ) 
+                        continue
+    
+                if disallow_homopolymers and len(set(clipped_seq)) <= 1:
+                    n_homopolymers[i] += 1
+                    rejects.append( (name,seq,qual,'homopolymer') ) 
+                    continue
+        
+                graduates.append( (name, clipped_seq, clipped_qual) )
+                n_out[i] += 1
+                total_out_length[i] += len(clipped_seq)
+    
+            if output_rejects:
+                for name,seq,qual,reason in rejects:
+                    write_sequence(f_reject, name + ' ' + reason, seq, qual)
+             
+            if graduates:
+                if reverse_complement:
+                    graduates = [
+                        (name, bio.reverse_complement(seq), qual[::-1])
+                        for name, seq, qual in graduates
+                    ]
+            
+                if len(graduates) == 1:
+                    this_f = f_single
+                    n_single += 1
+                else:
+                    assert len(graduates) == 2
+                    this_f = f_paired
+                    n_paired += 1
                 
-                counts = collections.defaultdict(int)
-                for item2 in item: counts[item2[1]] += 1
-                #print counts
-                for no in sorted(counts,key=lambda item2:counts[item2],reverse=True)[:2]:
-                    log.quietly_log('%dx%s ' % (counts[no], matcher.names[no]))
-                if len(counts) > 2: log.quietly_log('...')
-                
+                for name, seq, qual in graduates:
+                    write_sequence(this_f, name, seq, qual)
+        
+        grace.status('')
+        
+        if output_rejects:
+            f_reject.close()
+        if fragment_reads == 2:
+            f_paired.close()
+        f_single.close()
+        
+        def summarize_clips(name, location, clips):
+            total = 0
+            for i in clips:
+                total += len(clips[i])
+            log.datum(log_name, name + ' adaptors clipped at ' + location, total) 
+            
+            if not clips:
+                return
+    
+            for i in xrange(min(clips), max(clips)+1):
+                item = clips[i]
+                log.quietly_log('%3d bases: %10d ' % (i, len(item)))
+                if item:
+                    avg_errors = float(sum( item2[0] for item2 in item )) / len(item)
+                    log.quietly_log(' avg errors: %5.2f  ' % avg_errors)
+                    
+                    counts = collections.defaultdict(int)
+                    for item2 in item: counts[item2[1]] += 1
+                    #print counts
+                    for no in sorted(counts,key=lambda item2:counts[item2],reverse=True)[:2]:
+                        log.quietly_log('%dx%s ' % (counts[no], matcher.names[no]))
+                    if len(counts) > 2: log.quietly_log('...')
+                    
+                log.quietly_log('\n')
             log.quietly_log('\n')
-        log.quietly_log('\n')
-    
-    for i in xrange(fragment_reads):
-        if start_clips:
-            log.log('Read %d adaptors clipped at start:' % (i+1))
-            summarize_clips(start_clips[i])
-    
-        if end_clips:
-            log.log('Read %d adaptors clipped at end: ' % (i+1))
-            summarize_clips(end_clips[i])
-    
-    #log.log('\n%s reads matched adaptor sequences\n\n' % grace.pretty_number( len(clips) ) )
-    #
-    #log.log('Adaptors:\n')
-    #counts = { }
-    #for name in clips:
-    #    items = clips[name][2]
-    #    best_score = max( a for a,b in items )
-    #    names = [ b for a,b in items if a >= best_score ]
-    #    names.sort()
-    #    names = '/'.join(names)
-    #    if names not in counts: counts[names] = 0
-    #    counts[names] += 1
-    #
-    #for name in sorted(counts, key=lambda name: counts[name], reverse=True):
-    #    log.log(' %s x %s\n' % (counts[name], name))
-    #log.log('\n')
+
+
+        if n_in_paired:
+            log.datum(log_name,'read-pairs', n_in_paired)                      
+        if n_in_single:
+            log.datum(log_name,'single reads', n_in_single)                      
         
-    if n_in_paired:
-        log.log('Pairs:                        %s\n' % grace.pretty_number(n_in_paired))                      
-    if n_in_single:
-        log.log('Single reads:                 %s\n' % grace.pretty_number(n_in_single))                      
-    if fragment_reads == 2:
-        log.log('Pairs kept:                   %s\n' % grace.pretty_number(n_paired))                      
-    log.log('Single reads kept:            %s\n' % grace.pretty_number(n_single))
-    
-    if n_in_single or n_in_paired:
         for i in xrange(fragment_reads):
-            log.log('\nRead %d:\n' % (i+1))
-            log.log('Too short after quality clip: %s\n' % grace.pretty_number(n_q_clipped[i]))
-            log.log('Too short after adaptor clip: %s\n' % grace.pretty_number(n_a_clipped[i]))
+            if start_clips:
+                summarize_clips(read_in_fragment_names[i], 'start', start_clips[i])
+        
+            if end_clips:
+                summarize_clips(read_in_fragment_names[i], 'end', end_clips[i])
+
+                prefix = read_in_fragment_names[i]
+                
+            log.datum(log_name, prefix + ' too short after quality clip', n_q_clipped[i])
+            log.datum(log_name, prefix + ' too short after adaptor clip', n_a_clipped[i])
             if disallow_homopolymers:
-                log.log('Homopolymer reads:            %s\n' % grace.pretty_number(n_homopolymers[i]))
-            log.log('Kept:                         %s\n' % grace.pretty_number(n_out[i]))
-            log.log('Average input length:         %.1f\n' % (float(total_in_length[i]) / (n_in_single+n_in_paired)))                     
+                log.datum(log_name, prefix + ' homopolymers', n_homopolymers[i])
+            if fragment_reads > 1:
+                log.datum(log_name, prefix + ' kept', n_out[i])
+            log.datum(log_name, prefix + ' average input length',  float(total_in_length[i]) / (n_in_single+n_in_paired))                     
             if n_out[i]:
-                log.log('Average output length:        %.1f\n' % (float(total_out_length[i]) / n_out[i]))                     
-    
-    
+                log.datum(log_name, prefix + ' average output length', float(total_out_length[i]) / n_out[i])                     
+        
+        if fragment_reads == 2:
+            log.datum(log_name,'read-pairs kept', n_paired)                      
+        log.datum(log_name, 'single reads kept', n_single)
+        
+        
+
+
