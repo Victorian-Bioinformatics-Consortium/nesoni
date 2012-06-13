@@ -7,7 +7,7 @@ __all__ = """
    process barrier stage stage_function
    make process_make 
    Execute Make
-   run_script run_toolbox
+   run_script run_tool run_toolbox
 """.strip().split()
 
 import multiprocessing 
@@ -438,8 +438,6 @@ def _get_timestamp(action):
     return None
     
 def _run_and_save_state(action, timestamp):
-    action.check_sanity()
-    
     filename = os.path.join('.state', grace.filesystem_friendly_name(action.ident()))
     temp_filename = os.path.join('.state', 'temp-' + grace.filesystem_friendly_name(action.ident()))
     
@@ -614,7 +612,7 @@ class Make(config.Action):
 Execute a script.
 """)
 @config.Hidden('function', 'Function to execute.')
-@config.Main_section('script_parameters', 'Script parameters.')
+@config.Main_section('script_parameters', 'Script parameters.', allow_flags=True)
 class Make_script(Make):
     function = None
     script_parameters = [ ]
@@ -643,10 +641,27 @@ def run_script(function):
     config.shell_run(maker, sys.argv[1:], sys.executable + ' ' + sys.argv[0])
 
 
-def run_toolbox(action_classes):
+def run_tool(action_class):
+    """
+    Provide a command line interface for an Action.
+    """
+    config.shell_run(action_class(), sys.argv[1:], sys.argv[0])
+
+
+def run_toolbox(action_classes, script_name=''):
+    """
+    Provide a command line interface for a list of Actions.
+    
+    Note:    
+    strings included in the action_classes list will be printed 
+    as help text, for example to display section headings.
+    """
     commands = { }
-    help = [ '\nAvailable tools:\n\n' ]
+    help = [ '\n' ]
     for item in action_classes:
+        if isinstance(item, str):
+            help.append(config.wrap(item, 70) + '\n\n')
+            continue
         name = item.shell_name()
         commands[ name ] = item
         help.append('    %s\n' % config.colored(1,name+':'))
@@ -668,6 +683,6 @@ def run_toolbox(action_classes):
         config.report_exception()
         sys.exit(1)
 
-    config.shell_run(commands[mangled_command](), args, mangled_command+':')
+    config.shell_run(commands[mangled_command](), args, (script_name+' ' if script_name else '') + mangled_command+':')
 
 

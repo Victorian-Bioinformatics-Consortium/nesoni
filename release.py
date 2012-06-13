@@ -125,29 +125,36 @@ os.environ['PATH'] = '/bio/sw/python/bin:' + os.environ['PATH']
 # RAGE
 os.system('rm MANIFEST')
 
-assert 0 == os.system('sudo -E /bio/sw/python/bin/pypy setup.py install_scripts --install-dir /bio/sw/python/bin/')
-assert 0 == os.system('sudo -E /bio/sw/python/bin/pypy setup.py install_lib')
-assert 0 == os.system('sudo -E /bio/sw/python/bin/python2.6 setup.py install_lib')
-assert 0 == os.system('sudo R CMD INSTALL nesoni-r')
-
-print
-print
-
 release_tarball_name = 'nesoni-%s.tar.gz' % nesoni.VERSION
-#assert not os.path.exists(release_tarball_name), release_tarball_name + ' already exists'
-date = datetime.date.today().strftime('%e %B %Y')
+assert not os.path.exists('dist/'+release_tarball_name), release_tarball_name + ' already exists'
 
-assert 0 == os.system('python2.6 setup.py sdist')
+try:
+    assert 0 == os.system('cd test && pypy test_nesoni.py')
+    
+    assert 0 == os.system('sudo -E /bio/sw/python/bin/pypy setup.py install_scripts --install-dir /bio/sw/python/bin/')
+    assert 0 == os.system('sudo -E /bio/sw/python/bin/pypy setup.py install_lib')
+    assert 0 == os.system('sudo -E /bio/sw/python/bin/python2.6 setup.py install_lib')
+    assert 0 == os.system('sudo R CMD INSTALL nesoni-r')
+    
+    print
+    print
+    
+    date = datetime.date.today().strftime('%e %B %Y')
+    
+    assert 0 == os.system('python2.6 setup.py sdist')
+    
+    f = open('/home/torsten/public_html/vicbioinformatics.com/software.nesoni.shtml','wb')
+    f.write(PAGE % locals())
+    f.close()
+    
+    assert 0 == os.system('cp dist/%s /home/torsten/public_html/vicbioinformatics.com' % release_tarball_name)
+    assert 0 == os.system('cd /home/torsten/public_html/vicbioinformatics.com ; make install')
+    
+    #assert os.path.exists(release_tarball_name), release_tarball_name + ' failed to build'
+    
+    #os.system('rsync -rltvz /opt/python/ msgln1.its.monash.edu.au:opt-python/')
 
-f = open('/home/torsten/public_html/vicbioinformatics.com/software.nesoni.shtml','wb')
-f.write(PAGE % locals())
-f.close()
-
-assert 0 == os.system('cp dist/%s /home/torsten/public_html/vicbioinformatics.com' % release_tarball_name)
-assert 0 == os.system('cd /home/torsten/public_html/vicbioinformatics.com ; make install')
-
-#assert os.path.exists(release_tarball_name), release_tarball_name + ' failed to build'
-
-#os.system('rsync -rltvz /opt/python/ msgln1.its.monash.edu.au:opt-python/')
-
+except:
+    os.system('rm dist/%s' % release_tarball_name)
+    raise    
 

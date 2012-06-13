@@ -3,7 +3,7 @@ import grace, config
 
 import sys
 
-VERSION='0.73'
+VERSION='0.74'
 
 BOLD = '\x1b[1m'
 END = '\x1b[m'
@@ -164,9 +164,9 @@ line interface.
 
 Simple usage would be:
 
-  from nesoni import *
+  import nesoni
   
-  Tool_name(
+  nesoni.Tool_name(
       arg1, arg2, ..., 
       flag_name=value,
       section_name=[values],...
@@ -175,16 +175,16 @@ Simple usage would be:
 
 More advanced usage would make use of the facilities in nesoni.legion:
   
-  from nesoni import *
+  import nesoni
   
   def main():
-      process_make( Tool_1(...) )
-      process_make( Tool_2(...) )
-      barrier()
-      make( Tool_3(...) )
+      nesoni.Tool_1(...).process_make()
+      nesoni.Tool_2(...).process_make()
+      nesoni.barrier()
+      nesoni.Tool_3(...).make()
             
   if __name__ == '__main__':
-      run_script(main)
+      nesoni.run_script(main)
 
 "make" only starts re-running tools when it reaches a tool whos parameters have changed. 
 A directory ".state" in the current directory is created to store the parameters from 
@@ -201,6 +201,11 @@ be re-run.
 
 A fully and correctly parallelized script will also have the correct dependency 
 structure for recomputation when parameters are changed.
+
+
+The "run_script" function gives your script various command line options to control 
+making.
+
 
 The following tools are available:
 

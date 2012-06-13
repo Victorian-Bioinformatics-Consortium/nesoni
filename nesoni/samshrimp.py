@@ -115,22 +115,22 @@ class Shrimp(config.Action_with_output_dir):
     cs = False
     sam_unaligned = True
     half_paired = True
-    working_dir = None
     references = []
     reads = []
     interleaved = []
     pairs = []
     shrimp_options = []
+    
+    _workspace_class = working_directory.Working
 
-    def check_sanity(self):
+    def run(self):
         grace.require_shrimp_2()
         grace.require_samtools()
         assert self.references, 'No reference sequences given'
         assert self.reads or self.pairs or self.interleaved, 'No reads given'
         for pair in self.pairs:
             assert len(pair) == 2, 'Two files required in each pair: section'
-    
-    def run(self):
+
         read_sets = [ ]
         for item in self.reads:
             read_sets.append( ([item], False) )
@@ -157,7 +157,7 @@ class Shrimp(config.Action_with_output_dir):
         
         #Create working directory
         
-        workspace = working_directory.Working(self.output_dir, must_exist=False)
+        workspace = self.get_workspace() #working_directory.Working(self.output_dir, must_exist=False)
         workspace.setup_reference(self.references)        
         reference = workspace.get_reference()
         reference_filename = reference.reference_fasta_filename()

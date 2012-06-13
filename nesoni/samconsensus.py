@@ -97,15 +97,11 @@ class Filter(config.Action_with_working_dir):
     userplots = True
     strand_specific = False
     random = False
-    #output_dir = None
     
-    def check_sanity(self):
-        grace.require_samtools()
-
-    def log_filename(self):
-        return os.path.join(self.working_dir,'consensus_log.txt')
-
+    _workspace_class = working_directory.Working
+    
     def run(self, log=None):
+        grace.require_samtools()
         filter(self.working_dir, self.infidelity, self.monogamous, self.userplots, self.strand_specific, self.random, self.log)    
 
 
@@ -930,6 +926,8 @@ class Reconsensus(config.Action_with_working_dir):
     majority = 0.5
     ambiguity_codes = True
     transl_table = 11
+    
+    _workspace_class = working_directory.Working
 
     def describe(self, *args, **kwargs):
         desc = super(Reconsensus, self).describe(*args, **kwargs)
@@ -939,9 +937,6 @@ class Reconsensus(config.Action_with_working_dir):
             desc += '\n' + consensus.consensus_calling_advice(self.strand_cutoff, self.indel_prior, self.prior_weight, 'The per-strand coverage required is:\n', proportion=self.majority)
         return desc    
     
-    def log_filename(self):
-        return os.path.join(self.working_dir,'consensus_log.txt')
-
     def run(self):
         invocation = config.strip_color(self.describe())
         
@@ -960,9 +955,6 @@ Make consensus calls for SNPs and indels based on the directory created by "shri
 
 """ + CONSENSUS_BLURB)
 class Consensus(Filter, Reconsensus):
-    def log_filename(self):
-        return os.path.join(self.working_dir,'consensus_log.txt')
-
     def run(self):
         Filter.run(self)
         Reconsensus.run(self)

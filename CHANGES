@@ -1,7 +1,10 @@
 
+0.74 - 
+
 0.73 - heatmap: slightly smarter
        clip: converted to new style
        treemaker no longer depends on Cython
+       begin writing unit tests
 
 0.72 - Tools now log command line invocation
        import: can import BAM files

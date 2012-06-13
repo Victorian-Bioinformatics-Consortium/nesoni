@@ -393,6 +393,30 @@ class Clip(config.Action_with_prefix):
     pairs = [ ]
     interleaved = [ ]
 
+
+    def output_suffix(self):
+        if self.output_fasta:
+            suffix = '.fa'
+        else:
+            suffix = '.fq'
+        if self.gzip:
+            suffix += '.gz'
+        return suffix
+
+    def reads_output_filenames(self):
+        return [ self.prefix + '_single' + self.output_suffix() ]
+        
+    def interleaved_output_filenames(self):
+        if not self.pairs and not self.interleaved:
+            return [ ]
+        return [ self.prefix + '_paired' + self.output_suffix() ]
+
+    def rejects_output_filenames(self):
+        if not self.rejects:
+            return [ ]
+        return [ self.prefix + '_rejected' + self.output_suffix() ]
+
+
     def run(self):
         log = self.log
         
@@ -501,21 +525,15 @@ class Clip(config.Action_with_prefix):
         end_clips = [ collections.defaultdict(list) for i in xrange(fragment_reads) ]
     
         if output_fasta:
-            suffix = '.fa'
             write_sequence = io.write_fasta_single_line
         else:
-            suffix = '.fq'
             write_sequence = io.write_fastq
     
-        if use_gzip:
-            opener = lambda filename: io.open_gzip_writer(filename + '.gz')
-        else:
-            opener = lambda filename: open(filename, 'wb')    
-        f_single = opener(prefix + '_single' + suffix)
+        f_single = io.open_possibly_compressed_writer(self.reads_output_filenames()[0])
         if fragment_reads == 2:
-            f_paired = opener(prefix + '_paired' + suffix)
+            f_paired = io.open_possibly_compressed_writer(self.interleaved_output_filenames()[0])
         if output_rejects:
-            f_reject = opener(prefix + '_rejected' + suffix)
+            f_reject = io.open_possibly_compressed_writer(self.rejects_output_filenames()[0])
         
         n_single = 0
         n_paired = 0
@@ -682,8 +700,8 @@ class Clip(config.Action_with_prefix):
                 log.datum(log_name, prefix + ' average output length', float(total_out_length[i]) / n_out[i])                     
         
         if fragment_reads == 2:
-            log.datum(log_name,'read-pairs kept', n_paired)                      
-        log.datum(log_name, 'single reads kept', n_single)
+            log.datum(log_name,'pairs kept after clipping', n_paired)                      
+        log.datum(log_name, 'reads kept after clipping', n_single)
         
         
 

@@ -1,25 +1,40 @@
 
 import nesoni
 
-from nesoni import config
+from nesoni import config, clip, samshrimp, samconsensus, working_directory
 
+@config.help('Analyse reads from a single sample.',
+"""\
+""")
+@config.Positional('reference', 'Reference directory created by "make-reference:".')
+@config.Section('reads', 'Files containing unpaired reads.')
+@config.Section('interleaved', 'Files containing interleaved read pairs.')
+@config.Grouped_section('pairs', 'Pair of files containing read pairs.')
+@config.Configurable_section('clip', 'Options for clip', allow_none=True)
+@config.Configurable_section('align', 'Options for shrimp')
+@config.Configurable_section('filter', 'Options for filter')
+@config.Configurable_section('reconsensus', 'Options for reconsensus', allow_none=True)
 class Analyse_sample(config.Action_with_output_dir):
+    reference = None
     reads = [ ]
     interleaved = [ ]
     pairs = [ ]
 
-    clip = None
-    align = None
-    filter = None
-    consensus = None
+    clip = clip.Clip()
+    align = samshrimp.Shrimp()
+    filter = samconsensus.Filter()
+    reconsensus = samconsensus.Reconsensus()
+    
+    _workspace_class = working_directory.Working
     
     def run(self):
         reads = self.reads
         interleaved = self.interleaved
         pairs = self.pairs
-                
+        
+        workspace = self.get_workspace()
+        
         if self.clip:
-            workspace = io.Workspace(self.output, must_exist=False)
             act = self.clip(
                 workspace/'clipped',
                 reads = reads,
@@ -43,8 +58,11 @@ class Analyse_sample(config.Action_with_output_dir):
                 self.output_dir
             ).make()
         
-        if self.consensus:
-            self.consensus(
+        if self.reconsensus:
+            self.reconsensus(
                 self.output_dir
             ).make()
+
+
+
 

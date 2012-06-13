@@ -13,6 +13,9 @@ Metainformation about tools will hopefully allow
 
 import sys, os, pickle, traceback, textwrap, re, copy, functools, types, datetime
 
+from nesoni import workspace
+
+
 class Error(Exception): 
     pass
 
@@ -268,15 +271,23 @@ class Main_section(Section):
 
 
 class Configurable_section(Section):
-    def __init__(self, name, help='', empty_is_ok=True):
+    def __init__(self, name, help='', empty_is_ok=True, allow_none=False):
         super(Configurable_section,self).__init__(name,help=help,allow_flags=True,empty_is_ok=empty_is_ok)
+        self.allow_none = allow_none
 
     def parse(self, obj, args):
-        new = self.get(obj)()
+        if self.allow_none and len(args) == 1 and args[0].lower() == 'no':
+            return None
+    
+        old = self.get(obj)
+        assert old is not None, 'Can\'t modify empty section'        
+        new = old()
         new.parse( args )
         return new
 
     def describe_shell(self, value, verbose=True):
+        if value is None:
+            return colored(34, self.shell_name()) + ' no'
         return colored(34, self.shell_name()) + value.describe(invocation='')
 
 
@@ -312,6 +323,10 @@ class Configurable_metaclass(type):
                         parameters += (parameter,)
         dictionary['parameters'] = parameters + dictionary.get('parameters',())
         
+        if '__doc__' in dictionary:
+            dictionary['__doc__original__'] = dictionary['__doc__']
+            del dictionary['__doc__']
+        
         result = type.__new__(self, name, bases, dictionary)
         
         for name in dictionary:
@@ -328,6 +343,24 @@ class Configurable_metaclass(type):
                                       item.__dict__.get(after_name,lambda self:None))
             setattr(result, name, func) 
         
+        return result 
+
+    @property
+    def __doc__(self):
+        result = getattr(self,'__doc__original__','')
+        result += '\n\n' + wrap(self.help, 70)
+        
+        result += '\n\nParameters:\n'
+        for parameter in self.parameters:
+            result += '\n' + parameter.name + ' = ' + repr(parameter.get(self)) + '\n' + wrap(parameter.help, 65, '     # ')
+        return result
+
+    def __dir__(self):
+        result = [ ]
+        for item in self.mro():
+            for key, value in item.__dict__.items():
+                if key not in result and isinstance(value, types.FunctionType) and not key.startswith('_'):
+                    result.append(key)
         return result 
 
 
@@ -445,13 +478,6 @@ class Configurable(object):
        
         return (colored(2,suffix)+'\n').join( desc ) + '\n'
     
-    def check_sanity(self):
-        pass
-
-    @property
-    def __doc__(self):
-        return self.help
-
 
 class Action(Configurable):
     run = NotImplemented
@@ -477,7 +503,7 @@ class Action_with_log(Action):
     def _before_run(self):
         if self._log_level == 0:
             filename = self.log_filename()
-            if os.path.exists(filename):
+            if filename is not None and os.path.exists(filename):
                 os.unlink(filename)
         
             self._log_start = datetime.datetime.now()
@@ -499,14 +525,14 @@ class Action_with_log(Action):
             now = datetime.datetime.now()
             self.log.quietly_log(
                 '\n' +
-                ' started '+self._log_start.strftime('%_d %B %Y %_I:%M %p') + '\n'
-                'finished '+now.strftime('%_d %B %Y %_I:%M %p') + '\n'
-                'run time '+str( datetime.timedelta(seconds=int((now-self._log_start).total_seconds())) )
+                ' started '+ self._log_start.strftime('%_d %B %Y %_I:%M %p') + '\n'
+                'finished '+ now.strftime('%_d %B %Y %_I:%M %p') + '\n'
+                'run time '+ str( datetime.timedelta(seconds=int((now-self._log_start).total_seconds())) ) + '\n'
             )
 
             filename = self.log_filename()
-            if os.path.exists(os.path.split(filename)[0] or '.'):
-                self.log.attach(open(self.log_filename(),'ab'))
+            if filename is not None and os.path.exists(os.path.split(filename)[0] or '.'):
+                self.log.attach(open(filename,'ab'))
             self.log.close()
             del self.log
             del self._log_start
@@ -517,29 +543,42 @@ class Action_with_log(Action):
 class Action_with_prefix(Action_with_log):
     prefix = None
     def ident(self):
-        return super(Action_with_prefix,self).ident() + '--' + self.prefix 
+        return super(Action_with_prefix,self).ident() + '--' + (self.prefix or '') 
 
     def log_filename(self):
+        if self.prefix is None: return None
         return self.prefix + '_log.txt'
 
 
 @Positional('output_dir', 'Directory for output files (will be created if does not exist).')
 class Action_with_output_dir(Action_with_log):
     output_dir = None
+
+    _workspace_class = workspace.Workspace
+    def get_workspace(self):
+        return self._workspace_class(self.output_dir, must_exist=False)
+
     def ident(self):
-        return Action.ident(self) + '--' + self.output_dir    
+        return Action.ident(self) + '--' + (self.output_dir or '')    
 
     def log_filename(self):
+        if self.output_dir is None: return None
         return os.path.join(self.output_dir, self.shell_name() + '_log.txt')
 
 
 @Positional('working_dir', 'Directory for input and output files.')
 class Action_with_working_dir(Action_with_log):
     working_dir = None
+    
+    _workspace_class = workspace.Workspace
+    def get_workspace(self):
+        return self._workspace_class(self.working_dir, must_exist=True)
+    
     def ident(self):
-        return Action.ident(self) + '--' + self.working_dir
+        return Action.ident(self) + '--' + (self.working_dir or '')
 
     def log_filename(self):
+        if self.working_dir is None: return None
         return os.path.join(self.working_dir, self.shell_name() + '_log.txt')
 
 
@@ -547,7 +586,7 @@ class Action_with_working_dir(Action_with_log):
 @String_flag('output', 'Output file (defaults to stdout). If filename ends with .gz or .bz2 it will be compressed appropriately.')
 class Action_with_optional_output(Action):
     output = None
-
+    
     def ident(self):
         return super(Action_with_optional_output,self).ident() + '--' + (self.output or '') 
 
@@ -604,6 +643,8 @@ def report_exception():
 
 
 def shell_run(action, args, invocation=None):
+    args = list(args)
+
     args_needed = False
     for item in action.parameters:
         if isinstance(item, Positional) or (isinstance(item, Section) and not item.empty_is_ok):
@@ -619,7 +660,6 @@ def shell_run(action, args, invocation=None):
     try:
         action.parse(args)
         write_colored_text(sys.stderr, '\n'+action.describe(invocation)+'\n')
-        action.check_sanity()
         action.run()
     except:
         report_exception()

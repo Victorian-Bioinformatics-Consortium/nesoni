@@ -5,18 +5,6 @@ Efficiently index a collection of intervals.
 """
 
 
-
-class Span_entry(object):
-    """
-        start
-        end
-        strand
-        feature    
-    """
-    
-    def __repr__(self):
-        return '%d:%d %d %s' % (self.start,self.end,self.strand,self.feature)
-
 def rounded_interval_size(size):
     """ Round the size of the interval down to the nearest
         power of two. """
@@ -41,12 +29,13 @@ class Span_index(object):
        
        self.cache = { }
 
-   def insert(self, start, end, strand, feature):
-       item = Span_entry()
-       item.start = start
-       item.end = end
-       item.strand = strand
-       item.feature = feature
+   def insert(self, item): 
+       """ item should have start and end properties, zero based """
+       #item = Span_entry()
+       #item.start = start
+       #item.end = end
+       #item.strand = strand
+       #item.feature = feature
    
        self.items.append(item)
        size = rounded_interval_size(item.end-item.start)

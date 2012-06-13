@@ -62,6 +62,24 @@ class Feature(object):
 
 
 
+class Span_entry(object):
+    """
+        start
+        end
+        strand
+        feature    
+    """
+    
+    def __init__(self, start,end,strand,feature):
+        self.start = start
+        self.end = end
+        self.strand = strand
+        self.feature = feature
+    
+    def __repr__(self):
+        return '%d:%d %d %s' % (self.start,self.end,self.strand,self.feature)
+
+
 
 @config.help("""\
 Count alignments to annotated features.
@@ -111,10 +129,8 @@ class Count(config.Action_with_prefix):
     equalize = False
     filenames = [ ]
 
-    def check_sanity(self):
-        grace.require_samtools()
-    
     def run(self):
+        grace.require_samtools()
         count_run(
             min_score=self.min_score, min_size=self.min_size, max_size=self.max_size, 
             filter_mode=self.filter, equalize=self.equalize, types=self.types, locii=self.locii, 
@@ -370,7 +386,7 @@ def count_run(
                 f.length = feature.end - feature.start
 
                 assert feature.seqid in genes, 'Annotation for sequence that is not in BAM files'
-                genes[feature.seqid].insert(feature.start, feature.end, feature.strand or 1, f)
+                genes[feature.seqid].insert(Span_entry(feature.start, feature.end, feature.strand or 1, f))
                 features.append(f)
 
     else:
@@ -394,7 +410,7 @@ def count_run(
                 f = name_feature[merged_name]
                 f.length = max(f.length, length) #...
             
-            genes[name].insert(0, chromosome_length[name], 1, f)
+            genes[name].insert(Span_entry(0, chromosome_length[name], 1, f))
                 
                 
 

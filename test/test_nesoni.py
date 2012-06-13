@@ -24,5 +24,6 @@ class Test_clip(unittest.TestCase):
             pairs = [ [ data/'reads_1.txt.gz', data/'reads_2.txt.gz' ] ],
         ).run()
 
+
 if __name__ == '__main__':
     unittest.main()
