@@ -924,7 +924,7 @@ class Reconsensus(config.Action_with_working_dir):
     indel_prior = 0.2
     prior_weight = 1.0
     majority = 0.5
-    ambiguity_codes = True
+    ambiguity_codes = False
     transl_table = 11
     
     _workspace_class = working_directory.Working
