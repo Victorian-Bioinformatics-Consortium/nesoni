@@ -131,17 +131,18 @@ assert not os.path.exists('dist/'+release_tarball_name), release_tarball_name + 
 try:
     assert 0 == os.system('cd test && pypy test_nesoni.py')
     
-    assert 0 == os.system('sudo -E /bio/sw/python/bin/pypy setup.py install_scripts --install-dir /bio/sw/python/bin/')
-    assert 0 == os.system('sudo -E /bio/sw/python/bin/pypy setup.py install_lib')
-    assert 0 == os.system('sudo -E /bio/sw/python/bin/python2.6 setup.py install_lib')
-    assert 0 == os.system('sudo R CMD INSTALL nesoni-r')
+    #assert 0 == os.system('sudo -E /bio/sw/python/bin/pypy setup.py install_scripts --install-dir /bio/sw/python/bin/')
+    #assert 0 == os.system('sudo -E /bio/sw/python/bin/pypy setup.py install_lib')
+    #assert 0 == os.system('sudo -E /bio/sw/python/bin/python2.6 setup.py install_lib')
+    assert 0 == os.system('sudo pypy setup.py install --home /bio/sw/python')
+    assert 0 == os.system('sudo R CMD INSTALL --library=/bio/sw/R nesoni-r')
     
     print
     print
     
     date = datetime.date.today().strftime('%e %B %Y')
     
-    assert 0 == os.system('python2.6 setup.py sdist')
+    assert 0 == os.system('python setup.py sdist')
     
     f = open('/home/torsten/public_html/vicbioinformatics.com/software.nesoni.shtml','wb')
     f.write(PAGE % locals())

@@ -1,6 +1,15 @@
 
 # Functions for dealing with table created by "nesoni count:"
 
+nesoni.read.table <- function(filename, keep.rownames=FALSE) {
+    data <- read.csv(filename, comment='#', check.names=FALSE)
+    rownames(data) <- data[,1]
+    if (!keep.rownames) {
+        data <- data[ ,2:ncol(data), drop=FALSE]
+    }
+    data
+}
+
 read.counts <- function(filename, min.total=0, min.max=0, keep=NULL, norm.file=NULL, use.tmm=TRUE) {    
     data <- read.delim(filename, check.names=FALSE)
     rownames(data) <- data$Feature

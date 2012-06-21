@@ -395,7 +395,7 @@ class Clip(config.Action_with_prefix):
 
 
     def output_suffix(self):
-        if self.output_fasta:
+        if self.fasta:
             suffix = '.fa'
         else:
             suffix = '.fq'
