@@ -1,7 +1,7 @@
-#!/opt/python/bin/python2.6
+#!/usr/bin/env python
 
 
-import os, datetime
+import os, datetime, sys
 
 import nesoni
 from nesoni import config
@@ -19,6 +19,18 @@ pre { line-height: 100%%; font-size: 130%%; }
 </style>
 
 <h2>Nesoni</h2>
+
+<h3>Download</h3>
+
+<p>%(date)s:
+
+<ul>
+<li> <a href="%(release_tarball_name)s">%(release_tarball_name)s</a> </li>
+</ul>
+
+<p>Nesoni is free software, released under the GPL (version 2).
+
+<h3>Description</h3>
 
 <p>
 Nesoni is a high-throughput sequencing data analysis toolset,
@@ -94,17 +106,6 @@ Nesoni provides the following specific usage information when run with no parame
 %(HELP)s
 </pre>
 
-
-<h3>Download</h3>
-
-<p>%(date)s:
-
-<ul>
-<li> <a href="%(release_tarball_name)s">%(release_tarball_name)s</a> </li>
-</ul>
-
-<p>Nesoni is free software, released under the GPL (version 2).
-
 <pre>
 %(REQUIREMENTS)s
 %(INSTALL)s
@@ -126,7 +127,7 @@ os.environ['PATH'] = '/bio/sw/python/bin:' + os.environ['PATH']
 os.system('rm MANIFEST')
 
 release_tarball_name = 'nesoni-%s.tar.gz' % nesoni.VERSION
-assert not os.path.exists('dist/'+release_tarball_name), release_tarball_name + ' already exists'
+assert 'force' in sys.argv[1:] or not os.path.exists('dist/'+release_tarball_name), release_tarball_name + ' already exists'
 
 try:
     assert 0 == os.system('cd test && pypy test_nesoni.py')
@@ -144,12 +145,11 @@ try:
     
     assert 0 == os.system('python setup.py sdist')
     
-    f = open('/home/torsten/public_html/vicbioinformatics.com/software.nesoni.shtml','wb')
+    assert 0 == os.system('cp dist/%s /home/websites/vicbioinformatics.com' % release_tarball_name)
+    
+    f = open('/home/websites/vicbioinformatics.com/software.nesoni.shtml','wb')
     f.write(PAGE % locals())
     f.close()
-    
-    assert 0 == os.system('cp dist/%s /home/torsten/public_html/vicbioinformatics.com' % release_tarball_name)
-    assert 0 == os.system('cd /home/torsten/public_html/vicbioinformatics.com ; make install')
     
     #assert os.path.exists(release_tarball_name), release_tarball_name + ' failed to build'
     

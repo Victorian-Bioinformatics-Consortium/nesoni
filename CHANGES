@@ -1,5 +1,5 @@
 
-0.74 - 
+0.74 - bugfix in clip
 
 0.73 - heatmap: slightly smarter
        clip: converted to new style
