@@ -402,18 +402,21 @@ class Configurable(object):
         assert not unused, 'Unknown named parameter: '+', '.join(unused)
         assert not args, 'Unexpected parameters'         
         
-    def parse(self, args):
+    def parse_partial(self, args):
+        """ Parse command line arguments.
+        
+            Return any unused arguments (including flags).
+        """
         kwargs = { }
         for parameter in self.parameters:
             if isinstance(parameter, Flag):
                 present, value, args = get_flag_value(args,parameter.shell_name(),lambda item: parameter.parse(self, item))
                 if present:
                     parameter.set(self, value)
-        
+
+        leftovers = [ ]        
         def default_command(args):
-            expect_no_further_flags(args)
-            if args:
-                raise Error('Unexpected parameters: ' + ' '.join(args))
+            leftovers.extend(args)
 
         commands = { }
         
@@ -436,6 +439,18 @@ class Configurable(object):
             default_command(args)
         
         execute(args, commands, outer_default_command)
+        return leftovers
+
+    def parse(self, args):
+        """ Parse command line arguments.
+        
+            Raise an error if there are any unused parameters or flags.
+        """
+        leftovers = self.parse_partial(args)
+        expect_no_further_flags(leftovers)
+        if leftovers:
+            raise Error('Unexpected parameters: ' + ' '.join(leftovers))
+
 
     @classmethod
     def shell_name(self):

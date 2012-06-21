@@ -80,6 +80,10 @@ The dependancy structure is implicit from the parallel program,
 if a tool needs to be re-run, 
 only things that <i>must</i> execute after that tool also need re-running.
 
+<p style="font-size: 125%%">
+<a href="https://docs.google.com/document/pub?id=1vt__lbYwnoMGU0m1XTqw4j-H0URez201i9JLLtN_aVA">Further documentation</a>
+</p>
+
 <h3>k-mer and De Bruijn graph tools</h3>
 
 <p>
