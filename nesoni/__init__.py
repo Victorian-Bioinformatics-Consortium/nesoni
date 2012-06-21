@@ -3,7 +3,21 @@ import grace, config
 
 import sys
 
-VERSION='0.74'
+from reference_directory import Make_reference
+from clip import Clip
+from samimport import Import
+from samshrimp import Shrimp
+from samconsensus import Filter, Reconsensus, Consensus
+from samcount import Count
+from runr import Test_counts, Heatmap, Compare_tests, Norm_from_counts, NMF
+from trivia import As_fasta, As_gff, Sample, Stats
+from igv import Make_genome, IGV_plots, As_userplots 
+from workflows import Analyse_sample
+
+from legion import *
+
+
+VERSION='0.75'
 
 BOLD = '\x1b[1m'
 END = '\x1b[m'
@@ -119,27 +133,27 @@ samcount, for analysis with BioConductor packages.
     
     pastiche:     - Use MUMMER to plaster a set of contigs over reference 
                     sequences.
+
+
+%(BOLD)sPipeline tools:%(END)s
+    
+    analyse-sample:
+                  - clip, align, and call consensus on a set of reads
+
+If a pipeline tools is run again, it restarts only from the point affected 
+by the changed parameters. The following global flags control pipeline tool 
+behaviour:
+%(MAKE)s
+
                     
 %(BOLD)sInput files:%(END)s
 - sequence files can be in FASTA, FASTQ, or GENBANK format.
-- annotation files can be in GENBANK or GFF format (GFF is not yet supported by all tools).
+- annotation files can be in GENBANK or GFF format 
+  (GFF is not yet supported by all tools).
 - nesoni is able to read files compressed with gzip or bzip2.
 - remote files can be specified as a URL (will be streamed using lftp).
 
-""" % { 'BOLD' : '\x1b[1m', 'END' : '\x1b[m', 'VERSION' : VERSION }
-
-from reference_directory import Make_reference
-from clip import Clip
-from samimport import Import
-from samshrimp import Shrimp
-from samconsensus import Filter, Reconsensus, Consensus
-from samcount import Count
-from runr import Test_counts, Heatmap, Compare_tests, Norm_from_counts, NMF
-from trivia import As_fasta, As_gff, Sample, Stats
-from igv import Make_genome, IGV_plots, As_userplots 
-from workflows import Analyse_sample
-
-from legion import *
+""" % { 'BOLD' : '\x1b[1m', 'END' : '\x1b[m', 'VERSION' : VERSION, 'MAKE' : Make().describe('', show_help=True) }
 
 def get_actions():
     for item in globals().values():
@@ -340,6 +354,8 @@ def get_commands():
 
 
 def main(args):
+    args = configure_making(args)
+
     if not args:
         config.write_colored_text(sys.stdout, USAGE)
         return 1

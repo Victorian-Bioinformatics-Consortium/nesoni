@@ -657,7 +657,7 @@ def report_exception():
         '\n\n')
 
 
-def shell_run(action, args, invocation=None):
+def shell_run(action, args, invocation=None, help=True):
     args = list(args)
 
     args_needed = False
