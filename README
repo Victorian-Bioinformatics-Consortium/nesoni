@@ -47,7 +47,7 @@ R+ libraries required by R+ nesoni library and "test-counts:":
 
 Optional R+ libraries:
 * seriation
-* gplots
+* NMF
 
 ~ Installation
 ==============

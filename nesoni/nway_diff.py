@@ -1,7 +1,7 @@
 
 import sys, os, collections, itertools
 
-from nesoni import io, grace
+from nesoni import io, grace, working_directory, config
 
 USAGE = """\
 
@@ -225,41 +225,108 @@ def describe_features(features):
 
     return ', '.join(result)
 
-def main(args):
-    genbank_filename, args = grace.get_option_value(args,'--gbk',str,None)
-    use_indels, args = grace.get_option_value(args,'--indels',grace.as_bool,True)
-    use_reference, args = grace.get_option_value(args,'--reference',grace.as_bool,True)
-    give_evidence, args = grace.get_option_value(args,'--evidence',grace.as_bool,True)
-    give_consequences, args = grace.get_option_value(args,'--consequences',grace.as_bool,True)
-    require_all, args = grace.get_option_value(args,'--require-all',grace.as_bool,False)
-    require_bisect, args = grace.get_option_value(args,'--require-bisect',grace.as_bool,False)
-    full_output, args = grace.get_option_value(args,'--full',grace.as_bool,False)
-    format, args = grace.get_option_value(args,'--as',str,'table')
-    
-    # Secret option!
-    limit, args = grace.get_option_value(args,'--limit',int,None)
-    
-    grace.expect_no_further_options(args)
 
-    if len(args) < 1:
-        sys.stderr.write(USAGE)
-        return 1
+@config.help('Compare results of several runs of nesoni consensus, amongst themselves and optionally with the reference.',
+"""\
+"splitting: A1 A2... from: B1 B2..." can be used to consider only sites that partition As from Bs. \
+Use "reference" to specify the reference.
+
+Output formats:
+
+    table      - output as table with consensus calls and evidence
+    
+    compact    - compact output of consensus only
+    
+    nexus      - NEXUS format, suitable for SplitsTree, etc
+                 Note: Will output missing sites unless
+                 you use --require-all. Your phylogenetic
+                 software may or may not do something sane
+                 with this.
+    
+    counts     - output partition counts
+                 (implies --require-all) 
+""")
+@config.String_flag('as_','Output format, see below.\n'
+                          'Options: table compact nexus counts\n')
+@config.String_flag('gbk','annotate with features from GENBANK file')
+@config.Bool_flag('evidence','include evidence in table output')
+@config.Bool_flag('consequences','include protein-level consequences in table output')
+@config.Bool_flag('reference','include reference in comparison')
+@config.Bool_flag('indels','use insertions and deletions')
+@config.Bool_flag('require_all','require all inputs to have a consensus')
+@config.Bool_flag('require_bisect','only consider positions that split the sample set in two (implies --require-all)')
+@config.Bool_flag('full','output uninteresting positions')
+@config.Main_section('working_dirs','Working directories', empty_is_ok=False)
+@config.Section('splitting')
+@config.Section('from_')
+class Nway(config.Action_with_optional_output):
+    as_ = 'table'
+    gbk = None
+    indels = True
+    reference = True
+    evidence = True
+    consequences = True
+    require_all = False
+    require_bisect = False
+    full = False
 
     working_dirs = [ ]
-    split_a = [ ]
-    split_b = [ ]
-    def default(args):
-        working_dirs.extend(args)
-    def splitting(args):
-        split_a.extend(args)
-    def splitting_from(args):
-        split_b.extend(args)
-        
-    grace.execute(args, {
-        'splitting' : splitting,
-        'from' : splitting_from 
-    }, default
-    )
+    splitting = [ ]
+    from_ = [ ]
+    
+    def run(self):
+        f = self.begin_output()
+        nway_main(gbk_filename=self.gbk, use_indels=self.indels, use_reference=self.reference, 
+                  give_evidence=self.evidence, give_consequences=self.consequences,
+                  require_all=self.require_all, require_bisect=self.require_bisect, 
+                  full_output=self.full, format=self.as_, 
+                  working_dirs=self.working_dirs, 
+                  split_a=self.splitting, split_b=self.from_, f=f)
+        self.end_output(f)
+
+#def main(args):
+#    gbk_filename, args = grace.get_option_value(args,'--gbk',str,None)
+#    use_indels, args = grace.get_option_value(args,'--indels',grace.as_bool,True)
+#    use_reference, args = grace.get_option_value(args,'--reference',grace.as_bool,True)
+#    give_evidence, args = grace.get_option_value(args,'--evidence',grace.as_bool,True)
+#    give_consequences, args = grace.get_option_value(args,'--consequences',grace.as_bool,True)
+#    require_all, args = grace.get_option_value(args,'--require-all',grace.as_bool,False)
+#    require_bisect, args = grace.get_option_value(args,'--require-bisect',grace.as_bool,False)
+#    full_output, args = grace.get_option_value(args,'--full',grace.as_bool,False)
+#    format, args = grace.get_option_value(args,'--as',str,'table')
+#    
+#    ## Secret option!
+#    #limit, args = grace.get_option_value(args,'--limit',int,None)
+#    
+#    grace.expect_no_further_options(args)
+#
+#    if len(args) < 1:
+#        sys.stderr.write(USAGE)
+#        return 1
+#
+#    working_dirs = [ ]
+#    split_a = [ ]
+#    split_b = [ ]
+#    def default(args):
+#        working_dirs.extend(args)
+#    def splitting(args):
+#        split_a.extend(args)
+#    def splitting_from(args):
+#        split_b.extend(args)
+#        
+#    grace.execute(args, {
+#        'splitting' : splitting,
+#        'from' : splitting_from 
+#    }, default
+#    )
+
+def nway_main(gbk_filename, use_indels, use_reference, give_evidence, give_consequences,
+              require_all, require_bisect, full_output, format, working_dirs, split_a, split_b, f=sys.stdout):
+    assert working_dirs, 'Need at least one working directory.'
+    workspaces = [ working_directory.Working(dirname, must_exist=True) for dirname in working_dirs ]
+    reference = workspaces[0].get_reference()
+    #if not annotation_filename:
+    #    annotation_filename = reference.annotations_filename() #May still be None
     
     if use_reference:
         names = ['reference']
@@ -269,13 +336,13 @@ def main(args):
         evidence_start = 0
         
     names.extend( norm_name(item) for item in  working_dirs )
-        
-    references = io.read_sequences(os.path.join(working_dirs[0], 'reference/reference.fa'))
+    
+    references = io.read_sequences(reference.reference_fasta_filename())
     
     annotations = { }
-    if genbank_filename:
+    if gbk_filename:
         from Bio import SeqIO
-        for record in SeqIO.parse(io.open_possibly_compressed_file(genbank_filename),'genbank'):
+        for record in SeqIO.parse(io.open_possibly_compressed_file(gbk_filename),'genbank'):
             sequence = record.seq.tostring()
             features = [ item for item in record.features if item.type != 'source' ]
             features.sort(key=lambda item: item.location.nofuzzy_start)
@@ -307,8 +374,8 @@ def main(args):
             raise grace.Error('Sample to be split is not amongst samples given')
         iterator = itertools.ifilter(is_split(split_a, split_b), iterator)
 
-    if limit:
-        iterator = itertools.islice(iterator, limit)
+    #if limit:
+    #    iterator = itertools.islice(iterator, limit)
     
     if format == 'table':
         line = 'Reference\tPosition\tChange type'
@@ -319,7 +386,7 @@ def main(args):
             line += '\t' + '\t'.join(names[evidence_start:])
         if annotations:
             line += '\tAnnotations'
-        print line
+        print >> f, line
         for calls in iterator:
             line = '%s\t%d\t%s\t%s' % (
                 calls.ref_name, 
@@ -332,12 +399,12 @@ def main(args):
                 line += '\t' + '\t'.join(item.consequences for item in calls.calls[evidence_start:])
             if annotations:
                 line += '\t' + describe_features(calls.features)
-            print line
+            print >> f, line
 
     elif format == 'compact':
         for line in transpose_strings(names):
-            print line
-        print
+            print >> f, line
+        print >> f
         
         for calls in iterator:
             if calls.is_insertion:
@@ -358,9 +425,9 @@ def main(args):
                 if consequences:
                     top += '  ' + ' / '.join(sorted(consequences))
             top += '  ' + describe_features(calls.features)
-            print top
+            print >> f, top
             for line in t[1:]:
-                print line            
+                print >> f, line            
     
     elif format == 'nexus':
         buckets = [ [ ] for name in names ]
@@ -368,28 +435,28 @@ def main(args):
             for i, char in enumerate(partition_string(calls)):
                 buckets[i].append(char)
         
-        print '#NEXUS'
-        print 'begin taxa;'
-        print 'dimensions ntax=%d;' % len(names)
-        print 'taxlabels'
+        print >> f, '#NEXUS'
+        print >> f, 'begin taxa;'
+        print >> f, 'dimensions ntax=%d;' % len(names)
+        print >> f, 'taxlabels'
         for name in names:
-            print name
-        print ';'
-        print 'end;'
+            print >> f, name
+        print >> f, ';'
+        print >> f, 'end;'
 
-        print 'begin characters;'
-        print 'dimensions nchar=%d;' % len(buckets[0])
-        print 'format datatype=STANDARD symbols="ACGT-0123456789" missing=N;'
-        print 'matrix'
+        print >> f, 'begin characters;'
+        print >> f, 'dimensions nchar=%d;' % len(buckets[0])
+        print >> f, 'format datatype=STANDARD symbols="ACGT-0123456789" missing=N;'
+        print >> f, 'matrix'
         for name, bucket in itertools.izip(names, buckets):
-            print name, ''.join(bucket)
-        print ';'
-        print 'end;'
+            print >> f, name, ''.join(bucket)
+        print >> f, ';'
+        print >> f, 'end;'
     
     elif format == 'counts':
         for line in transpose_strings(names):
-            print line
-        print
+            print >> f, line
+        print >> f
 
         counts = { }
         for calls in iterator:
@@ -400,7 +467,7 @@ def main(args):
                 counts[count_str] += 1
         
         for count_str in sorted(counts, key=lambda x: (counts[x], x), reverse=True):
-            print '%s   %d' % (transpose_strings(count_str)[0], counts[count_str])
+            print >> f, '%s   %d' % (transpose_strings(count_str)[0], counts[count_str])
     
     else:
         raise grace.Error('Unknown output format: ' + format)
@@ -411,244 +478,244 @@ def main(args):
 
 
 
-def find_interesting(what, calls, evidences):
-    result = [ ]
-    for refname in calls:
-        for i, row in enumerate(zip(*calls[refname])):
-            unambiguous = [ item for item in row if item not in AMBIGUOUS ]
-            if len(set(unambiguous)) <= 1: continue
-            
-            evidence = [ evidences[refname][j][i] for j in xrange(len(row)) ]
-            
-            result.append( (refname, i+1, what, row, len(row) != len(unambiguous), evidence) )
-
-    return result
-
-
-def old_main(args):
-    use_indels, args = grace.get_option_value(args,'--indels',int,1)
-    use_reference, args = grace.get_option_value(args,'--reference',int,1)
-    make_list, args = grace.get_option_value(args,'--list',int,0)
-    fasta_output, args = grace.get_option_value(args,'--fasta',int,0)
-    grace.expect_no_further_options(args)
-    
-    if len(args) < 1:
-        sys.stderr.write(USAGE)
-        return 1
-        
-    if fasta_output and use_indels:
-        print >> sys.stderr, 'Indels will not be included in FASTA output'
-        use_indels = 0
-    
-    working_dirs = args
-    
-    #reference_data = { } # (ref_name, position, change_type) -> string
-    #strain_data = { } # working_dir -> (ref_name, position, change_type) -> string
-    
-    names = ['reference'] + working_dirs
-    
-    substitution_calls = { } # ref_name -> [ [ call ] ]
-    insertion_calls = { } # ref_name -> [ [ call ] ]
-    substitution_evidence = { }
-    insertion_evidence = { }
-    
-    for name, sequence in io.read_sequences(os.path.join(working_dirs[0], 'reference.fa')):
-        substitution_calls[name] = [ list(sequence.upper()) ]
-        insertion_calls[name] = [ [ '-' ] * len(sequence) ]
-        substitution_evidence[name] = [ [ '' ] * len(sequence) ]    
-        insertion_evidence[name] = [ [ '' ] * len(sequence) ]    
-    
-    for working_dir in working_dirs:
-        for name in substitution_calls:
-            filename = os.path.join(working_dir, grace.filesystem_friendly_name(name) + '-evidence.txt')
-            f = open(filename,'rb')
-            
-            this_substitution_calls = [ ]
-            this_insertion_calls = [ ]
-            this_substitution_evidence = [ ]
-            this_insertion_evidence = [ ]
-            
-            header = f.readline()
-            if header.count('\t') != 5:
-                print >> sys.stderr, 'Old style evidence file. Please re-run nesoni consensus.'
-                return 1
-            
-            for line in f:
-                fields = line.rstrip('\n').split('\t')
-                this_substitution_calls.append(fields[5])
-                this_insertion_calls.append(fields[4])
-                this_substitution_evidence.append(fields[2])
-                this_insertion_evidence.append(fields[1])
-            
-            substitution_calls[name].append(this_substitution_calls)
-            insertion_calls[name].append(this_insertion_calls)
-            substitution_evidence[name].append(this_substitution_evidence)
-            insertion_evidence[name].append(this_insertion_evidence)
-    
-    if not use_reference:
-        names.pop(0)
-        for name in substitution_calls:
-            substitution_calls[name].pop(0)
-            insertion_calls[name].pop(0)
-            substitution_evidence[name].pop(0)
-            insertion_evidence[name].pop(0)
-
-    interesting = find_interesting('substitution', substitution_calls, substitution_evidence)
-    if use_indels:
-        interesting.extend( find_interesting('insertion-before', insertion_calls, insertion_evidence) )
-
-    if not use_indels:
-        interesting = [ item for item in interesting if '-' not in item[3] ]
-    
-    interesting.sort()
-
-
-    if fasta_output:
-        do_fasta_output(names, interesting)
-        return 0 
-
-    
-    #strain_reference_having_consensus = { } # working_dir -> ref_name -> string
-    #
-    #for working_dir in working_dirs:
-    #    assert working_dir not in strain_data, 'Working directory given twice'
-    #    strain_data[working_dir] = { }
-    #    
-    #    report_file = open(os.path.join(working_dir, 'report.txt'), 'rU')
-    #    report_file.readline()
-    #    for line in report_file:
-    #        ref_name, position, change_type, old, new, evidence = \
-    #            line.rstrip('\n').split('\t')
-    #        
-    #        if change_type == 'deletion':
-    #            change_type = 'substitution'
-    #        
-    #        if not use_indels and \
-    #           (change_type == 'insertion-before' or new == '-'):
-    #            continue
-    #        
-    #        key = (ref_name, int(position), change_type)
-    #        if key in reference_data:
-    #            assert reference_data[key] == old
-    #        else:
-    #            reference_data[key] = old
-    #        
-    #        strain_data[working_dir][key] = new
-    #    report_file.close()
-    #    
-    #    strain_reference_having_consensus[working_dir] = { }
-    #    ref_have_con_filename = os.path.join(working_dir, 'reference_having_consensus.fa')
-    #    for name, sequence in io.read_fasta(ref_have_con_filename):
-    #        strain_reference_having_consensus[working_dir][name] = sequence
-    #
-    #keys = sorted(reference_data)
-    #
-    ##Fill in any blanks
-    #for working_dir in working_dirs:
-    #    for key in keys:
-    #        if key in strain_data[working_dir]: continue
-    #    
-    #        # - Positions in report files start from 1 not 0
-    #        # - Insertions must be bracketed
-    #        lacks_consensus = (
-    #            strain_reference_having_consensus[working_dir][key[0]][key[1]-1] == 'N' or
-    #            (key[2] == 'insertion-before' and key[1] > 1 and
-    #             strain_reference_having_consensus[working_dir][key[0]][key[1]-2] == 'N')
-    #        )
-    #        
-    #        #If there's no consensus, record it as ambiguous
-    #        if lacks_consensus:
-    #            strain_data[working_dir][key] = 'N'                
-    #        else:
-    #            strain_data[working_dir][key] = reference_data[key]
-
- 
-    #all_data_names = ([ 'reference' ] if use_reference else []) + working_dirs
-    #all_data = ([ reference_data ] if use_reference else []) + \
-    #           [ strain_data[working_dir] for working_dir in working_dirs ] 
-    
-
-    #all_data_names = ([ 'reference' ] if use_reference else []) + working_dirs
-    
-    
-
-    
-    
-    ones = ( 1 << len(names) )-1
-    
-    total_differences = 0
-    
-    if make_list:
-        print '\t'.join(['Partition','Sequence','Position in reference','Change type'] + names + names) 
-    
-    for i in xrange(1,(1<<len(names))-1,2):
-        set1 = [ ]
-        set2 = [ ]
-        for j in xrange(len(names)):
-            if i & (1<<j):
-                set1.append(j)
-            else:
-                set2.append(j)
-
-        if make_list:
-            print
-            print ', '.join( names[i] for i in set1 ) + '   vs   ' + \
-                  ', '.join( names[i] for i in set2 )
-            print
-                
-        n = 0
-        for refname, position, change_type, values, has_ambiguous, evidence in interesting: 
-            #Skip if *any* ambiguity
-            if has_ambiguous:
-                continue
-            
-            if any( values[i] != values[set1[0]] for i in set1[1:] ) or \
-               any( values[i] != values[set2[0]] for i in set2[1:] ):
-                continue
-            
-            if make_list:
-                if change_type == 'substitution' and '-' in values: change_type = 'deletion'
-                print '\t%s\t%d\t%s\t' % (refname,position,change_type) + '\t'.join(values) + '\t' + '\t'.join(evidence) 
-            
-            n += 1
-
-        total_differences += n
-
-        if not make_list:
-            print ', '.join( names[i] for i in set1 ) + '   vs   ' + \
-                  ', '.join( names[i] for i in set2 ) + \
-                  ': %d differences' %n            
-
-    if not make_list:
-        print
-        print 'Total: %d' % total_differences
-
-
-    if make_list:
-        print
-        print 'Ignored'
-        print
-    
-    n_multiway = 0
-    n_ambiguous = 0    
-    for refname, position, change_type, values, has_ambiguous, evidence in interesting: 
-        confusing = False
-        if has_ambiguous:
-            n_ambiguous += 1
-            confusing = True
-        elif len(set(values)) > 2:
-            n_multiway += 1
-            confusing = True
-        
-        if make_list and confusing:
-            print '\t%s\t%d\t%s\t' % (refname,position,change_type) + '\t'.join(values) + '\t' + '\t'.join(evidence) 
-
-    if not make_list:
-        print
-        print 'Ambiguities ignored: %d' % n_ambiguous
-        print 'Multi-way changes ignored: %d' % n_multiway
-    
-    assert total_differences + n_ambiguous + n_multiway == len(interesting)
-    
-    return 0
-
+#def find_interesting(what, calls, evidences):
+#    result = [ ]
+#    for refname in calls:
+#        for i, row in enumerate(zip(*calls[refname])):
+#            unambiguous = [ item for item in row if item not in AMBIGUOUS ]
+#            if len(set(unambiguous)) <= 1: continue
+#            
+#            evidence = [ evidences[refname][j][i] for j in xrange(len(row)) ]
+#            
+#            result.append( (refname, i+1, what, row, len(row) != len(unambiguous), evidence) )
+#
+#    return result
+#
+#
+#def old_main(args):
+#    use_indels, args = grace.get_option_value(args,'--indels',int,1)
+#    use_reference, args = grace.get_option_value(args,'--reference',int,1)
+#    make_list, args = grace.get_option_value(args,'--list',int,0)
+#    fasta_output, args = grace.get_option_value(args,'--fasta',int,0)
+#    grace.expect_no_further_options(args)
+#    
+#    if len(args) < 1:
+#        sys.stderr.write(USAGE)
+#        return 1
+#        
+#    if fasta_output and use_indels:
+#        print >> sys.stderr, 'Indels will not be included in FASTA output'
+#        use_indels = 0
+#    
+#    working_dirs = args
+#    
+#    #reference_data = { } # (ref_name, position, change_type) -> string
+#    #strain_data = { } # working_dir -> (ref_name, position, change_type) -> string
+#    
+#    names = ['reference'] + working_dirs
+#    
+#    substitution_calls = { } # ref_name -> [ [ call ] ]
+#    insertion_calls = { } # ref_name -> [ [ call ] ]
+#    substitution_evidence = { }
+#    insertion_evidence = { }
+#    
+#    for name, sequence in io.read_sequences(os.path.join(working_dirs[0], 'reference.fa')):
+#        substitution_calls[name] = [ list(sequence.upper()) ]
+#        insertion_calls[name] = [ [ '-' ] * len(sequence) ]
+#        substitution_evidence[name] = [ [ '' ] * len(sequence) ]    
+#        insertion_evidence[name] = [ [ '' ] * len(sequence) ]    
+#    
+#    for working_dir in working_dirs:
+#        for name in substitution_calls:
+#            filename = os.path.join(working_dir, grace.filesystem_friendly_name(name) + '-evidence.txt')
+#            f = open(filename,'rb')
+#            
+#            this_substitution_calls = [ ]
+#            this_insertion_calls = [ ]
+#            this_substitution_evidence = [ ]
+#            this_insertion_evidence = [ ]
+#            
+#            header = f.readline()
+#            if header.count('\t') != 5:
+#                print >> sys.stderr, 'Old style evidence file. Please re-run nesoni consensus.'
+#                return 1
+#            
+#            for line in f:
+#                fields = line.rstrip('\n').split('\t')
+#                this_substitution_calls.append(fields[5])
+#                this_insertion_calls.append(fields[4])
+#                this_substitution_evidence.append(fields[2])
+#                this_insertion_evidence.append(fields[1])
+#            
+#            substitution_calls[name].append(this_substitution_calls)
+#            insertion_calls[name].append(this_insertion_calls)
+#            substitution_evidence[name].append(this_substitution_evidence)
+#            insertion_evidence[name].append(this_insertion_evidence)
+#    
+#    if not use_reference:
+#        names.pop(0)
+#        for name in substitution_calls:
+#            substitution_calls[name].pop(0)
+#            insertion_calls[name].pop(0)
+#            substitution_evidence[name].pop(0)
+#            insertion_evidence[name].pop(0)
+#
+#    interesting = find_interesting('substitution', substitution_calls, substitution_evidence)
+#    if use_indels:
+#        interesting.extend( find_interesting('insertion-before', insertion_calls, insertion_evidence) )
+#
+#    if not use_indels:
+#        interesting = [ item for item in interesting if '-' not in item[3] ]
+#    
+#    interesting.sort()
+#
+#
+#    if fasta_output:
+#        do_fasta_output(names, interesting)
+#        return 0 
+#
+#    
+#    #strain_reference_having_consensus = { } # working_dir -> ref_name -> string
+#    #
+#    #for working_dir in working_dirs:
+#    #    assert working_dir not in strain_data, 'Working directory given twice'
+#    #    strain_data[working_dir] = { }
+#    #    
+#    #    report_file = open(os.path.join(working_dir, 'report.txt'), 'rU')
+#    #    report_file.readline()
+#    #    for line in report_file:
+#    #        ref_name, position, change_type, old, new, evidence = \
+#    #            line.rstrip('\n').split('\t')
+#    #        
+#    #        if change_type == 'deletion':
+#    #            change_type = 'substitution'
+#    #        
+#    #        if not use_indels and \
+#    #           (change_type == 'insertion-before' or new == '-'):
+#    #            continue
+#    #        
+#    #        key = (ref_name, int(position), change_type)
+#    #        if key in reference_data:
+#    #            assert reference_data[key] == old
+#    #        else:
+#    #            reference_data[key] = old
+#    #        
+#    #        strain_data[working_dir][key] = new
+#    #    report_file.close()
+#    #    
+#    #    strain_reference_having_consensus[working_dir] = { }
+#    #    ref_have_con_filename = os.path.join(working_dir, 'reference_having_consensus.fa')
+#    #    for name, sequence in io.read_fasta(ref_have_con_filename):
+#    #        strain_reference_having_consensus[working_dir][name] = sequence
+#    #
+#    #keys = sorted(reference_data)
+#    #
+#    ##Fill in any blanks
+#    #for working_dir in working_dirs:
+#    #    for key in keys:
+#    #        if key in strain_data[working_dir]: continue
+#    #    
+#    #        # - Positions in report files start from 1 not 0
+#    #        # - Insertions must be bracketed
+#    #        lacks_consensus = (
+#    #            strain_reference_having_consensus[working_dir][key[0]][key[1]-1] == 'N' or
+#    #            (key[2] == 'insertion-before' and key[1] > 1 and
+#    #             strain_reference_having_consensus[working_dir][key[0]][key[1]-2] == 'N')
+#    #        )
+#    #        
+#    #        #If there's no consensus, record it as ambiguous
+#    #        if lacks_consensus:
+#    #            strain_data[working_dir][key] = 'N'                
+#    #        else:
+#    #            strain_data[working_dir][key] = reference_data[key]
+#
+# 
+#    #all_data_names = ([ 'reference' ] if use_reference else []) + working_dirs
+#    #all_data = ([ reference_data ] if use_reference else []) + \
+#    #           [ strain_data[working_dir] for working_dir in working_dirs ] 
+#    
+#
+#    #all_data_names = ([ 'reference' ] if use_reference else []) + working_dirs
+#    
+#    
+#
+#    
+#    
+#    ones = ( 1 << len(names) )-1
+#    
+#    total_differences = 0
+#    
+#    if make_list:
+#        print '\t'.join(['Partition','Sequence','Position in reference','Change type'] + names + names) 
+#    
+#    for i in xrange(1,(1<<len(names))-1,2):
+#        set1 = [ ]
+#        set2 = [ ]
+#        for j in xrange(len(names)):
+#            if i & (1<<j):
+#                set1.append(j)
+#            else:
+#                set2.append(j)
+#
+#        if make_list:
+#            print
+#            print ', '.join( names[i] for i in set1 ) + '   vs   ' + \
+#                  ', '.join( names[i] for i in set2 )
+#            print
+#                
+#        n = 0
+#        for refname, position, change_type, values, has_ambiguous, evidence in interesting: 
+#            #Skip if *any* ambiguity
+#            if has_ambiguous:
+#                continue
+#            
+#            if any( values[i] != values[set1[0]] for i in set1[1:] ) or \
+#               any( values[i] != values[set2[0]] for i in set2[1:] ):
+#                continue
+#            
+#            if make_list:
+#                if change_type == 'substitution' and '-' in values: change_type = 'deletion'
+#                print '\t%s\t%d\t%s\t' % (refname,position,change_type) + '\t'.join(values) + '\t' + '\t'.join(evidence) 
+#            
+#            n += 1
+#
+#        total_differences += n
+#
+#        if not make_list:
+#            print ', '.join( names[i] for i in set1 ) + '   vs   ' + \
+#                  ', '.join( names[i] for i in set2 ) + \
+#                  ': %d differences' %n            
+#
+#    if not make_list:
+#        print
+#        print 'Total: %d' % total_differences
+#
+#
+#    if make_list:
+#        print
+#        print 'Ignored'
+#        print
+#    
+#    n_multiway = 0
+#    n_ambiguous = 0    
+#    for refname, position, change_type, values, has_ambiguous, evidence in interesting: 
+#        confusing = False
+#        if has_ambiguous:
+#            n_ambiguous += 1
+#            confusing = True
+#        elif len(set(values)) > 2:
+#            n_multiway += 1
+#            confusing = True
+#        
+#        if make_list and confusing:
+#            print '\t%s\t%d\t%s\t' % (refname,position,change_type) + '\t'.join(values) + '\t' + '\t'.join(evidence) 
+#
+#    if not make_list:
+#        print
+#        print 'Ambiguities ignored: %d' % n_ambiguous
+#        print 'Multi-way changes ignored: %d' % n_multiway
+#    
+#    assert total_differences + n_ambiguous + n_multiway == len(interesting)
+#    
+#    return 0
+#

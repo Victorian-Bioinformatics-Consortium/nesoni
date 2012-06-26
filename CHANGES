@@ -1,5 +1,7 @@
 
-0.75 - analyse-sample: added
+0.75 - flags to control making added
+       analyse-sample: added
+       nway: updated to new config system
 
 0.74 - bugfix in clip
 

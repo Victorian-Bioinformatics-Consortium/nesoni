@@ -8,6 +8,7 @@ from clip import Clip
 from samimport import Import
 from samshrimp import Shrimp
 from samconsensus import Filter, Reconsensus, Consensus
+from nway_diff import Nway
 from samcount import Count
 from runr import Test_counts, Heatmap, Compare_tests, Norm_from_counts, NMF
 from trivia import As_fasta, As_gff, Sample, Stats
@@ -245,9 +246,9 @@ def get_commands():
     def consequences(args):
         grace.load('consequences').main(args)
     
-    @add
-    def nway(args):
-        grace.load('nway_diff').main(args)
+    #@add
+    #def nway(args):
+    #    grace.load('nway_diff').main(args)
     
     @add
     def fisher(args):
