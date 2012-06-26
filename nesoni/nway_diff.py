@@ -270,7 +270,7 @@ def main(args):
         
     names.extend( norm_name(item) for item in  working_dirs )
         
-    references = io.read_sequences(os.path.join(working_dirs[0], 'reference.fa'))
+    references = io.read_sequences(os.path.join(working_dirs[0], 'reference/reference.fa'))
     
     annotations = { }
     if genbank_filename:
