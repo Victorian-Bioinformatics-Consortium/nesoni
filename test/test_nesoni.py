@@ -25,5 +25,12 @@ class Test_clip(unittest.TestCase):
         ).run()
 
 
+class Test_analyse_sample(unittest.TestCase):
+    def test_analyse(self):
+        nesoni.remake_needed()
+        nesoni.Make_reference(output_dir=output/'reference', filenames=[ data/'NC_001422.gbk' ]).run()
+        nesoni.Analyse_sample(output_dir=output/'test-analyse', reference=output/'reference', pairs=[[data/'reads_1.txt.gz',data/'reads_2.txt.gz']]).run()
+
+
 if __name__ == '__main__':
     unittest.main()

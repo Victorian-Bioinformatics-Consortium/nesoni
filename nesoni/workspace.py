@@ -84,3 +84,7 @@ class Workspace(object):
         if not isinstance(path, basestring):
             path = os.path.join(*path)
         return self.relative_path_as_path(path)
+
+
+
+

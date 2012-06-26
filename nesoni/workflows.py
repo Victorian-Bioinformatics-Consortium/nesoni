@@ -3,9 +3,7 @@ import nesoni
 
 from nesoni import config, clip, samshrimp, samconsensus, working_directory
 
-@config.help('Analyse reads from a single sample.',
-"""\
-""")
+@config.help('Analyse reads from a single sample.')
 @config.Positional('reference', 'Reference directory created by "make-reference:".')
 @config.Section('reads', 'Files containing unpaired reads.')
 @config.Section('interleaved', 'Files containing interleaved read pairs.')
@@ -42,12 +40,13 @@ class Analyse_sample(config.Action_with_output_dir):
                 pairs = pairs,
             )
             act.make()
-            reads = act.reads_out_filenames()
-            interleaved = act.interleaved_out_filenames()
+            reads = act.reads_output_filenames()
+            interleaved = act.interleaved_output_filenames()
             pairs = [ ]
         
         self.align(
             self.output_dir,
+            self.reference,
             reads = reads,
             interleaved = interleaved,
             pairs = pairs, 

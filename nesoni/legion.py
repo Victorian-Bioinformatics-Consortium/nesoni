@@ -7,7 +7,7 @@ __all__ = """
    process barrier stage stage_function
    make process_make 
    Execute Make
-   run_script run_tool run_toolbox
+   configure_making run_script run_tool run_toolbox
 """.strip().split()
 
 import multiprocessing 
@@ -582,30 +582,30 @@ class Execute(config.Action_filter):
 
 
 
-@config.help("""\
-Execute a script.
-""")
-@config.Int_flag('cores', 'Approximate number of cores to use.')
-@config.Bool_flag('force', 'Force everything to be recomputed.')
-@config.Bool_flag('show', 'Show the first actions that would be made, then abort.')
-@config.Bool_flag('done', 
+@config.Int_flag('make_cores', 'Approximate number of cores to use.')
+@config.Bool_flag('make_force', 'Force everything to be recomputed.')
+@config.Bool_flag('make_show', 'Show the first actions that would be made, then abort.')
+@config.Bool_flag('make_done', 
     'Do nothing, but mark all actions as done. '
     'This might be useful if there is a trivial parameter change you don\'t want to re-run. '
     'To re-run from a particular point, use this option then delete files from .state/ as needed.')
 class Make(config.Action):
-    cores = multiprocessing.cpu_count()
-    force = False
-    show = False
-    done = False
+    make_cores = multiprocessing.cpu_count()
+    make_force = False
+    make_show = False
+    make_done = False
     
     def _before_run(self):
-        coordinator().set_cores(self.cores)
-        if self.force:
+        coordinator().set_cores(self.make_cores)
+        if self.make_force:
             remake_needed()
-        if self.show:
+        if self.make_show:
             abort_makes()
-        if self.done:
+        if self.make_done:
             do_nothing()
+
+    def run(self):
+        pass
 
 
 @config.help("""\
@@ -620,6 +620,24 @@ class Make_script(Make):
     def run(self):
         stage(self.function, *self.script_parameters)
 
+
+def configure_making(args):
+    """ Configure make options, return remaining arguments.
+    
+        Exits program if options are invalid.
+    """
+    
+    try:
+        maker = Make()
+        leftovers = maker.parse_partial(args)
+        if leftovers != args:
+            config.write_colored_text(sys.stderr, '\n'+maker.describe('Make options')+'\n')        
+        maker.run()    
+        return leftovers
+    except:
+        report_exception()
+        sys.exit(1)
+    
 
 def run_script(function):
     """ Run a workflow script. Various command line flags are parsed,
@@ -645,7 +663,8 @@ def run_tool(action_class):
     """
     Provide a command line interface for an Action.
     """
-    config.shell_run(action_class(), sys.argv[1:], sys.argv[0])
+    args = configure_making(sys.argv[1:])
+    config.shell_run(action_class(), args, sys.argv[0])
 
 
 def run_toolbox(action_classes, script_name=''):
@@ -656,6 +675,8 @@ def run_toolbox(action_classes, script_name=''):
     strings included in the action_classes list will be printed 
     as help text, for example to display section headings.
     """
+    args = configure_making(sys.argv[1:])
+    
     commands = { }
     help = [ '\n' ]
     for item in action_classes:
@@ -667,8 +688,8 @@ def run_toolbox(action_classes, script_name=''):
         help.append('    %s\n' % config.colored(1,name+':'))
         help.append(config.wrap(item.help_short, 70, '        ') + '\n\n')
 
-    args = sys.argv[1:]
-    
+    help.append('\nMake options:\n'+Make().describe('', show_help=True)+'\n')
+
     if not args:
         config.write_colored_text(sys.stdout, ''.join(help)+'\n\n')
         sys.exit(1)

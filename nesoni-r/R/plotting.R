@@ -70,12 +70,20 @@ trim.labels <- function(labels) {
 
 
 
-nesoni.heatmap <- function(mat, labels, reorder.columns=FALSE) {    
+nesoni.heatmap <- function(mat, 
+                           labels=NA, 
+                           reorder.columns=FALSE, 
+                           sort.mat=NA, 
+                           signed=TRUE,
+                           legend='log2 expression\ndifference from row average\n') {    
     n.rows <- nrow(mat)
     n.cols <- ncol(mat)
     
-    dend.row <- do.dendrogram( t(scale(t(mat))) )
-    dend.col <- do.dendrogram( scale(t(mat)), enable=reorder.columns )
+    if (all(is.na(sort.mat)))
+       sort.mat <- t(scale(t(mat)))
+    
+    dend.row <- do.dendrogram( sort.mat )
+    dend.col <- do.dendrogram( t(sort.mat), enable=reorder.columns )
     
     if (n.rows < 2 || n.cols < 2) {
         plot.new()
@@ -98,10 +106,16 @@ nesoni.heatmap <- function(mat, labels, reorder.columns=FALSE) {
         legend.x1 <- 15/30
         legend.x2 <- 18/30
 
-        col <- signed.col
-        extreme <- max(0.0,abs(mat),na.rm=TRUE)
-        breaks <- seq(-extreme,extreme, length=length(col)+1)
-        
+        if (signed) {
+            col <- signed.col
+            extreme <- max(0.0,abs(mat),na.rm=TRUE)
+            breaks <- seq(-extreme,extreme, length=length(col)+1)
+        } else {
+            col <- unsigned.col
+            extreme <- max(0,mat,na.rm=TRUE)
+            breaks <- seq(0,extreme, length=length(col)+1)
+        }
+                
         plot.new()
         
         if (!all(is.na(dend.col$dendrogram))) {
@@ -129,7 +143,7 @@ nesoni.heatmap <- function(mat, labels, reorder.columns=FALSE) {
         }
         
         put.plot(legend.x1,legend.x2, legend.y1,legend.y2)
-        color.legend(col, breaks, 'log2 expression\ndifference from row average\n')        
+        color.legend(col, breaks, legend)        
     }
     
     list(
@@ -177,6 +191,18 @@ nesoni.heatmap <- function(mat, labels, reorder.columns=FALSE) {
 unsigned.col <- hsv(h=seq(0.95,1.15, length.out=256)%%1.0, v=seq(0,1, length.out=256)**0.5,s=seq(1,0,length.out=256)**0.5)
 signed.col <- hsv(h=(sign(seq(-1.0,1.0, length.out=256))*0.2+0.8)%%1.0, v=1,s=abs(seq(-1,1,length.out=256)))
 
+
+svd.gene.picker <- function(mat, svd.rank=NULL, min.svd=2.0) {
+    if (is.null(svd.rank))
+        svd.rank <- ncol(mat)-1
+    s <- svd(t(scale(t(mat), center=TRUE,scale=FALSE)), nu=svd.rank,nv=svd.rank)
+    cat('SVD d diagonal:\n')
+    print(s$d[basic.seq(svd.rank)])
+    mag <- sqrt( rowSums(s$u*s$u) * nrow(s$u) / ncol(s$u) )
+    mag >= min.svd
+}
+
+
 hmap.elist <- function(filename.prefix, elist, 
                        min.sd=0.0, min.span=0.0, min.svd=0.0, svd.rank=NULL,
                        annotation=c('gene', 'product'), 
@@ -195,13 +221,15 @@ hmap.elist <- function(filename.prefix, elist,
     }
     
     if (min.svd > 0.0) {
-        if (is.null(svd.rank))
-            svd.rank <- ncol(elist$E)-1
-        s <- svd(t(scale(t(elist$E), center=TRUE,scale=FALSE)), nu=svd.rank,nv=svd.rank)
-        cat('SVD d diagonal:\n')
-        print(s$d[basic.seq(svd.rank)])
-        mag <- sqrt( rowSums(s$u*s$u) * nrow(s$u) / ncol(s$u) )
-        keep <- (keep & mag >= min.svd)
+        #if (is.null(svd.rank))
+        #    svd.rank <- ncol(elist$E)-1
+        #s <- svd(t(scale(t(elist$E), center=TRUE,scale=FALSE)), nu=svd.rank,nv=svd.rank)
+        #cat('SVD d diagonal:\n')
+        #print(s$d[basic.seq(svd.rank)])
+        #mag <- sqrt( rowSums(s$u*s$u) * nrow(s$u) / ncol(s$u) )
+        #keep <- (keep & mag >= min.svd)
+        
+        keep <- keep & svd.gene.picker(elist$E, svd.rank, min.svd)
     }
     
     elist <- elist[keep,]
