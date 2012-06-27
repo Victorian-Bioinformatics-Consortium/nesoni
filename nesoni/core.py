@@ -68,7 +68,7 @@ def main(args):
         os.mkdir(output_dir)
     
     #for name, seq in io.read_sequences(path.join(working_dirs[0],'reference.fa')):
-    for name, seq in io.read_sequences(nesoni.working_directory.Working(working_dirs[0]).get_reference().reference_fasta_filename()):
+    for name, seq in io.read_sequences(working_directory.Working(working_dirs[0]).get_reference().reference_fasta_filename()):
         print name
         friendly_name = grace.filesystem_friendly_name(name)
         
