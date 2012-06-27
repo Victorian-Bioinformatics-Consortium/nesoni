@@ -8,7 +8,7 @@ Core-genome tool.
 import sys, os
 from os import path
 
-from nesoni import grace, io, trivia
+from nesoni import grace, io, trivia, working_directory
 
 HELP = """\
 
@@ -60,13 +60,15 @@ def main(args):
     
     output_dir, working_dirs = args[0], args[1:]
     
-    assert not path.exists(path.join(output_dir, 'reference.fa')), \
-        'Output directory not given'
+    #assert not path.exists(path.join(output_dir, 'reference.fa')), \
+    assert not path.exists(nesoni.working_directory.Working(working_dirs[0]).get_reference().reference_fasta_filename()), \
+            'Output directory not given'
     
     if not path.exists(output_dir):
         os.mkdir(output_dir)
     
-    for name, seq in io.read_sequences(path.join(working_dirs[0],'reference.fa')):
+    #for name, seq in io.read_sequences(path.join(working_dirs[0],'reference.fa')):
+    for name, seq in io.read_sequences(nesoni.working_directory.Working(working_dirs[0]).get_reference().reference_fasta_filename())):
         print name
         friendly_name = grace.filesystem_friendly_name(name)
         
