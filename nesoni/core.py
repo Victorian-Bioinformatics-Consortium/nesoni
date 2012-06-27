@@ -61,7 +61,7 @@ def main(args):
     output_dir, working_dirs = args[0], args[1:]
     
     #assert not path.exists(path.join(output_dir, 'reference.fa')), \
-    assert not path.exists(nesoni.working_directory.Working(working_dirs[0]).get_reference().reference_fasta_filename()), \
+    assert not path.exists(path.join(output_dir, 'parameters')), \
             'Output directory not given'
     
     if not path.exists(output_dir):
