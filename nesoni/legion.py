@@ -4,7 +4,7 @@ __all__ = """
    generate 
    remake_needed remake_clear do_nothing
    future parallel_imap parallel_map parallel_for
-   process barrier stage stage_function
+   Stage process barrier stage stage_function
    make process_make 
    Execute Make
    configure_making run_script run_tool run_toolbox
@@ -12,7 +12,7 @@ __all__ = """
 
 import multiprocessing 
 from multiprocessing import managers
-import threading, sys, os, signal, atexit, time, base64, socket
+import threading, sys, os, signal, atexit, time, base64, socket, warnings
 import cPickle as pickle
 
 from nesoni import grace, config
@@ -224,22 +224,85 @@ def subprocess_Popen(*args, **kwargs):
     import subprocess
     return subprocess.Popen(*args, **kwargs)
 
+
+
 # =======================================
 
+class Stage(object):
+    """ All the world's a stage,
+        And all the men and women merely players 
+    
+        Use this class to synchronize with sets of 
+        processes that you start.
+        
+        Example:
+        
+        
+        stage = Stage()
+        stage.process(my_func1,...)
+        stage.process(my_func2,...)
+        ...
+        
+        stage.barrier()   #Wait for all processes started by this stage to finish
+
+        
+        Limitations: 
+        A stage object can not be passed to a different process.
+    """
+    def __init__(self):
+        self.futures = [ ]
+
+    def add(self, future):
+        """ Add an existing process to this stage's collection. 
+        
+            Actually, it can be anything that can be called with
+            no arguments.
+        """
+        if not self.futures:
+            LOCAL.stages.add(self)
+        self.futures.append(future)
+        
+    def process(self, func, *args, **kwargs):
+        """ Create a new process that will execute func, and
+            add it to this stage's collection. """
+        item = future(func, *args, **kwargs)
+        self.add(item)
+        return item
+
+    def barrier(self):
+        """ Wait for all processes that have been added to this stage
+            to finish. """
+        if self.futures:
+            LOCAL.stages.remove(self)
+
+            exceptions = [ ]
+            while self.futures:
+                try:
+                    self.futures.pop()()
+                except Exception, e:
+                    exceptions.append(e)
+            if exceptions:
+                raise Child_exception('Child failures: %d' % len(exceptions), exceptions)
 
 
 
 
 
-
-
-LOCAL = threading.local()
 def set_locals():
+    global LOCAL
+    LOCAL = threading.local()
     LOCAL.abort_make = False
     LOCAL.do_nothing = False 
     LOCAL.time = 0 #Note: do not run this code before the year 1970
-    LOCAL.parallels = [ ]
+    LOCAL.stages = set() #Stages with processes in them, so we can warn if they don't have .barrier() called on them
+    LOCAL.stage = Stage() #Default stage. Deprecated.
 set_locals()
+
+def _check_stages():
+    if LOCAL.stages:
+        warnings.warn('Exited without calling .barrier() on all Stages.')  
+atexit.register(_check_stages)
+
 
 def remake_needed():
     """ Force all tools to be re-run.     
@@ -273,7 +336,8 @@ def _run_future(time,abort_make,do_nothing, func, args, kwargs, sender):
     exception = None
     try:
         result = func(*args, **kwargs)
-        barrier()
+        barrier()        
+        assert not LOCAL.stages, 'Process completed without calling .barrier() on all Stages.'
     except object, e:
         config.report_exception()
         exception = e
@@ -288,6 +352,22 @@ def _run_future(time,abort_make,do_nothing, func, args, kwargs, sender):
 
 
 def future(func, *args, **kwargs):
+    """
+    Underlying synchronization mechanism.
+    
+    Create a new process to run a function.
+    
+    The return value can be later called with
+    no arguments to get the result of the function. 
+    This has the side effect of synchronizing with 
+    the process that was created, and this process
+    being "infected" with the need to remake if 
+    necessary.
+    
+    Limitation:
+    A future can not be passed to a different process.
+    """
+
     # Pause, let your mind expand.
     # What follows is as it must be,
     # unless I have made a mistake.    
@@ -339,69 +419,54 @@ def parallel_for(iterable):
 
 
 def process(func, *args, **kwargs):
-    """ Start a new process.
+    """ Deprecated. Use Stage objects.
     
-        This can either be used as a function call or a function decorator,
-        the following have the same effect:
-        
-        def func():
-           ...        
-        process(func)
-        
-        @process
-        def _():
-           ...        
+        Start a new process. 
     """
-    item = future(func, *args, **kwargs)
-    LOCAL.parallels.append(item)
-    return item
+    return LOCAL.stage.process(func, *args, **kwargs)
 
 #def thread(func, *args, **kwargs):
 #    LOCAL.parallels.append(future(func, *args, local=True, **kwargs))
 #    return func
 
 def barrier():
-    """ Wait for all processes started by this process to finish.    
+    """ Deprecated. Use Stage objects.
+    
+        Wait for all processes started by this process to finish.    
+        (Except for any processes explicitly put in a stage.)
     """
-    exceptions = [ ]
-    while LOCAL.parallels:
-        try:
-            LOCAL.parallels.pop()()
-        except Exception, e:
-            exceptions.append(e)
-    if exceptions:
-        raise Child_exception('Child failures: %d' % len(exceptions), exceptions)
+    LOCAL.stage.barrier()
 
 
 def stage(func, *args, **kwargs):
-    """ Call a function, and wait for all processes started by it to finish
+    """ Deprecated. Use Stage objects.
     
-        Can be used as a function decorator
+        Call a function, and wait for all processes started by it to finish    
+        Can be used as a function decorator, but probably shouldn't be.
     """
-    old = LOCAL.parallels
-    LOCAL.parallels = [ ]
+    old = LOCAL.stage
+    LOCAL.stage = Stage()
     result = None
     try:
         result = func(*args, **kwargs)
     finally:
         barrier()    
-        LOCAL.parallels = old
+        LOCAL.stage = old
     return result
 
 
 def stage_function(func):
-    """ Ensure processes started by a function or method complete
+    """ Deprecated. Use Stage objects.
+    
+        Ensure processes started by a function or method complete
         before the function returns.
     """
     def inner(*args, **kwargs):
         return stage(func, *args, **kwargs)
     return inner
-    
 
-# parallel()
-# barrier()
-# remake all if any make failed
-# -> dependancy structure
+
+    
 
 
 
@@ -496,14 +561,16 @@ def _time_advancer(timestamp):
         LOCAL.time = max(LOCAL.time, timestamp)
     return time_advancer
 
-def process_make(action):
-    """ This is just a more efficient version of process(make, <action>)
+def process_make(action, stage=None):
+    """ This is just a more efficient version of stage.process(make, <action>)
     """
+    if stage is None:
+        stage = LOCAL.stage
     timestamp = _get_timestamp(action)    
     if timestamp is not None and timestamp >= LOCAL.time:
-        LOCAL.parallels.append(_time_advancer(timestamp))
+        stage.add(_time_advancer(timestamp))
     else:
-        process(_make_inner,action)
+        stage.process(_make_inner,action)
 
 
 

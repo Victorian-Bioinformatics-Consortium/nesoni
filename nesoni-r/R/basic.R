@@ -31,5 +31,7 @@ basic.take <- function(object, rows) {
 }
 
 basic.image <- function(x,y,z, col, breaks) {
-    image(x=x, y=y, z=z,col=col,breaks=breaks,xaxt="n",yaxt="n",xlab='',ylab='')
+    if (length(x) > 0 && length(y) > 0) {
+        image(x=x, y=y, z=z,col=col,breaks=breaks,xaxt="n",yaxt="n",xlab='',ylab='')
+    }
 }

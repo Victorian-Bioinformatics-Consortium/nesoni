@@ -18,7 +18,7 @@ from workflows import Analyse_sample
 from legion import *
 
 
-VERSION='0.75'
+VERSION='0.76'
 
 BOLD = '\x1b[1m'
 END = '\x1b[m'
@@ -342,9 +342,9 @@ def get_commands():
     def recombination(args):
         grace.load('recombination').recombination(args)
         
-    @add
-    def report(args):
-        grace.load('report').report_main(args)
+    #@add
+    #def report(args):
+    #    grace.load('report').report_main(args)
     
     #@add
     #def batch(args):

@@ -1,4 +1,8 @@
 
+0.76 - multiplot function added to R library
+       core: partially updated
+       Stage class added to legion module
+
 0.75 - flags to control making added
        analyse-sample: added
        nway: updated to new config system

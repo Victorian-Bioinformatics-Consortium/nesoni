@@ -504,9 +504,9 @@ class Action(Configurable):
         from nesoni import legion
         legion.make(self)
 
-    def process_make(self):
+    def process_make(self, stage=None):
         from nesoni import legion
-        legion.process_make(self)
+        legion.process_make(self, stage)
 
 
 
