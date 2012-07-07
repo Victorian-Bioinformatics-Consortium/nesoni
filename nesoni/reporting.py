@@ -1,7 +1,7 @@
 
 import os, collections, datetime, shutil, tarfile
 
-from nesoni import io
+from nesoni import io, config
 
 
 def mine_logs(filenames, filter=lambda sample, field: True):
@@ -29,6 +29,38 @@ def mine_logs(filenames, filter=lambda sample, field: True):
            [ ('Statistic', field) ] + [ (item, data.get((item,field),'')) for item in samples ]
         ))
     return records
+
+@config.String_flag('dest')
+@config.String_flag('source')
+class Copy(config.Action):
+    dest = None
+    source = None
+    
+    def ident(self): 
+        return super(Copy,self).ident() + '--' + (self.dest or '')
+    
+    def run(self):
+        shutil.copyfile(self.source, self.dest)
+
+
+@config.String_flag('dest')
+@config.Section('files', 'filenames or tuples (filename, destname)')
+class Tar(config.Action):
+    dest = None
+    files = [ ]
+    
+    def ident(self): 
+        return super(Tar,self).ident() + '--' + (self.dest or '')
+    
+    def run(self):
+        tarf = tarfile.open(self.dest, 'w:gz')
+        for filename in self.files:
+            if isinstance(filename, tuple):
+                filename, destname = filename
+            else:
+                destname = os.path.split(filename)[1]            
+            tarf.add(filename, destname)        
+        tarf.close()
 
 
 STYLE = """
@@ -62,6 +94,9 @@ class Reporter(object):
     def heading(self, text):
         print >> self.f, '<h2>%s</h2>' % text
 
+    def subheading(self, text):
+        print >> self.f, '<h3>%s</h3>' % text
+
     def p(self, text):
         print >> self.f, '<p>%s</p>' % text
 
@@ -92,20 +127,29 @@ class Reporter(object):
         if prefix is None:
             prefix = self.file_prefix
         dest = self.workspace / (prefix+name)
-        shutil.copyfile(filename, dest)
+        
+        Copy(
+            dest = dest,
+            source = filename,
+        ).make()
+        
         return self.href(dest, title, image)
     
     def tar(self, tar_name, filenames, title=None):
         dest = self.workspace / (self.file_prefix+tar_name)
         
-        tarf = tarfile.open(dest, 'w:gz')
-        for filename in filenames:
-            if isinstance(filename, tuple):
-                filename, destname = filename
-            else:
-                destname = os.path.split(filename)[1]            
-            tarf.add(filename, destname)        
-        tarf.close()
+        Tar(
+            dest = dest,
+            files = filenames,
+        ).make()        
+        #tarf = tarfile.open(dest, 'w:gz')
+        #for filename in filenames:
+        #    if isinstance(filename, tuple):
+        #        filename, destname = filename
+        #    else:
+        #        destname = os.path.split(filename)[1]            
+        #    tarf.add(filename, destname)        
+        #tarf.close()
         
         return self.href(dest, title)
         
@@ -114,10 +158,10 @@ class Reporter(object):
         io.write_csv(filename, mine_logs(logs, filter))        
         self.p(self.href(filename))
         
-    def report_heatmap(self, action):
+    def report_heatmap(self, action, has_csv=True):
         self.p(
-            self.get(action.prefix + '.png', image=True) + ' &sdot; ' +
-            self.get(action.prefix + '.csv', title='[spreadsheet]') 
+            self.get(action.prefix + '.png', image=True) + 
+            (' &sdot; ' +self.get(action.prefix + '.csv', title='[spreadsheet]') if has_csv else '')
         )
 
 

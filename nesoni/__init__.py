@@ -10,7 +10,7 @@ from samshrimp import Shrimp
 from samconsensus import Filter, Reconsensus, Consensus
 from nway_diff import Nway
 from samcount import Count
-from runr import Test_counts, Heatmap, Compare_tests, Norm_from_counts, NMF
+from runr import Test_counts, Plot_counts, Heatmap, Compare_tests, Norm_from_counts, NMF
 from trivia import As_fasta, As_gff, Sample, Stats
 from igv import Make_genome, IGV_plots, As_userplots 
 from workflows import Analyse_sample
@@ -18,7 +18,7 @@ from workflows import Analyse_sample
 from legion import *
 
 
-VERSION='0.76'
+VERSION='0.77'
 
 BOLD = '\x1b[1m'
 END = '\x1b[m'
@@ -314,9 +314,9 @@ def get_commands():
     #def clip(args):
     #    grace.load('clip').clip(args)
     
-    @add
-    def plot_counts(args):
-        grace.load('runr').plot_counts_main(args)
+    #@add
+    #def plot_counts(args):
+    #    grace.load('runr').plot_counts_main(args)
 
     #@add
     #def test_counts(args):

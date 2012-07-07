@@ -1,4 +1,7 @@
 
+0.77 - R function to load table with grouped columns
+       plot-counts: updated
+
 0.76 - multiplot function added to R library
        core: partially updated
        Stage class added to legion module

@@ -1,21 +1,18 @@
 
 # Functions for dealing with table created by "nesoni count:"
 
-nesoni.read.table <- function(filename, keep.rownames=FALSE) {
-    data <- read.csv(filename, comment='#', check.names=FALSE)
-    rownames(data) <- data[,1]
-    if (!keep.rownames) {
-        data <- data[ ,2:ncol(data), drop=FALSE]
-    }
-    data
-}
-
 read.counts <- function(filename, min.total=0, min.max=0, keep=NULL, norm.file=NULL, use.tmm=TRUE) {    
-    data <- read.delim(filename, check.names=FALSE)
-    rownames(data) <- data$Feature
-    n_samples <- grep('^RPKM', colnames(data))[1] - 2
-    counts <- as.matrix( data[,2:(n_samples+1), drop=FALSE] )
-    gene <-data[, (n_samples*2+2):ncol(data)]
+    #data <- read.delim(filename, check.names=FALSE)
+    #rownames(data) <- data$Feature
+    #n_samples <- grep('^RPKM', colnames(data))[1] - 2
+    #counts <- as.matrix( data[,2:(n_samples+1), drop=FALSE] )
+    #gene <-data[, (n_samples*2+2):ncol(data)]
+    
+    data <- read.grouped.table(filename, require=c('Count','Annotation'))
+    counts <- as.matrix( data$Count )
+    gene <- data$Annotation
+    n_samples <- ncol(counts)
+    
     
     cat(sprintf("%d genes\n", nrow(counts)))
     

@@ -34,6 +34,8 @@ dendrogram.paths <- function(dend) {
 }
 
 do.dendrogram <- function(mat, enable=TRUE) {
+    # Note: paths are given ordered by order
+
     if (nrow(mat) < 3 || !enable) {
         list(
             dendrogram = NULL,

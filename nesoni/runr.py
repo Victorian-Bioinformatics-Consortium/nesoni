@@ -40,10 +40,18 @@ def run_script(script, only_tell=False, **kwargs):
     #        script
     #    )
     
-    script = ''.join([
-        key + ' <- ' + R_literal(kwargs[key]) + '\n'
-        for key in kwargs
-    ]) + script
+    script = (
+        r"""options(error=function(){dump.frames(); cat(names(last.dump),sep='\n'); q('no',1);}); """ + 
+        '\n' +
+        ''.join([
+            key + ' <- ' + R_literal(kwargs[key]) + '\n'
+            for key in kwargs
+        ]) + 
+        '{\n' +
+        script +
+        '\ninvisible();\n'   #Rscript prints the return value of top level expressions. No thanks.
+        '}\n'        
+    )
        
     if only_tell:
         print script
@@ -74,83 +82,37 @@ class R_action(config.Action):
 
 
 
-PLOT_COUNTS_HELP = """\
-
-Usage:
-
-    nesoni plot-counts: output_prefix counts.txt
-
+@config.help("""\
 Plot a grid of sample-sample scatter plots.
+""")
+@config.Positional('counts', 'Output from "count:"')
+class Plot_counts(config.Action_with_prefix, R_action):
+    counts = None
 
-"""
-
-PLOT_TEMPLATE = """\
-
-data <- read.delim(%(filename_literal)s, check.names=FALSE)
-rownames(data) <- data$Feature
-
-n <- %(n_all_samples)d
-counts <- data[,2:(n+1), drop=FALSE]
-rpkms <- data[,(n+2):(n*2+1), drop=FALSE]
-
-pngname <- sprintf('%%s-count.png', %(output_plot_literal)s)
-
-png(pngname, width=n*300, height=n*300 )
-
-not_first <- FALSE
-for(i in 1:n) {
-    for(j in 1:n) {
-        if (i != j) {
-            par(fig=c((i-1)/n,i/n,(n-j)/n,(n-j+1)/n), new=not_first)
-            plot(counts[,i], counts[,j], 
-                 log='xy', pch=19, 
-                 xlab=colnames(counts)[i], ylab=colnames(counts)[j])
-            not_first <- TRUE
+    script = r"""
+    library(nesoni)
+    dgelist <- read.counts(counts)    
+    counts <- dgelist$counts
+    n <- ncol(counts)
+    
+    pngname <- sprintf('%s-count.png', prefix)
+    png(pngname, width=n*300, height=n*300 )
+    
+    not_first <- FALSE
+    for(i in 1:n) {
+        for(j in 1:n) {
+            if (i < j) {
+                par(fig=c((i-1)/(n-1),i/(n-1),(n-j)/(n-1),(n-j+1)/(n-1)), new=not_first)
+                plot(counts[,i], counts[,j], 
+                     log='xy', pch=19, pty='s',
+                     xlab=colnames(counts)[i], ylab=colnames(counts)[j])
+                not_first <- TRUE
+            }
         }
     }
-}
-
-dev.off()
-
-pngname <- sprintf('%%s-RPKM.png', %(output_plot_literal)s)
-
-png(pngname, width=n*300, height=n*300 )
-
-not_first <- FALSE
-for(i in 1:n) {
-    for(j in 1:n) {
-        if (i != j) {
-            par(fig=c((i-1)/n,i/n,(n-j)/n,(n-j+1)/n), new=not_first)
-            plot(rpkms[,i], rpkms[,j], 
-                 log='xy', pch=19, 
-                 xlab=colnames(counts)[i], ylab=colnames(counts)[j])
-            not_first <- TRUE
-        }
-    }
-}
-
-dev.off()
-
-"""
-
-def plot_counts_main(args):
-    if len(args) != 2:
-        print >> sys.stderr, PLOT_COUNTS_HELP
-        raise grace.Help_shown()
-
-    output_prefix, filename = args[0], args[1]
-
-    f = open(filename,'rb')
-    header = f.readline()
-    f.close()
-    parts = header.rstrip('\n').split('\t')    
-    n_all_samples = parts.index('RPKM '+parts[1])-1    
-
-    filename_literal = R_literal(filename)
-    output_plot_literal = R_literal(output_prefix)
     
-    run_script(PLOT_TEMPLATE % locals())
-    
+    dev.off()
+    """
 
 
 TEST_COUNTS_HELP = """\
@@ -163,7 +125,7 @@ Usage:
         [with: term [term...]] \\
         [use: regex [regex...]]
 
-Find significant differential expression from the output of "nesoni samcount".
+Find significant differential expression from the output of "nesoni count:".
 
 term is a regular expression on the sample names, or several 
 terms joined by ^, indicating an interaction term (ie the XOR of the 
@@ -1148,7 +1110,7 @@ if (length(ORDER)) {
     dgelist <- dgelist[, ORDER]
 }
 
-elist <- voom(dgelist)
+elist <- voom(dgelist, normalize.method=if(QUANTILE) 'quantile' else 'none')
 hmap.elist(PREFIX, elist, min.sd=MIN_SD, min.span=MIN_SPAN, min.svd=MIN_SVD, svd.rank=SVD_RANK, reorder.columns=REORDER_COLUMNS)
 
 """
@@ -1168,7 +1130,8 @@ Hierachical clustering and ordering of rows is performed using the "seriation" p
 @config.Int_flag('svd_rank', 'Only use the top this many columns of the SVD U matrix when applying --min-svd.')
 @config.Bool_flag('reorder_columns', 'Cluster and optimally order columns as well as rows.')
 @config.String_flag('norm_file', 'Use normalization produced by "norm-from-counts:".')
-@config.Positional('counts', 'File containing output from "samcount:"')
+@config.Bool_flag('quantile', 'Use quantile normalization.')
+@config.Positional('counts', 'File containing output from "nesoni count:"')
 @config.Section('order', 'Optionally, specify an order to show the columns in.')
 class Heatmap(config.Action_with_prefix):
     counts = None
@@ -1180,6 +1143,7 @@ class Heatmap(config.Action_with_prefix):
     svd_rank = None
     reorder_columns = False
     norm_file = None
+    quantile = False
     order = [ ]
 
     def run(self):
@@ -1194,6 +1158,7 @@ class Heatmap(config.Action_with_prefix):
             SVD_RANK=self.svd_rank,
             REORDER_COLUMNS=self.reorder_columns,
             NORM_FILE=self.norm_file,
+            QUANTILE=self.quantile,
             ORDER=self.order,
         )
 

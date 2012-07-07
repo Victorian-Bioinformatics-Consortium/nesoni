@@ -3,3 +3,4 @@ test/output/*
 MANIFEST
 build/*
 dist/*
+test/.state/*

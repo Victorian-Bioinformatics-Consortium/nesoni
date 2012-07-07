@@ -587,7 +587,11 @@ read_table = Table_reader
 
 
 def write_csv(filename, iterable):
-    """ Write a sequence of OrderedDicts of strings as a CSV """
+    """ Write a sequence of OrderedDicts of strings as a CSV 
+    
+        Keys may be either simply a string or tuples of (group, column_name)
+        The first item is the row name, and can't have a group
+    """
     f = open(filename, 'wb')
     writer = csv.writer(f)
     keys = None
@@ -595,7 +599,24 @@ def write_csv(filename, iterable):
     for record in iterable:
         if keys is None:
            keys = record.keys()
-           writer.writerow(keys)
+           
+           groups = [ ]
+           names = [ ]
+           any_groups = False
+           for item in keys:
+               if isinstance(item,tuple):
+                   group, name = item
+                   groups.append(group)
+                   names.append(name)
+                   any_groups = True
+               else:
+                   groups.append('All')
+                   names.append(item)
+           
+           if any_groups:
+               print >> f, '#Groups,' + ','.join(groups[1:])
+           
+           writer.writerow(names)
         assert record.keys() == keys
         writer.writerow(record.values())
     f.close()

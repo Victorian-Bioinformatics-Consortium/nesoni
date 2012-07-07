@@ -117,7 +117,7 @@ class Parameter(object):
         return string
     
     def describe(self, value):
-        return value
+        return str(value)
 
     def __call__(self, item):
         # Put the parameter after any parameters from base classes
@@ -223,7 +223,7 @@ class Section(Parameter):
         return self.name.replace('_','-').rstrip('-').lower()+':'
 
     def describe(self, value):
-        return ' '.join(value)
+        return ' '.join(str(item) for item in value)
 
     def describe_shell(self, value, verbose=True):
         if not verbose and not value: return ''
