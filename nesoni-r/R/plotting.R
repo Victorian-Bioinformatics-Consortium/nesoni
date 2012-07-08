@@ -190,7 +190,7 @@ nesoni.heatmap <- function(mat,
                            reorder.columns=FALSE, 
                            sort.mat=NULL, 
                            signed=TRUE,
-                           legend='log2 normalized count\ndifference from row mean',
+                           legend='log2 Reads Per Million\ndifference from row mean',
                            levels=NULL) {    
     n.rows <- nrow(mat)
     n.cols <- ncol(mat)
@@ -222,7 +222,7 @@ nesoni.heatmap <- function(mat,
             weight=0.25,
             type='bar',
             data=levels[dend.row$order],
-            title='mean\nlog2\nnormalized\ncount'
+            title='row\naverage'
         )
     }
     
