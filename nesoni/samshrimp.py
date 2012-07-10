@@ -131,6 +131,8 @@ class Shrimp(config.Action_with_output_dir):
         for pair in self.pairs:
             assert len(pair) == 2, 'Two files required in each pair: section'
 
+        io.check_name_uniqueness(self.reads, self.pairs, self.interleaved)
+
         read_sets = [ ]
         for item in self.reads:
             read_sets.append( ([item], False) )

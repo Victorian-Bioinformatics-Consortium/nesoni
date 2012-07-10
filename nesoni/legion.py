@@ -656,11 +656,16 @@ class Execute(config.Action_filter):
     'Do nothing, but mark all actions as done. '
     'This might be useful if there is a trivial parameter change you don\'t want to re-run. '
     'To re-run from a particular point, use this option then delete files from .state/ as needed.')
+#@config.String_flag('manager_address', 'IP address of the network interface you want the job manager to listen to.')
+#@config.String_flag('launch', 'Command to launch a new python.')
 class Make(config.Action):
     make_cores = multiprocessing.cpu_count()
     make_force = False
     make_show = False
     make_done = False
+    
+#    manager_address = '127.0.0.1'
+#    launch = sys.executable
     
     def _before_run(self):
         coordinator().set_cores(self.make_cores)
@@ -702,7 +707,7 @@ def configure_making(args):
         maker.run()    
         return leftovers
     except:
-        report_exception()
+        config.report_exception()
         sys.exit(1)
     
 

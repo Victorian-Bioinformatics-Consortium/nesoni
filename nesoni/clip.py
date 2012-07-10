@@ -474,7 +474,7 @@ class Clip(config.Action_with_prefix):
             ))
         
         for filename in self.interleaved:
-            filenames.extend(filename)
+            filenames.append(filename)
             any_paired = True
             iterators.append(deinterleave(
                 io.read_sequences(filename, qualities=True)

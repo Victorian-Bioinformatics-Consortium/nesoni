@@ -500,14 +500,43 @@ def guess_quality_offset(filename):
         grace.status('')
 
 
-def check_name_uniqueness(filenames):
+def check_name_uniqueness(read_filenames, pair_filenames=[], interleaved_filenames=[]):
     """ Check first few read names are unique """
     names = set()
-    for filename in filenames:
-        for i, (name, seq) in io.read_sequences(filename):
+    for filename in read_filenames:
+        for i, (name, seq) in enumerate(read_sequences(filename)):
             assert name not in names, 'Duplicate sequence name: '+name
             names.add(name)
             if i >= 1000: break
+
+    for filename1, filename2 in pair_filenames:
+        for i, ((name1, seq1), (name2, seq2)) in enumerate(itertools.izip(
+            read_sequences(filename1),
+            read_sequences(filename2),
+        )):
+            assert name1 not in names, 'Duplicate sequence name: '+name1
+            assert name2 not in names, 'Duplicate sequence name: '+name2
+            assert name1[:-4] == name2[:-4], 'Read pair with dissimilar names: '+name1+', '+name2
+            names.add(name1)
+            names.add(name2)
+            if i >= 1000: break
+    
+    for filename in interleaved_filenames:
+        iterator = read_sequences(filename)
+        for i in xrange(1000):
+            try:
+                name1, seq1 = iterator.next()
+            except StopIteration: break
+            try:
+                name2, seq2 = iterator.next()
+            except StopIteration:
+                assert False, 'Interleaved read file with odd number of reads.'
+            assert name1 not in names, 'Duplicate sequence name: '+name1
+            assert name2 not in names, 'Duplicate sequence name: '+name2
+            assert name1[:-4] == name2[:-4], 'Read pair with dissimilar names: '+name1+', '+name2
+            names.add(name1)
+            names.add(name2)
+            
 
 
 def write_fasta(f, name, sequence, qual=None):

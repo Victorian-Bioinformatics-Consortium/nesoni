@@ -1,4 +1,7 @@
 
+0.78 - Fix clip to accept interleaved files
+       "shrimp" checks for reads with duplicate names (eg pairs in reads section)
+
 0.77 - R function to load table with grouped columns
        plot-counts: updated
 

@@ -26,14 +26,41 @@ class Test_clip(unittest.TestCase):
 
 
 class Test_analyse_sample(unittest.TestCase):
-    def test_analyse(self):
+    def setUp(self):
         nesoni.remake_needed()
         
         nesoni.Make_reference(
             output_dir=output/'reference', 
             filenames=[ data/'NC_001422.gbk' ]
         ).run()
-        
+
+    def test_check_names(self):
+        with self.assertRaises(AssertionError):
+            nesoni.Analyse_sample(
+                output_dir=output/'test-analyse', 
+                reference=output/'reference', 
+                clip=None,
+                pairs=[[data/'reads_1.txt.gz',data/'reads_2.txt.gz'],
+                       [data/'reads_1.txt.gz',data/'reads_2.txt.gz']]
+            ).run()
+
+        with self.assertRaises(AssertionError):
+            nesoni.Analyse_sample(
+                output_dir=output/'test-analyse', 
+                reference=output/'reference', 
+                clip=None,
+                reads=[data/'reads_1.txt.gz',data/'reads_1.txt.gz']
+            ).run()
+
+        with self.assertRaises(AssertionError):
+            nesoni.Analyse_sample(
+                output_dir=output/'test-analyse', 
+                reference=output/'reference', 
+                clip=None,
+                interleaved=[data/'reads_1.txt.gz']
+            ).run()
+    
+    def test_analyse(self):        
         nesoni.Analyse_sample(
             output_dir=output/'test-analyse', 
             reference=output/'reference', 
