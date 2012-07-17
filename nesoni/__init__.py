@@ -11,7 +11,7 @@ from samconsensus import Filter, Reconsensus, Consensus
 from nway_diff import Nway
 from samcount import Count
 from runr import Test_counts, Plot_counts, Heatmap, Compare_tests, Norm_from_counts, NMF
-from trivia import As_fasta, As_gff, Sample, Stats
+from trivia import Test, As_fasta, As_gff, Sample, Stats
 from igv import Make_genome, IGV_plots, As_userplots 
 from workflows import Analyse_sample
 

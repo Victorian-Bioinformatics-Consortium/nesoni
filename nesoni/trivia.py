@@ -1,7 +1,20 @@
 
+import nesoni
 from nesoni import grace, io, bio, config, annotation
 
 import sys, os, math, random
+
+@config.help("""\
+Test that nesoni is able to run correctly.
+""")
+class Test(config.Action):
+    def hello(self):
+        print 'Hello, world.'
+        return 'Message from future.'
+
+    def run(self):
+        f = nesoni.future(self.hello)
+        print f()
 
 @config.help("""\
 Output the contents of sequence files in FASTA format.

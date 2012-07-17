@@ -1,9 +1,79 @@
 
+# Run a job =====================================================
+
+if __name__ == '__main__':
+    def run_job():
+        import sys, os, imp, base64
+    
+        # Connect to coordinator
+        current_dir, python_path, main_file, address, authkey, mail_number = eval(base64.b64decode(sys.argv[1]))
+        
+        # Try to recreate execution environment
+        os.chdir(current_dir)
+        sys.path = python_path
+        
+        from nesoni import legion
+        legion.manager(address, authkey, connect=True)
+        
+        if main_file is not None: # so unpickling functions in __main__ works
+            module = imp.new_module('__job__')
+            execfile(main_file, module.__dict__)
+            module.__name__ = '__main__'
+            sys.modules['__main__'] = module
+        
+        # Retrieve function and execute
+        func, args, kwargs = legion.coordinator().get_mail(mail_number)
+        func(*args,**kwargs) 
+        sys.exit(0)
+
+    run_job()
+
+
+
+
+
+# Load normally ==================================================
+
+
+# Magic pickling of methods =======================================
+
+# Based on an idea by Steven Bethard, http://bytes.com/topic/python/answers/552476-why-cant-you-pickle-instancemethods
+
+import copy_reg
+import types
+
+def _pickle_method(method):
+    assert type(method.im_class) != types.ClassType, "Can't pickle instance methods of old-style classes. Use new-style classes!"
+
+    obj = method.im_self
+    func = method.im_func
+    func_name = method.im_func.__name__
+
+    cls = method.im_class
+    for func_class in cls.mro():
+        if func_class.__dict__[func_name] is func:
+            break
+    else:
+        assert False, "Couln't find correct class for method "+func_name
+
+    return _unpickle_method, (func_class, func_name, obj, cls)
+
+def _unpickle_method(func_class, func_name, obj, cls):
+    return func_class.__dict__[func_name].__get__(obj, cls)
+
+copy_reg.pickle(types.MethodType, _pickle_method, _unpickle_method)
+
+
+
+
+# =====================================================================
+
 __all__ = """
    coordinator
-   generate 
    remake_needed remake_clear do_nothing
-   future parallel_imap parallel_map parallel_for
+   future 
+   parallel_imap parallel_map parallel_for 
+   thread_future thread_for
    Stage process barrier stage stage_function
    make process_make 
    Execute Make
@@ -12,7 +82,7 @@ __all__ = """
 
 import multiprocessing 
 from multiprocessing import managers
-import threading, sys, os, signal, atexit, time, base64, socket, warnings
+import threading, sys, os, signal, atexit, time, base64, socket, warnings, re
 import cPickle as pickle
 
 from nesoni import grace, config
@@ -42,14 +112,14 @@ def interleave(iterators):
             del iterators[i]
 
 
-
-
 def process_identity():
     return (socket.gethostname(), os.getpid())
 
 
 # Manager/coordinator ===================
 
+def substitute(text, **args):
+    return re.sub('|'.join(args), lambda match: args[match.group(0)], text)
 
     
 class My_coordinator:
@@ -70,25 +140,76 @@ class My_coordinator:
         self.cores = multiprocessing.cpu_count()
         self.used = 1 #Main process
         
-        self.pids = set()
         self.statuses = { }
+        
+        self.mail = { }
+        self.mail_count = 0
+        
+        self.futures = { }
+        self.future_count = 0
+        
+        self.job_name = 'nesoni/%d/' % os.getpid()
+        self.job_command = '__command__ &'
+        self.kill_command = 'pkill -f __jobname__'
+
+    def set(self, **kwargs):
+        for key in kwargs:
+            assert key in ('job_command','kill_command','cores')
+            setattr(self,key,kwargs[key])
+
+    
+    def set_mail(self, value):
+        with self.lock:
+            number = self.mail_count
+            self.mail_count += 1
+            self.mail[number] = value
+        return number
+    
+    def get_mail(self, number):
+        with self.lock:
+            return self.mail.pop(number)
+
+
+    def new_future(self):
+        with self.lock:
+            number = self.future_count
+            self.futures[number] = [ threading.Event(), None, 1 ]
+            self.future_count += 1
+            return number
+    
+    def ref_future(self, number):
+        with self.lock:
+            assert number in self.futures, 'Future refcounting inconsistency'
+            self.futures[number][2] += 1
+    
+    def deref_future(self, number):
+        with self.lock:
+            assert number in self.futures, 'Future refcounting inconsistency'
+            self.futures[number][2] -= 1
+            if self.futures[number] <= 0:
+                del self.futures[number]
+    
+    def deliver_future(self, number, value):
+        with self.lock:
+            if number in self.futures:
+                self.futures[number][1] = value
+                self.futures[number][0].set()
+
+    def get_future(self, number):
+        event = self.futures[number][0]        
+        if not event.isSet():
+            self.release_core()
+            event.wait()
+            self.acquire_core()
+        
+        result = self.futures[number][1]
+        self.deref_future(number)
+        return result
+
 
     def time(self):
         """ A common source of timestamps, if spread over many nodes. """
         return time.time()
-
-    def add_pid(self, pid):
-        self.pids.add(pid)
-    
-    def remove_pid(self, pid):
-        self.pids.remove(pid)
-    
-    def kill_all(self):
-        with self.lock:
-            if self.pids:
-                print >> sys.stderr, 'Killing', ' '.join(map(str,sorted(self.pids)))
-                while self.pids:
-                    os.kill( self.pids.pop(), signal.SIGTERM )
 
     def _update(self):
         with self.lock:
@@ -151,25 +272,57 @@ class My_coordinator:
             sys.stderr.write('\x1b]2;'+status+'\x07')
             sys.stderr.flush()
             
+
+    def job(self, func, *args, **kwargs):
+        number = self.set_mail((func,args,kwargs))
+
+        main = sys.modules['__main__']
+        if hasattr(main,'__file__'):
+            main_file = main.__file__
+        else:
+            main_file = None
+    
+        address = _SERVER.address
+        authkey = _SERVER.authkey        
+        token = base64.b64encode(repr((
+            os.getcwd(),
+            sys.path,
+            main_file,
+            address,
+            authkey,
+            number
+        )))
         
+        command = substitute(self.job_command,
+            __command__ = '%s %s %s %s' % (sys.executable, __file__, token, self.job_name),
+            __token__ = token,
+            __jobname__ = self.job_name
+        )
+
+        retval = os.system(command)
+        assert retval == 0, 'Failed to run job with: '+command
+        
+    def kill_all(self):
+        command = substitute(self.kill_command, __jobname__ = self.job_name)
+        os.system(command)
+
 
 # The coordinator in the manager-process
+_SERVER = None
 _COORDINATOR = None
-def _get_coordinator():
-    global _COORDINATOR
-    if not _COORDINATOR:
-        _COORDINATOR = My_coordinator()
-    return _COORDINATOR
-
 
 class My_manager(managers.SyncManager):
     class _Server(managers.SyncManager._Server):
         def serve_forever(self):
+            global _SERVER, _COORDINATOR
+            _SERVER = self
+            _COORDINATOR = My_coordinator()
+            
             signal.signal(signal.SIGINT, signal.SIG_IGN)
             managers.SyncManager._Server.serve_forever(self)
     
 
-My_manager.register('get_coordinator', callable=_get_coordinator)
+My_manager.register('get_coordinator', callable=lambda: _COORDINATOR)
 
 _MANAGER = None
 _AUTHKEY = None
@@ -192,7 +345,9 @@ def manager(address=('127.0.0.1',0),authkey=None,connect=False):
 # Local proxy of the coordinator in the manager-process
 _COORDINATOR_PROXY = None
 def coordinator():
-    global _COORDINATOR_PROXY
+    global _COORDINATOR, _COORDINATOR_PROXY
+    if _COORDINATOR is not None: #We are the manager process
+        return _COORDINATOR
     if _COORDINATOR_PROXY is None:
         _COORDINATOR_PROXY = manager().get_coordinator()
     return _COORDINATOR_PROXY
@@ -224,8 +379,6 @@ def subprocess_Popen(*args, **kwargs):
     import subprocess
     return subprocess.Popen(*args, **kwargs)
 
-
-
 # =======================================
 
 class Stage(object):
@@ -253,10 +406,9 @@ class Stage(object):
         self.futures = [ ]
 
     def add(self, future):
-        """ Add an existing process to this stage's collection. 
+        """ Add an existing future to this stage's collection. 
         
-            Actually, it can be anything that can be called with
-            no arguments.
+            This can be anything that can be called with no arguments.
         """
         if not self.futures:
             LOCAL.stages.add(self)
@@ -266,6 +418,13 @@ class Stage(object):
         """ Create a new process that will execute func, and
             add it to this stage's collection. """
         item = future(func, *args, **kwargs)
+        self.add(item)
+        return item
+
+    def thread(self, func, *args, **kwargs):
+        """ Create a new thread that will execute func, and
+            add it to this stage's collection. """
+        item = thread_future(func, *args, **kwargs)
         self.add(item)
         return item
 
@@ -287,10 +446,8 @@ class Stage(object):
 
 
 
-
+LOCAL = threading.local()
 def set_locals():
-    global LOCAL
-    LOCAL = threading.local()
     LOCAL.abort_make = False
     LOCAL.do_nothing = False 
     LOCAL.time = 0 #Note: do not run this code before the year 1970
@@ -327,7 +484,7 @@ def do_nothing():
 
 
 
-def _run_future(time,abort_make,do_nothing, func, args, kwargs, sender):
+def _run_future(time,abort_make,do_nothing, func, args, kwargs, future_number):
     set_locals()
     LOCAL.time = time
     LOCAL.abort_make = abort_make
@@ -338,17 +495,63 @@ def _run_future(time,abort_make,do_nothing, func, args, kwargs, sender):
         result = func(*args, **kwargs)
         barrier()        
         assert not LOCAL.stages, 'Process completed without calling .barrier() on all Stages.'
-    except object, e:
+    except:
         config.report_exception()
-        exception = e
+        exception = sys.exc_info()[1]
     
-    #Send result to parent before releasing core
-    sender.send((LOCAL.time, exception, result))
+    coordinator().deliver_future(future_number, (LOCAL.time, exception, result))
 
     #Give core back to parent
     coordinator().release_core()
 
-    sender.close()
+
+class Future_reference(object):
+    """ Object to retrieve a future from coordinator process.
+        Coordinator keeps a reference count:
+        - future created with refcount 1
+        - pickling the object increases refcount
+        - deleting the object decreases refcount
+        - retrieving the future decreases refcount, prevents further shenanigans
+        
+        Assumption: a pickled Future_reference is unpickled exactly once
+    """
+
+    def __init__(self, number):
+        self.number = number
+        self.retrieved = False
+        self.time = None
+        self.exception = None
+        self.result = None
+        
+        self.lock = threading.Lock()
+    
+    def __call__(self):
+        with self.lock:
+            if not self.retrieved:
+                self.time, self.exception, self.result = coordinator().get_future(self.number)
+                self.retrieved = True
+            
+            LOCAL.time = max(LOCAL.time, self.time)
+            if self.exception is not None:
+                raise self.exception
+            return self.result
+
+    def __del__(self):
+        if not self.retrieved:
+            coordinator().deref_future(self.number)
+    
+    def __getstate__(self):
+        with self.lock:
+            if not self.retrieved:
+                coordinator().ref_future(self.number)
+            result = dict(self.__dict__)
+            del result['lock']
+            return result
+    
+    def __setstate__(self, data):
+        self.lock = threading.Lock()
+        for key in data:
+            setattr(self,key,data[key])
 
 
 def future(func, *args, **kwargs):
@@ -364,58 +567,78 @@ def future(func, *args, **kwargs):
     being "infected" with the need to remake if 
     necessary.
     
-    Limitation:
-    A future can not be passed to a different process.
+    The returned value can be passed as a parameter
+    to other futures, and sent through connections.
     """
 
-    # Pause, let your mind expand.
-    # What follows is as it must be,
-    # unless I have made a mistake.    
-    
-    receiver, sender = multiprocessing.Pipe(False)
+    future_number = coordinator().new_future()
 
     #Give core to process we start
-    p = start_process(_run_future,LOCAL.time,LOCAL.abort_make,LOCAL.do_nothing,func,args,kwargs,sender)
+    p = coordinator().job(_run_future,LOCAL.time,LOCAL.abort_make,LOCAL.do_nothing,func,args,kwargs,future_number)
     
     #Get another for ourselves
     coordinator().acquire_core()
+    
+    return Future_reference(future_number)
 
-    received = [ ]
-    def local_func():
-        if not received:
-            #Get the core back from the process we started
-            if not receiver.poll():
-                # Don't need our core while we're waiting
-                coordinator().release_core()
-                receiver.poll(None)
-                coordinator().acquire_core()
-            received.append( receiver.recv() )            
-            receiver.close()
-            p.join()
-        
-        time, exception, result = received[0]        
+
+def thread_future(func, *args, **kwargs):
+    """
+    Lightweight version of future, using threads.
+    
+    Can not be passed between processes.
+    """
+    storage = [ ]
+    
+    def run_future(time,abort_make,do_nothing):
+        set_locals()
+        LOCAL.time = time
+        LOCAL.abort_make = abort_make
+        LOCAL.do_nothing = do_nothing
+        result = None
+        exception = None
+        try:
+            result = func(*args, **kwargs)
+            barrier()        
+            assert not LOCAL.stages, 'Process completed without calling .barrier() on all Stages.'
+        except:
+            config.report_exception()
+            exception = sys.exc_info()[1]
+
+        storage.extend([ LOCAL.time, exception, result ])
+
+    thread = threading.Thread(target=run_future,args=(LOCAL.time,LOCAL.abort_make,LOCAL.do_nothing))  
+    thread.start()  
+    def get_thread_future():
+        thread.join()
+        [time, exception, value] = storage
         LOCAL.time = max(LOCAL.time, time)
-        if exception:
-            raise Child_exception('Child failed', exception)
-        return result
-    return local_func
+        if exception is not None:
+            raise exception
+        return value
+    return get_thread_future
+    
 
-
-def parallel_imap(func,iterable):
+def parallel_imap(func,iterable, future=future):
     # This may be memory inefficient for long iterators
     return (item() for item in [ future(func,item2) for item2 in iterable ])
 
-def parallel_map(func, iterable):
-    return list(parallel_imap(func, iterable))
+def parallel_map(func, iterable, future=future):
+    return list(parallel_imap(func, iterable, future))
 
-def parallel_for(iterable):
+def parallel_for(iterable, future=future):
+    """ Execute a "for loop" in parallel.
+    """
+    def doit(func):
+        for item in parallel_imap(func, iterable, future):
+            pass
+    return doit
+
+def thread_for(iterable):
     """ Execute a "for loop" in parallel.
         Use this as a function decorator. 
     """
-    def thread_for(func):
-        for item in parallel_imap(func, iterable):
-            pass
-    return thread_for
+    return parallel_for(iterable, future=thread_future)
 
 
 def process(func, *args, **kwargs):
@@ -574,51 +797,51 @@ def process_make(action, stage=None):
 
 
 
-def generate(func, *args, **kwargs):
-    """ Run an iterator in a separate process.
-    
-        For example:
-        
-          for item in thing_maker(param):
-              ...
-            
-        could be rewritten:
-        
-          for item in generate(thing_maker, param):
-              ...    
-    """
-    #return iter(func(*args,**kwargs))
-    
-    receiver, sender = multiprocessing.Pipe(False)
-    
-    def sender_func():
-        try:
-            for items in chunk(func(*args,**kwargs), 1<<8):
-                sender.send(items)
-        except:
-            sender.send('error')
-            import traceback
-            print >> sys.stderr, traceback.format_exc()            
-        else:    
-            sender.send(None)
-        finally:
-            coordinator().change_cores_used(-1)
-        sender.close()
-    
-    coordinator().change_cores_used(1)
-    process = start_process(sender_func)
-    
-    def generator():
-        while True:
-            data = receiver.recv()
-            if data is None: break
-            if data == 'error': raise Child_exception()
-            for item in data:
-                yield item
-        process.join()
-        receiver.close()
-    
-    return generator()
+#def generate(func, *args, **kwargs):
+#    """ Run an iterator in a separate process.
+#    
+#        For example:
+#        
+#          for item in thing_maker(param):
+#              ...
+#            
+#        could be rewritten:
+#        
+#          for item in generate(thing_maker, param):
+#              ...    
+#    """
+#    #return iter(func(*args,**kwargs))
+#    
+#    receiver, sender = multiprocessing.Pipe(False)
+#    
+#    def sender_func():
+#        try:
+#            for items in chunk(func(*args,**kwargs), 1<<8):
+#                sender.send(items)
+#        except:
+#            sender.send('error')
+#            import traceback
+#            print >> sys.stderr, traceback.format_exc()            
+#        else:    
+#            sender.send(None)
+#        finally:
+#            coordinator().change_cores_used(-1)
+#        sender.close()
+#    
+#    coordinator().change_cores_used(1)
+#    process = start_process(sender_func)
+#    
+#    def generator():
+#        while True:
+#            data = receiver.recv()
+#            if data is None: break
+#            if data == 'error': raise Child_exception()
+#            for item in data:
+#                yield item
+#        process.join()
+#        receiver.close()
+#    
+#    return generator()
 
 
 
@@ -656,19 +879,32 @@ class Execute(config.Action_filter):
     'Do nothing, but mark all actions as done. '
     'This might be useful if there is a trivial parameter change you don\'t want to re-run. '
     'To re-run from a particular point, use this option then delete files from .state/ as needed.')
-#@config.String_flag('manager_address', 'IP address of the network interface you want the job manager to listen to.')
-#@config.String_flag('launch', 'Command to launch a new python.')
+@config.String_flag('make_address', 'IP address of the network interface you want the job manager to listen to.')
+@config.String_flag('make_job', 
+    'Command to launch a new python. Should either contain __command__, which will be subtituted '
+    'with the full shell command, including the job name, or __token__ and __jobname__, '
+    'which should be used in something like "python -m nesoni.legion __token__ __jobname__".'
+)
+@config.String_flag('make_kill', 
+    'Command to kill all processes identified by __jobname__.'
+)
 class Make(config.Action):
-    make_cores = multiprocessing.cpu_count()
+    make_cores = int(os.environ.get('NESONI_CORES','0')) or multiprocessing.cpu_count()
     make_force = False
     make_show = False
     make_done = False
     
-#    manager_address = '127.0.0.1'
-#    launch = sys.executable
+    make_address = os.environ.get('NESONI_ADDRESS') or socket.gethostbyname(socket.gethostname())
+    make_job = os.environ.get('NESONI_JOB') or '__command__ &'
+    make_kill = os.environ.get('NESONI_KILL') or 'pkill -f __jobname__'
     
     def _before_run(self):
-        coordinator().set_cores(self.make_cores)
+        manager((self.make_address, 0))
+        coordinator().set(
+            job_command = self.make_job,
+            kill_command = self.make_kill,
+            cores = self.make_cores,
+        )
         if self.make_force:
             remake_needed()
         if self.make_show:
@@ -777,5 +1013,5 @@ def run_toolbox(action_classes, script_name=''):
         sys.exit(1)
 
     config.shell_run(commands[mangled_command](), args, (script_name+' ' if script_name else '') + mangled_command+':')
-
+    
 
