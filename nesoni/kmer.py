@@ -34,11 +34,11 @@ import sys, os, string, re, cPickle, time, struct, math
 
 from nesoni import io, bio, grace
 
-try:
-    import pyximport
-    pyximport.install()
-except:
-    raise grace.Error('Couldn\'t install pyximport (from Cython), these tools still need Cython, sorry')
+#try:
+#    import pyximport
+#    pyximport.install()
+#except:
+#    raise grace.Error('Couldn\'t install pyximport (from Cython), these tools still need Cython, sorry')
 import treemaker
 
 BAD_BASES = re.compile('[^ACGT]')
@@ -428,7 +428,9 @@ class Kmer_bag(io.Workspace):
         print
         print 'k =', self.k
     
-        import numpy
+        try: import numpy
+        except ImportError: import numpypy as numpy
+        
         if plot:
             import pylab
     

@@ -652,9 +652,11 @@ def report_exception():
         '\n' + colored(2, 'Traceback:\n'+''.join(traceback.format_tb(sys.exc_info()[2]))))
 
     write_colored_text(sys.stderr, 
-        '\n' + colored(1,colored(31, exception.__class__.__name__+':')) + '\n' + 
-        colored(31, wrap(str(exception), 70, '    ')) + 
-        '\n\n')
+        '\n' + colored(1,colored(31, exception.__class__.__name__+':')) + '\n')
+    for arg in exception.args:
+        write_colored_text(sys.stderr, 
+            colored(31, wrap(str(arg), 70, '    ')) + '\n')
+    sys.stderr.write('\n')
 
 
 def shell_run(action, args, invocation=None, help=True):

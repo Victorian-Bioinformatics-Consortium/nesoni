@@ -1,5 +1,5 @@
 
-import os, cPickle
+import os, cPickle, json
 
 class Workspace(object):
     """ Directory containing pickled objects, etc """
@@ -39,7 +39,11 @@ class Workspace(object):
         from nesoni import io
         f = io.open_possibly_compressed_file(self._object_filename(path))
         if plain_text:
-            result = eval(f.read())
+            data = f.read()
+            try:
+                result = json.loads(data)
+            except ValueError: #Older versions used repr instead of json.dump
+                result = eval(data)
         else:
             result = cPickle.load(f)
         f.close()
@@ -50,7 +54,7 @@ class Workspace(object):
         temp_filename = self._object_filename('tempfile')
         if plain_text:
             f = open(temp_filename, 'wb')
-            f.write(repr(obj))
+            json.dump(obj, f)
             f.close()
         else:
             f = io.Pipe_writer(temp_filename, ['gzip'])

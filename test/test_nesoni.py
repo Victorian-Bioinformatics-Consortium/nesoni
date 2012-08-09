@@ -71,6 +71,18 @@ class Test_analyse_sample(unittest.TestCase):
             output=output/'test-nway.txt', 
             working_dirs=[output/'test-analyse']
         ).run()
+        
+        nesoni.Core(
+            output_dir=output/'test-core',
+            working_dirs=[output/'test-analyse'],
+            what='core',
+        ).run()
+
+        nesoni.Core(
+            output_dir=output/'test-unique',
+            working_dirs=[output/'test-analyse'],
+            what='unique',
+        ).run()
 
 
 if __name__ == '__main__':

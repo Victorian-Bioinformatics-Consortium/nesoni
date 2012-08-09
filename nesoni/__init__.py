@@ -9,16 +9,18 @@ from samimport import Import
 from samshrimp import Shrimp
 from samconsensus import Filter, Reconsensus, Consensus
 from nway_diff import Nway
+from core import Core
 from samcount import Count
 from runr import Test_counts, Plot_counts, Heatmap, Compare_tests, Norm_from_counts, NMF
 from trivia import Test, As_fasta, As_gff, Sample, Stats
+from shred import Shred
 from igv import Make_genome, IGV_plots, As_userplots 
 from workflows import Analyse_sample
 
 from legion import *
 
 
-VERSION='0.78'
+VERSION='0.80'
 
 BOLD = '\x1b[1m'
 END = '\x1b[m'
@@ -193,9 +195,10 @@ More advanced usage would make use of the facilities in nesoni.legion:
   import nesoni
   
   def main():
-      nesoni.Tool_1(...).process_make()
-      nesoni.Tool_2(...).process_make()
-      nesoni.barrier()
+      stage = nesoni.Stage()
+      nesoni.Tool_1(...).process_make(stage)
+      nesoni.Tool_2(...).process_make(stage)
+      stage.barrier()
       nesoni.Tool_3(...).make()
             
   if __name__ == '__main__':
@@ -246,18 +249,10 @@ def get_commands():
     def consequences(args):
         grace.load('consequences').main(args)
     
-    #@add
-    #def nway(args):
-    #    grace.load('nway_diff').main(args)
-    
     @add
     def fisher(args):
         grace.load('fisher_diff').main(args)
         
-    @add
-    def core(args):
-        grace.load('core').main(args)
-    
     @add
     def bag(args):
         grace.load('kmer').bag_main(args)
@@ -270,37 +265,12 @@ def get_commands():
     def clean(args):
         grace.load('kmer').clean_main(args)
     
-    @add
-    def shred(args):
-        grace.load('shred').main(args)
-
-    #@add
-    #def samshrimp(args):
-    #    grace.load('samshrimp').samshrimp_main(args)
-    #    #config.shell_run( grace.load('samshrimp').Samshrimp(), args, 'nesoni samshrimp:')
-    
     commands['samimport'] = commands['import']
     commands['samshrimp'] = commands['shrimp']
     commands['samfilter'] = commands['filter']
     commands['samconsensus'] = commands['consensus']
     commands['samreconsensus'] = commands['reconsensus']
     commands['samcount'] = commands['count']
-        
-    #@add
-    #def samfilter(args):
-    #    grace.load('samconsensus').filter_main(args)
-    #
-    #@add
-    #def samconsensus(args):
-    #    grace.load('samconsensus').consensus_main(args, True)
-    #
-    #@add
-    #def samreconsensus(args):
-    #    grace.load('samconsensus').consensus_main(args, False)
-    #
-    #@add
-    #def samcount(args):
-    #    grace.load('samcount').count_main(args)
         
     @add
     def fill_scaffolds(args):
@@ -309,18 +279,6 @@ def get_commands():
     @add
     def pastiche(args):
         grace.load('pastiche').pastiche(args)
-
-    #@add
-    #def clip(args):
-    #    grace.load('clip').clip(args)
-    
-    #@add
-    #def plot_counts(args):
-    #    grace.load('runr').plot_counts_main(args)
-
-    #@add
-    #def test_counts(args):
-    #    grace.load('runr').test_counts_main(args)
 
     @add
     def test_power(args):
@@ -341,14 +299,6 @@ def get_commands():
     @add
     def recombination(args):
         grace.load('recombination').recombination(args)
-        
-    #@add
-    #def report(args):
-    #    grace.load('report').report_main(args)
-    
-    #@add
-    #def batch(args):
-    #    grace.load('batch').batch_main(args)
 
     return commands
 

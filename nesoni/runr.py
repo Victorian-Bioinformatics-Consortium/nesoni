@@ -33,15 +33,8 @@ def R_literal(item):
         assert False, "Can't encode %s" % repr(item)
 
 def run_script(script, only_tell=False, **kwargs):
-    #if kwargs:    
-    #    script = re.sub(
-    #        '|'.join(re.escape(name) for name in kwargs),
-    #        lambda match: R_literal(kwargs[match.group(0)]),
-    #        script
-    #    )
-    
     script = (
-        r"""options(error=function(){dump.frames(); cat(names(last.dump),sep='\n'); q('no',1);}); """ + 
+        r"""options(warn=1,error=function(){dump.frames(); cat(names(last.dump),sep='\n'); q('no',1);}); """ + 
         '\n' +
         ''.join([
             key + ' <- ' + R_literal(kwargs[key]) + '\n'
@@ -57,7 +50,7 @@ def run_script(script, only_tell=False, **kwargs):
         print script
         return
  
-    process = legion.subprocess_Popen(
+    process = subprocess.Popen(
         ['Rscript', '-'],
         bufsize=1<<24,
         stdin=subprocess.PIPE,        
@@ -292,21 +285,6 @@ package for differential expression analysis of digital gene
 expression data. Bioinformatics 26, 139-140
 """
 }
-
-   #   --tagwise yes/no - Use tagwise dispersion estimates in edgeR,
-   #                      rather than common dispersion.
-   #                      Default: no
-   #                      
-   #   --prior N.NN     - prior.n in edgeR, if tagwise dispersion estimates
-   #                      enabled. As though there are this many observations
-   #                      based on the common dispersion.
-   #                      Default: 0.0
-   #                      Note that edgeR's default is 10.
-   #   
-   #   --trend yes/no   - Dispersion a function of concentration in edgeR
-   #                      Default: yes
-   #   
-
 
 
 

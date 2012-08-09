@@ -32,13 +32,12 @@ class Annotation(object):
     """
     
     def __repr__(self):
-        return 'seqid=%s source=%s type=%s start=%d end=%d strand=%s attr: %s' % (
+        return '%s%s[%d,%d) %s %s' % (
              self.seqid,
-             self.source,
-             self.type,
+             strand_to_gff[self.strand],
              self.start,
              self.end,
-             self.strand,
+             self.type,
              ' '.join( key+'='+val for key,val in self.attr.items() )
         ) 
 

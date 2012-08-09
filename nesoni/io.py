@@ -20,7 +20,7 @@ def close(f):
     f.close()
 
 def run(args, stdin=None, stdout=subprocess.PIPE, stderr=None):
-    return legion.subprocess_Popen(
+    return subprocess.Popen(
         args,
         bufsize=1<<24,
         stdin=stdin,        
@@ -132,8 +132,6 @@ def open_possibly_compressed_file(filename):
     #peek, f = peek_and_pipe(open_possibly_remote_file(filename), 4)
 
     from nesoni import sam    
-    if sam.is_bam(filename):
-        return sam.open_bam(filename)
     
     f = open(filename,'rb')
     peek = f.read(4)
@@ -142,6 +140,9 @@ def open_possibly_compressed_file(filename):
 
     if peek.startswith('\x1f\x8b'):
         #command = 'gunzip'
+        if sam.is_bam(filename):
+            return sam.open_bam(filename)
+            
         return gzip.open(filename, 'rb')
     elif peek.startswith('BZh'):
         #command = 'bunzip2'
@@ -185,7 +186,7 @@ class Pipe_writer(object):
     def __init__(self, filename, command):
         self.command = command
         f_out = open(filename,'wb')
-        self.process = legion.subprocess_Popen(
+        self.process = subprocess.Popen(
             command,
             stdin = subprocess.PIPE,
             stdout = f_out,

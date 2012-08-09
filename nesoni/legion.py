@@ -116,6 +116,9 @@ def process_identity():
     return (socket.gethostname(), os.getpid())
 
 
+def _deprecated(text):
+    warnings.warn(text, stacklevel=3)
+
 # Manager/coordinator ===================
 
 def substitute(text, **args):
@@ -148,7 +151,7 @@ class My_coordinator:
         self.futures = { }
         self.future_count = 0
         
-        self.job_name = 'nesoni/%d/' % os.getpid()
+        self.job_name = 'nesoni_%d_' % os.getpid()
         self.job_command = '__command__ &'
         self.kill_command = 'pkill -f __jobname__'
 
@@ -327,6 +330,15 @@ My_manager.register('get_coordinator', callable=lambda: _COORDINATOR)
 _MANAGER = None
 _AUTHKEY = None
 def manager(address=('127.0.0.1',0),authkey=None,connect=False):
+    """ Get manager, starting it if necessary.
+        Note: the manager should be started before doing anything
+              interesting with processes and pipes!
+              
+              This will happen implicitly if you use
+              configure_making, or run_script, or run_tool,
+              or run_toolbox. Which you should.
+    """
+
     global _MANAGER, _AUTHKEY
     if _MANAGER is None:
         if authkey is None:
@@ -337,7 +349,7 @@ def manager(address=('127.0.0.1',0),authkey=None,connect=False):
         if connect:
             _MANAGER.connect()
         else:
-            _MANAGER.start()            
+            _MANAGER.start()        
             atexit.register( coordinator().kill_all )
     return _MANAGER
 
@@ -345,6 +357,8 @@ def manager(address=('127.0.0.1',0),authkey=None,connect=False):
 # Local proxy of the coordinator in the manager-process
 _COORDINATOR_PROXY = None
 def coordinator():
+    """ Get a proxy of the coordinator object in the manager process.     
+    """
     global _COORDINATOR, _COORDINATOR_PROXY
     if _COORDINATOR is not None: #We are the manager process
         return _COORDINATOR
@@ -352,32 +366,6 @@ def coordinator():
         _COORDINATOR_PROXY = manager().get_coordinator()
     return _COORDINATOR_PROXY
 
-
-def _in_process(address, authkey, func, args, kwargs):
-    global _MANAGER, _COORDINATOR_PROXY
-    # Might have weirdness from forking
-    _MANAGER = None
-    _COORDINATOR_PROXY = None    
-    manager(address,authkey,True)
-    coordinator().add_pid( os.getpid() )
-    try:
-        return func(*args,**kwargs)
-    finally:
-        coordinator().remove_pid( os.getpid() )
-        
-def start_process(func, *args, **kwargs):
-    man = manager()
-    p = multiprocessing.Process(target=_in_process,args=(man.address,_AUTHKEY,func,args,kwargs))
-    p.start()
-    return p
-
-def subprocess_Popen(*args, **kwargs):
-    # Force manager start before spawning any subprocesses
-    # so it doesn't inhert any pipes
-    manager()
-    
-    import subprocess
-    return subprocess.Popen(*args, **kwargs)
 
 # =======================================
 
@@ -438,10 +426,13 @@ class Stage(object):
             while self.futures:
                 try:
                     self.futures.pop()()
-                except Exception, e:
-                    exceptions.append(e)
+                except Exception as e:
+                    if isinstance(e, Child_exception):
+                        exceptions.extend(e.args)
+                    else:
+                        exceptions.append(e)
             if exceptions:
-                raise Child_exception('Child failures: %d' % len(exceptions), exceptions)
+                raise Child_exception(*exceptions)
 
 
 
@@ -493,7 +484,6 @@ def _run_future(time,abort_make,do_nothing, func, args, kwargs, future_number):
     exception = None
     try:
         result = func(*args, **kwargs)
-        barrier()        
         assert not LOCAL.stages, 'Process completed without calling .barrier() on all Stages.'
     except:
         config.report_exception()
@@ -646,6 +636,7 @@ def process(func, *args, **kwargs):
     
         Start a new process. 
     """
+    _deprecated('process(...) is deprecated. Use Stage objects.')
     return LOCAL.stage.process(func, *args, **kwargs)
 
 #def thread(func, *args, **kwargs):
@@ -658,6 +649,7 @@ def barrier():
         Wait for all processes started by this process to finish.    
         (Except for any processes explicitly put in a stage.)
     """
+    _deprecated('barrier() is deprecated. Use Stage objects.')
     LOCAL.stage.barrier()
 
 
@@ -667,6 +659,7 @@ def stage(func, *args, **kwargs):
         Call a function, and wait for all processes started by it to finish    
         Can be used as a function decorator, but probably shouldn't be.
     """
+    _deprecated('stage(...) is deprecated. Use Stage objects.')
     old = LOCAL.stage
     LOCAL.stage = Stage()
     result = None
@@ -684,6 +677,7 @@ def stage_function(func):
         Ensure processes started by a function or method complete
         before the function returns.
     """
+    _deprecated('@stage_function is deprecated. Use Stage objects.')
     def inner(*args, **kwargs):
         return stage(func, *args, **kwargs)
     return inner
@@ -859,8 +853,18 @@ class Execute(config.Action_filter):
     def cores_required(self):
         return self.cores
     
+    def ident(self):
+        if self.output:
+            return self.shell_name()+'--'+self.output
+        else:
+            return self.shell_name()+'--'+' '.join(self.command)
+    
     def run(self):
         from nesoni import io
+        
+        assert self.command, 'Nothing to execute!'
+        
+        print self.ident()
         
         f_in = self.begin_input()
         f_out = self.begin_output()
@@ -926,7 +930,7 @@ class Make_script(Make):
     script_parameters = [ ]
 
     def run(self):
-        stage(self.function, *self.script_parameters)
+        self.function(*self.script_parameters)
 
 
 def configure_making(args):

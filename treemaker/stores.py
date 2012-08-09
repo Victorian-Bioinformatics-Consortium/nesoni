@@ -13,7 +13,7 @@ def write_int64(f, value):
 def string_from_int64(value):
     return struct.pack('<q', value)
 
-def int64_from_string(string): #TODO: restore to str string when Cython is fixed
+def int64_from_string(string):
     return struct.unpack('<q', string)[0]
 
 def write_int(f, value):
@@ -38,6 +38,15 @@ def read_int(data, offset):
     return result, offset
 
 
+def write_string(f, value):
+    write_int(f, len(value))
+    f.write(value)
+
+def read_string(data, offset):
+    length, offset = read_int(data, offset)
+    return data[offset:offset+length], offset+length
+
+
 def remove_tree(path):
     if not os.path.exists(path): return
     
@@ -48,7 +57,7 @@ def remove_tree(path):
     os.rmdir(path)
 
 
-def make_tree(path, sequence):
+def make_tree(path, sequence, key_writer, value_writer):
     n_levels = 0
     files = [ ]
     last = [ ]
@@ -82,11 +91,14 @@ def make_tree(path, sequence):
             # write as a relative position to save space
             write_int(files[ones], right_loc - left_loc)
             
-        write_int(files[ones], len(key))
-        files[ones].write(key)        
+        #write_int(files[ones], len(key))
+        #files[ones].write(key)        
 
-        write_int(files[ones], len(value))
-        files[ones].write(value)
+        #write_int(files[ones], len(value))
+        #files[ones].write(value)
+        
+        key_writer(files[ones], key)
+        value_writer(files[ones], value)
         
         i += 1
 
@@ -103,9 +115,12 @@ def make_tree(path, sequence):
         files[i].close()
 
 
-class Tree:
-    def __init__(self, path):
+class Tree(object):
+    def __init__(self, path, key_reader, value_reader):
         self.path = path
+        self.key_reader = key_reader
+        self.value_reader = value_reader
+        
         self.levels = [ ]
         while True:
              filename = os.path.join(path, str(len(self.levels)))
@@ -116,7 +131,7 @@ class Tree:
 
         self.sizes = [ len(item) for item in self.levels ]      
 
-    def __dealloc__(self):
+    def __del__(self):
         for level in self.levels:
             level.close()
 
@@ -128,45 +143,48 @@ class Tree:
         return Cursor(self, len(self.levels)-1, 0, None)
         
 
-class Cursor:
+class Cursor(object):
     def __init__(self, tree, level, position, successor):
         self.tree = tree
         self.level = level
-        #self.position = position
         self.successor = successor
         
-        #self.data_ptr = tree.maps[level] + position
         self.data = tree.levels[level]
-        self.offset = position
+        self.offset = position        
         
         if level:
             self.left_loc, self.offset = read_int(self.data, self.offset)
             self.right_loc, self.offset = read_int(self.data, self.offset)
             self.right_loc += self.left_loc
-        self.key_length, self.offset = read_int(self.data, self.offset)
+
+        self.key, self.offset = tree.key_reader(self.data, self.offset)
+        
+        self._left = None
+        self._right = None
 
     def __cmp__(self, other):
-        return cmp(self.key(), other.key())
+        return cmp(self.key, other.key)
         
     compare = __cmp__
 
-    def compare_to_str(self, string):        
-        return cmp(self.key(), string)
+    def compare_to_key(self, key):        
+        return cmp(self.key, key)
         
-    def key(self):
-        return self.data[self.offset:self.offset+self.key_length]
-        
-    def value(self):
-        value_length, value_offset = read_int(self.data,self.offset+self.key_length)
-        return self.data[value_offset:value_offset+value_length]
+    def get_value(self):
+        return self.tree.value_reader(self.data, self.offset)[0]
 
     def left(self):
         if self.level == 0: return None
+        if self._left: return self._left
         
-        return Cursor(self.tree, self.level-1, self.left_loc, self)
+        result = Cursor(self.tree, self.level-1, self.left_loc, self)
+        if self.level >= len(self.tree.levels)-1-20:
+            self._left = result
+        return result
 
     def right(self):
         if self.level == 0: return None
+        if self._right: return self._right
 
         new_level = self.level-1
         new_position = self.right_loc
@@ -177,8 +195,11 @@ class Cursor:
             new_position = int64_from_string(self.tree.levels[new_level][new_position:new_position+8])
             new_level -= 1
         
-        return Cursor(self.tree, new_level, new_position, 
+        result = Cursor(self.tree, new_level, new_position, 
                       self.successor)
+        if self.level >= len(self.tree.levels)-1-20:
+            self._right = result
+        return result
     
     def next(self):
         right = self.right()
@@ -207,35 +228,35 @@ class Cursor_merge(object):
             if self.cursor2 is None:
                 raise StopIteration()
                 
-            result = (self.cursor2.key(), self.cursor2.value())
+            result = (self.cursor2.key, self.cursor2.get_value())
             self.cursor2 = self.cursor2.next()
             return result
 
         if self.cursor2 is None:
-            result = (self.cursor1.key(), self.cursor1.value())
+            result = (self.cursor1.key, self.cursor1.get_value())
             self.cursor1 = self.cursor1.next()
             return result
         
         comparison = self.cursor1.compare(self.cursor2)
         
         if comparison < 0:
-            result = (self.cursor1.key(), self.cursor1.value())
+            result = (self.cursor1.key, self.cursor1.get_value())
             self.cursor1 = self.cursor1.next()
             return result
 
         elif comparison > 0:
-            result = (self.cursor2.key(), self.cursor2.value())
+            result = (self.cursor2.key, self.cursor2.get_value())
             self.cursor2 = self.cursor2.next()
             return result
 
         else:
-            result = (self.cursor1.key(), self.reducer(self.cursor1.value(),self.cursor2.value()))
+            result = (self.cursor1.key, self.reducer(self.cursor1.get_value(),self.cursor2.get_value()))
             self.cursor1 = self.cursor1.next()
             self.cursor2 = self.cursor2.next()
             return result
 
 
-class Cursor_merge_all:
+class Cursor_merge_all(object):
     # cursor_heap = heap of (cursor, priority)
     
     def __init__(self, cursors, reducer):
@@ -263,13 +284,13 @@ class Cursor_merge_all:
             if next_cursor is not None:
                 heapq.heappush(self.cursor_heap, (next_cursor, oldness))
                 
-        result = heap_items[0][0].value()
+        result = heap_items[0][0].get_value()
         for cursor, oldness in heap_items[1:]:
-            result = self.reducer( cursor.value(), result )
-        return (heap_items[0][0].key(), result)
+            result = self.reducer( cursor.get_value(), result )
+        return (heap_items[0][0].key, result)
 
 
-class Skip_discardables:
+class Skip_discardables(object):
     def __init__(self, cursor_merger, is_discardable):
         self.cursor_merger = cursor_merger
         self.is_discardable = is_discardable
@@ -290,7 +311,7 @@ def _default_is_final(item): return True
 def _default_is_discardable(item): return False
 def _default_reducer(item_older, item_newer): return item_newer
 
-class Store:
+class Store(object):
     """ Key-value store with per-key reductions
     
         Default behaviour is to over-write existing keys,
@@ -300,23 +321,25 @@ class Store:
         reducer takes arguments like this: reducer(older item, newer item)
     
     """
-
-    #cdef public object path, trees, cursors, next_tree_id, read_only
-    #cdef public object memory, memory_size
-    #cdef public object lock, busy_paths,
-    ## merger_processes
-    ##cdef public object manager, worker_pool, unbusy_queue
-    #cdef public object pool
-    #
-    #cdef public object default_value, is_discardable, is_final, reducer
+    
+    _default_value = None
+    _key_writer = staticmethod( write_string )
+    _key_reader = staticmethod( read_string )
+    _value_writer = staticmethod( write_string )
+    _value_reader = staticmethod( read_string )
+    @staticmethod
+    def _reducer(older, newer):
+        return newer
+    @staticmethod
+    def _is_final(item):
+        return True
+    @staticmethod
+    def _is_discardable(item):
+        return False
 
     def __init__(self, 
                  path, 
-                 default_value=None, 
-                 is_final=_default_is_final, 
-                 is_discardable=_default_is_discardable, 
-                 reducer=_default_reducer, 
-                 memory_size=100000, #Formerly: 500000
+                 memory_size=1<<20, #Formerly: 100000, #Formerly: 500000
                  read_only=False
                  ):
         self.read_only = read_only
@@ -325,11 +348,6 @@ class Store:
         if not os.path.exists(path):
             os.mkdir(path)
         
-        self.default_value = default_value
-        self.is_final = is_final
-        self.is_discardable = is_discardable
-        self.reducer = reducer
-
         self.memory_size = memory_size
         self.memory = { }
         
@@ -384,7 +402,7 @@ class Store:
         for i in list_numbers:
             filename = os.path.join(self.path, str(i))            
             if not os.path.exists(filename): break
-            self.trees.append( Tree(filename) )
+            self.trees.append( Tree(filename, self._key_reader, self._value_reader) )
                 
         #self.lock.release()
         
@@ -418,11 +436,11 @@ class Store:
                 path2 = self.trees[pos+1].path
                 
                 if pos == 0:
-                    is_discardable_if_needed = self.is_discardable
+                    is_discardable_if_needed = self._is_discardable
                 else:
                     is_discardable_if_needed = None
                 
-                do_mergedown(self.reducer, self.path, path1, path2, is_discardable_if_needed)
+                do_mergedown(self._reducer, self.path, path1, path2, is_discardable_if_needed, self._key_reader, self._key_writer, self._value_reader, self._value_writer)
                 
                 pos -= 2
             else:
@@ -451,7 +469,7 @@ class Store:
         self.memory = {}
         
         try:
-            make_tree(tempname, items)
+            make_tree(tempname, items, self._key_writer, self._value_writer)
         except:
             remove_tree(tempname)
             raise
@@ -462,7 +480,7 @@ class Store:
         
     def _put(self, key, value):
         if key in self.memory:
-            self.memory[key] = self.reducer(self.memory[key], value)
+            self.memory[key] = self._reducer(self.memory[key], value)
         else:
             self.memory[key] = value
             if len(self.memory) >= self.memory_size: 
@@ -472,26 +490,22 @@ class Store:
         return self._get(key)
     
     def _get(self, key):
-        #if self.busy_paths:
-        #    if self.finish_merging(False):
-        #        self.start_merging()
-        
-        if key in self.memory:
+        have_value = key in self.memory
+        if have_value:
             result = self.memory[key]
-            if self.is_final(result): return result
-        else:
-            result = None
+            if self._is_final(result): return result
             
         for cursor in self.cursors:
             while cursor:
-                comparison = cursor.compare_to_str(key)
+                comparison = cursor.compare_to_key(key)
                 if comparison == 0: 
-                    this_value = cursor.value()
-                    if result is None:
+                    this_value = cursor.get_value()
+                    if not have_value:
                         result = this_value
+                        have_value = True
                     else:
-                        result = self.reducer(this_value, result)
-                    if self.is_final(result):
+                        result = self._reducer(this_value, result)
+                    if self._is_final(result):
                         return result
                     break
                     
@@ -500,8 +514,8 @@ class Store:
                 else:
                     cursor = cursor.right()
         
-        if result is None:
-            result = self.default_value
+        if not have_value:
+            result = self._default_value
         
         return result
         
@@ -511,14 +525,10 @@ class Store:
     def iter_from(self, key):
         self.flush() # self.memory is a dict, not ordered, need to flush to disk to sort it
     
-        #cdef char *key_ptr = key
-        #cdef long key_len = len(key)
-        
         cursors = [ ]
-        
         for cursor in self.cursors:
             while True:
-                comparison = cursor.compare_to_str(key)
+                comparison = cursor.compare_to_key(key)
                 if comparison == 0:
                     break
                 
@@ -531,18 +541,18 @@ class Store:
                 
                 cursor = new_cursor
             
-            if cursor.compare_to_str(key) < 0:
+            if cursor.compare_to_key(key) < 0:
                 cursor = cursor.next()
             if cursor is not None:
                 cursors.append(cursor)
         
         return Skip_discardables(
-            Cursor_merge_all(cursors, self.reducer), 
-            self.is_discardable)
+            Cursor_merge_all(cursors, self._reducer), 
+            self._is_discardable)
             
             
 
-def do_mergedown(reducer, path, path1, path2, is_discardable):
+def do_mergedown(reducer, path, path1, path2, is_discardable, key_reader, key_writer, value_reader, value_writer):
     name1 = os.path.split(path1)[1]
     name2 = os.path.split(path2)[1]
     
@@ -550,10 +560,8 @@ def do_mergedown(reducer, path, path1, path2, is_discardable):
     new_filename_build = new_filename_base + '-build'
     new_filename_ready = new_filename_base + '-ready'
     
-    #lock.acquire()
-    tree1 = Tree(path1)
-    tree2 = Tree(path2)
-    #lock.release()
+    tree1 = Tree(path1, key_reader, value_reader)
+    tree2 = Tree(path2, key_reader, value_reader)
     
     merger = Cursor_merge(
                 left_most(tree1.cursor()),
@@ -564,175 +572,123 @@ def do_mergedown(reducer, path, path1, path2, is_discardable):
         merger = Skip_discardables(merger, is_discardable)
     
     try:
-        make_tree(new_filename_build, merger)
+        make_tree(new_filename_build, merger, key_writer, value_writer)
     except:
         remove_tree(new_filename_build)
         raise
         
-    #lock.acquire()
     os.rename(new_filename_build, new_filename_ready)
     remove_tree(path1)
     remove_tree(path2)
     os.rename(new_filename_ready, path1)
-    #lock.release()
 
-
-_counting_store_default = string_from_int64(0)
-
-def _counting_store_is_final(item): 
-    return False
-
-def _counting_store_is_discardable(item): 
-    return item == _counting_store_default
-
-def _counting_store_reduce(item_older, item_newer):
-    return string_from_int64(int64_from_string(item_older) + int64_from_string(item_newer))
-
-def _counting_store_iter_filter(pair):
-    return (pair[0], int64_from_string(pair[1]))
 
 class Counting_store(Store):
     """ Store for counting strings with """
-    
-    def __init__(self, path, **kwargs):
-        Store.__init__(
-            self,
-            path,
-            default_value = _counting_store_default,
-            is_final = _counting_store_is_final,
-            is_discardable = _counting_store_is_discardable,
-            reducer = _counting_store_reduce,
-            **kwargs
-        )
 
-    def __getitem__(self, key):
-        return int64_from_string(self._get(key))
+    _default_value = 0
+    _value_writer = staticmethod( write_int )
+    _value_reader = staticmethod( read_int )
+    
+    @staticmethod
+    def _is_final(value):
+        return False
+    
+    @staticmethod
+    def _reducer(older, newer):
+        return older + newer
+    
+    @staticmethod
+    def _is_discardable(value):
+        return value == 0
 
     def add(self, key, amount=1):
-        self._put(key, string_from_int64(amount))
+        self._put(key, amount)
 
-    def iter_from(self, key):
-        return itertools.imap(
-            _counting_store_iter_filter,
-            Store.iter_from(self,key))
-
-
-
-_count_and_shadow_store_default = string_from_int64(0) * 2
-
-def _count_and_shadow_store_is_final(item): 
-    return False
-
-# Discard shadow if count == 0
-def _count_and_shadow_store_is_discardable(item): 
-    return item[:8] == _counting_store_default
-
-def _count_and_shadow_store_reduce(item_older, item_newer):
-    older_count = int64_from_string(item_older[0:8])
-    older_shadow = int64_from_string(item_older[8:16])
-    newer_count = int64_from_string(item_newer[0:8])
-    newer_shadow = int64_from_string(item_newer[8:16])
-    return string_from_int64(older_count+newer_count) + string_from_int64(max(older_shadow,newer_shadow))
-
-def _count_and_shadow_decode(item):
-    count = int64_from_string(item[0:8])
-    shadow = int64_from_string(item[8:16])
-    return (count, shadow)
-
-def _count_and_shadow_store_iter_filter(pair):
-    return (pair[0], _count_and_shadow_decode(pair[1]))
 
 class Count_and_shadow_store(Store):
     """ Store for counting strings with """
     
-    def __init__(self, path, **kwargs):
-        Store.__init__(
-            self,
-            path,
-            default_value = _count_and_shadow_store_default,
-            is_final = _count_and_shadow_store_is_final,
-            is_discardable = _count_and_shadow_store_is_discardable,
-            reducer = _count_and_shadow_store_reduce,
-            **kwargs
-        )
-
-    def __getitem__(self, key):
-        return _count_and_shadow_decode(self._get(key))
-
+    _default_value = (0,0)
+    
+    @staticmethod
+    def _value_writer(f, (count,shadow)):
+        write_int(f, count)
+        write_int(f, shadow)
+    
+    @staticmethod
+    def _value_reader(data, offset):
+        count, offset = read_int(data, offset)
+        shadow, offset = read_int(data, offset)
+        return (count,shadow), offset
+    
+    @staticmethod
+    def _reducer((older_count,older_shadow),(newer_count,newer_shadow)):
+        return (older_count+newer_count,max(older_shadow,newer_shadow))
+    
+    @staticmethod
+    def _is_final(value):
+        return False
+    
+    @staticmethod
+    def _is_discardable(value):
+        return value == (0,0) 
+    
     def add(self, key, amount, shadow_amount):
-        self._put(key, string_from_int64(amount) + string_from_int64(shadow_amount))
-
-    def iter_from(self, key):
-        return itertools.imap(
-            _count_and_shadow_store_iter_filter,
-            Store.iter_from(self,key))
+        self._put(key, (amount, shadow_amount))
 
 
 
-
-def _general_store_is_discardable(item): 
-    return item == ''
-    
-def _general_store_is_final(item): 
-    return item == '' or item[0] == 'S'
-
-def _general_store_reduce(item_older, item_newer):
-    #Delete
-    if item_newer == '': 
-        return item_newer
-    
-    #Set
-    if item_newer[0] == 'S':
-        return item_newer
-
-    #Append
-    if item_newer[0] == 'A':
-        #to deleted
-        if item_older == '':
-            return 'S' + item_newer[1:]
-        
-        #to set or append
-        return item_older + item_newer[1:]
-
-def _general_store_iter_filter(pair):
-    return (pair[0], pair[1][1:])        
-
-def _general_store_iter_keys_filter(pair):
-    return pair[0]        
-
-def _identity(x): return x
 
 class General_store(Store):
     """ Store that allows setting, deleting and appending 
     
-        You can specify functions to encode and decode values.
+        You can override _value_encode and _value_decode to encode and decode values.
         If you will be using append_to, the decoder
         should cope with encoded values being concatenated together.
     """
 
-    def __init__(self, path,
-                 value_encoder=_identity,
-                 value_decoder=_identity, 
-                 **kwargs):
+    @staticmethod    
+    def _is_discardable(item): 
+        return item == ''
+    
+    @staticmethod
+    def _is_final(item): 
+        return item == '' or item[0] == 'S'
+    
+    @staticmethod
+    def _reduce(item_older, item_newer):
+        #Delete
+        if item_newer == '': 
+            return item_newer
         
-        self.value_encoder = value_encoder
-        self.value_decoder = value_decoder
-        
-        Store.__init__(
-            self,
-            path,
-            default_value = '',
-            is_discardable = _general_store_is_discardable,
-            is_final = _general_store_is_final,
-            reducer = _general_store_reduce,
-            **kwargs
-        )
+        #Set
+        if item_newer[0] == 'S':
+            return item_newer
+    
+        #Append
+        if item_newer[0] == 'A':
+            #to deleted
+            if item_older == '':
+                return 'S' + item_newer[1:]
+            
+            #to set or append
+            return item_older + item_newer[1:]
+    
+    def _general_store_iter_filter(pair):
+        return (pair[0], pair[1][1:])        
+    
+    def _general_store_iter_keys_filter(pair):
+        return pair[0]        
+
+    _value_encoder = staticmethod( lambda x:x )
+    _value_decoder = staticmethod( lambda x:x )
 
     def append_to(self, key, value):
-        self._put(key, 'A' + self.value_encoder(value))
+        self._put(key, 'A' + self._value_encoder(value))
 
     def __setitem__(self, key, value):
-        self._put(key, 'S' + self.value_encoder(value))
+        self._put(key, 'S' + self._value_encoder(value))
 
     def __delitem__(self, key):
         self._put(key, '')
@@ -742,42 +698,33 @@ class General_store(Store):
         if result == '': 
             raise KeyError(key)
 
-        return self.value_decoder( result[1:] )
+        return self._value_decoder( result[1:] )
 
     def get(self, key, default):
         result = self._get(key)        
         if result == '': 
             return default
 
-        return self.value_decoder( result[1:] )
-
-    def _iter_filter(self, pair):
-        return (pair[0], self.value_decoder( pair[1][1:] ))
+        return self._value_decoder( result[1:] )
                 
     def iter_from(self, key):
         return itertools.imap(
-            self._iter_filter,
+            lambda (key,value): (key,self._value_decoder(value[1:])),
             Store.iter_from(self,key))
 
     def iter_keys_from(self, key):
         return itertools.imap(
-            _general_store_iter_keys_filter,
+            lambda (key,value): key,
             Store.iter_from(self,key))
 
 
-
-def _int_list_store_encode(values):
-    return ''.join([ string_from_int64(item) for item in values ])
-    
-def _int_list_store_decode(string):
-    return [ int64_from_string(string[i:i+8]) for i in xrange(0,len(string),8) ]
-
 class Int_list_store(General_store):
-    def __init__(self, path, **kwargs):
-        General_store.__init__(self, path,
-            value_encoder=_int_list_store_encode,
-            value_decoder=_int_list_store_decode,
-            **kwargs)
-
+    @staticmethod
+    def _value_encoder(values):
+        return ''.join([ string_from_int64(item) for item in values ])
+    
+    @staticmethod    
+    def _value_decoder(string):
+        return [ int64_from_string(string[i:i+8]) for i in xrange(0,len(string),8) ]
 
 

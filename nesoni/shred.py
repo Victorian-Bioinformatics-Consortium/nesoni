@@ -2,51 +2,41 @@
 
 import sys, os
 
-from nesoni import io, grace
+from nesoni import io, grace, config
 
-
-USAGE = """
-
-Usage:
-
-    nesoni shred: [options] sequence.fa >output.fa
-
-Options:
-
-    --size      Size of sequence to output.
-                Default 200.
-        
-    --stride    Step size along input sequence.
-                Default 50.
-
-"""
-
-
-def main(args):
-    size, args = grace.get_option_value(args,'--size',int,200)
-    stride, args = grace.get_option_value(args,'--stride',int,50)
-    grace.expect_no_further_options(args)
+@config.help("""\
+Break a sequence or sequences into small overlapping pieces.
+""")
+@config.Int_flag('size', 'Size of sequences to output.')
+@config.Int_flag('stride', ' Step size along input sequence.')
+@config.Main_section('filenames','Files containing sequences.', empty_is_ok=False)
+class Shred(config.Action_with_optional_output):
+    size = 200
+    stride = 50
+    filenames = [ ]
     
-    if not args:
-        print USAGE
-        return 1
+    def run(self):    
+        f = self.begin_output()
     
-    for filename in args:
-        for name, seq in io.read_sequences(filename):
-            name_parts = name.split(None, 1)
-            name = name_parts[0]
-            if len(name_parts) > 1:
-               desc = ' ' + name_parts[1]
-            else:
-               desc = ''
-            
-            for i in xrange(-size+stride,len(seq),stride):
-                start = max(0,min(len(seq),i))
-                end = max(0,min(len(seq), i+size))
-                io.write_fasta(
-                    sys.stdout,
-                    '%s:%d..%d' % (name,start+1,end) + desc,
-                    seq[start:end]
-                )
-    
-    return 0
+        for filename in self.filenames:
+            for name, seq in io.read_sequences(filename):
+                name_parts = name.split(None, 1)
+                name = name_parts[0]
+                for i in xrange(-self.size+self.stride,len(seq),self.stride):
+                    start = max(0,min(len(seq),i))
+                    end = max(0,min(len(seq), i+self.size))
+                    io.write_fasta(
+                        f,
+                        '%s:%d..%d' % (name,start+1,end),
+                        seq[start:end]
+                    )
+
+        self.end_output(f)
+
+
+
+
+
+
+
+
