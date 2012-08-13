@@ -109,6 +109,8 @@ def describe_bool(boolean):
 
 
 class Parameter(object):
+    sort_order = 0
+
     def __init__(self, name, help=''):
         self.name = name
         self.help = help
@@ -153,6 +155,8 @@ class Hidden(Parameter):
 
 
 class Positional(Parameter): 
+    sort_order = 1
+
     def shell_name(self):
         return '%s' % self.name.replace('_','-').lower()
     
@@ -168,6 +172,8 @@ class Positional(Parameter):
 
 
 class Flag(Parameter):
+    sort_order = 0
+
     def shell_name(self):
         return '--'+self.name.replace('_','-').rstrip('-').lower()
 
@@ -209,6 +215,8 @@ class Float_flag(Flag):
         
 
 class Section(Parameter):
+    sort_order = 3
+
     def __init__(self, name, help='', allow_flags=False, empty_is_ok=True):
         Parameter.__init__(self,name,help)
         self.allow_flags = allow_flags
@@ -257,6 +265,8 @@ class Float_section(Section):
 
 
 class Main_section(Section):
+    sort_order = 2
+
     def shell_name(self):
         return self.name.replace('_','-').rstrip('-').lower()+' ...'
 
@@ -476,20 +486,23 @@ class Configurable(object):
     
         desc = [ colored(1, invocation) ]
         
-        flags = [ item for item in self.parameters if isinstance(item, Flag) ]
-        non_flags = [ item for item in self.parameters if not isinstance(item, Flag) ]
-        
         if show_help:
             suffix = ''
         else:
             suffix = ' \\'
         
-        for parameter in flags + non_flags:
+        order = sorted(
+            range(len(self.parameters)),
+            key=lambda i: (self.parameters[i].sort_order, i)
+        )
+        
+        for i in order:
+            parameter = self.parameters[i]
             line = parameter.describe_shell(parameter.get(self), show_help)
             if line:
                 desc.append(wrap(line,67,'    ',suffix))
                 if show_help and parameter.help:
-                    desc.append(colored(30,wrap(parameter.help,65,'    # ')))
+                    desc.append(colored(30,wrap(parameter.help,65,'      # ')))
        
         return (colored(2,suffix)+'\n').join( desc ) + '\n'
     

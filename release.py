@@ -121,20 +121,41 @@ Nesoni provides the following specific usage information when run with no parame
 <li><a href='mailto:torsten.seemann@monash.edu'>Torsten Seemann</a>
 </ul>
 
+<h3>Older versions</h3>
+
+<ul>
+%(OLD)s
+</ul>
+
+<p>
 
 <!--#include virtual="bot.html" -->
 """
 
+old = [ ]
+for item in os.listdir('/home/websites/vicbioinformatics.com'):
+    if item.startswith('nesoni-') and item.endswith('.tar.gz'):
+       old.append(item)
+       
+old.sort(key=lambda item:
+    [ int(item2) if item2.isdigit() else item2 for item2 in item.replace('-','.').split('.') ]
+)
+
+OLD = '\n'.join([
+    '<li><a href="%s">%s</a>' % (item,item) for item in old[::-1]
+])
+
+
 os.environ['PATH'] = '/bio/sw/python/bin:' + os.environ['PATH']
 
-# RAGE
+# Force MANIFEST rebuild
 os.system('rm MANIFEST')
 
 release_tarball_name = 'nesoni-%s.tar.gz' % nesoni.VERSION
 assert 'force' in sys.argv[1:] or not os.path.exists('dist/'+release_tarball_name), release_tarball_name + ' already exists'
 
 try:
-    assert 0 == os.system('cd test && pypy test_nesoni.py')
+    #assert 0 == os.system('cd test && pypy test_nesoni.py')
     
     #assert 0 == os.system('sudo -E /bio/sw/python/bin/pypy setup.py install_scripts --install-dir /bio/sw/python/bin/')
     #assert 0 == os.system('sudo -E /bio/sw/python/bin/pypy setup.py install_lib')

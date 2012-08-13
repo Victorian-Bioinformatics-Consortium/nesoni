@@ -979,7 +979,7 @@ def run_tool(action_class):
     config.shell_run(action_class(), args, sys.argv[0])
 
 
-def run_toolbox(action_classes, script_name=''):
+def run_toolbox(action_classes, script_name='', show_make_flags=True):
     """
     Provide a command line interface for a list of Actions.
     
@@ -1000,7 +1000,8 @@ def run_toolbox(action_classes, script_name=''):
         help.append('    %s\n' % config.colored(1,name+':'))
         help.append(config.wrap(item.help_short, 70, '        ') + '\n\n')
 
-    help.append('\nMake options:\n'+Make().describe('', show_help=True)+'\n')
+    if show_make_flags:
+        help.append('\nMake options:\n'+Make().describe('', show_help=True)+'\n')
 
     if not args:
         config.write_colored_text(sys.stdout, ''.join(help)+'\n\n')
