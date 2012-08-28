@@ -1,4 +1,6 @@
 
+0.81 - Fix small bug reading GFF files
+
 0.80 - more concise encoding of treemaker Counting_store (incompatible with previous versions! existing stores, eg kmer bags, need to be remade)
        Update "core:"
        Update "shred:"

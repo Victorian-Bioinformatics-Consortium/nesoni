@@ -201,7 +201,7 @@ def read_gff(filename):
         result.score = None if parts[5] == '.' else float(parts[5])
         result.strand = strand_from_gff[parts[6]]
         result.phase = None if parts[7] == '.' else int(parts[7])
-        result.attr = { } if len(parts) < 8 else split_keyvals(parts[8])
+        result.attr = { } if len(parts) < 9 else split_keyvals(parts[8])
         
         yield result        
 

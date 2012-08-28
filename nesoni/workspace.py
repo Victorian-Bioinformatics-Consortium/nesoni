@@ -2,7 +2,21 @@
 import os, cPickle, json
 
 class Workspace(object):
-    """ Directory containing pickled objects, etc """
+    """ Directory containing pickled objects, etc 
+    
+        Properties:
+            name  - directory base name
+            param - a dictionary of parameters stored in a file
+                    called "parameters".
+                    Note: update this with .update_param(...)
+        
+        Operator overloading:
+            workspace / 'filename'
+                  - returns the full path of a file called 'filename'
+                    in the workspace directory.
+                    (Bless me Guido, for I have sinned.)
+    
+    """
 
     def __init__(self, working_dir, must_exist=False):
         self.working_dir = os.path.normpath(working_dir)
