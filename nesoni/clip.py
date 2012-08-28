@@ -265,6 +265,7 @@ Options:
                           truseq-adapter,truseq-srna,genomic,multiplexing,pe,srna,dpnii,nlaiii
                        or "none".
                        Default: truseq-adapter,truseq-srna,genomic,multiplexing,pe,srna
+  --adaptor-file     - FASTA file to read adaptors from
   
   --match NNN        - Minimum length adaptor match
                        Default: 10
@@ -327,6 +328,9 @@ Clip adaptors and low quality bases from Illumina reads or read pairs.
     'truseq-adapter,truseq-srna,genomic,multiplexing,pe,srna,dpnii,nlaiii\n'
     'or "none".'
 )
+@config.String_flag('adaptor_file',
+    'FASTA file to read adaptors from'
+)
 @config.Int_flag('match',
     'Minimum length adaptor match.'
 )
@@ -381,6 +385,7 @@ class Clip(config.Action_with_prefix):
     match = 10
     max_errors = 1
     adaptors = 'truseq-adapter,truseq-srna,genomic,multiplexing,pe,srna'
+    adaptor_file = None
     homopolymers = False
     revcom = False
     trim_start = 0
@@ -446,6 +451,7 @@ class Clip(config.Action_with_prefix):
         adaptor_cutoff = self.match
         max_error = self.max_errors
         adaptor_set = self.adaptors
+        adaptor_file = self.adaptor_file
         disallow_homopolymers = self.homopolymers
         reverse_complement = self.revcom
         trim_start = self.trim_start
@@ -518,7 +524,16 @@ class Clip(config.Action_with_prefix):
                     adaptor_names.append(name)
                 if not any:
                     raise grace.Error('Unknown adaptor set: ' + item)
-        
+
+        if adaptor_file:
+            for adaptor in io.read_sequences(adaptor_file):
+                name,seq = adaptor
+                seq = seq.replace('U','T')
+                adaptor_seqs.append(seq)
+                adaptor_names.append(name)
+                adaptor_seqs.append(bio.reverse_complement(seq))
+                adaptor_names.append(name)
+
         matcher = Matcher(adaptor_seqs, adaptor_names, max_error)
         
         start_clips = [ collections.defaultdict(list) for i in xrange(fragment_reads) ]
