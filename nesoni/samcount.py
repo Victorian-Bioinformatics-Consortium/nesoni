@@ -539,8 +539,8 @@ def count_run(
         if n_forward+n_reverse < 5: continue
         strandedness.append( (n_forward-n_reverse)*100.0 / (n_forward+n_reverse) )
     strandedness = sum(strandedness) / len(strandedness)
-    log.log('Strand specificity: %.0f%%\n'
-            '  (~ -100%% reverse strand, ~ 0%% non-specific, ~ 100%% forward strand\n'
+    log.log('Strand specificity score: %.0f\n'
+            '  (~ -100 reverse strand, ~ 0 non-specific, ~ 100 forward strand\n'
             '   Average over all features with at least 5 hits.)\n'
             % strandedness)
 

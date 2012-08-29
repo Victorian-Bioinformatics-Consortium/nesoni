@@ -1,4 +1,7 @@
 
+0.82 - "clip:" can take a file of adaptors, in addition to using builtins.
+       "clip:" retains read descriptions (Illumina reads now include useful information in description).
+
 0.81 - Fix small bug reading GFF files
 
 0.80 - more concise encoding of treemaker Counting_store (incompatible with previous versions! existing stores, eg kmer bags, need to be remade)

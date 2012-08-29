@@ -247,72 +247,6 @@ class Matcher(object):
         return emit
 
 
-CLIP_HELP = """
-
-Clip adaptors and low quality bases from Illumina reads or read pairs.
-
-Usage:
-
-    nesoni clip: [options] output_prefix \\
-        [reads: single.fq[.gz]] \\
-        [pairs: left.fq[.gz] right.fq[.gz]] \\
-        [interleaved: interleaved.fq[.gz]]
-
-Options:
-  
-  --adaptors         - Which adaptors to use.
-                       Comma seperated list from:
-                          truseq-adapter,truseq-srna,genomic,multiplexing,pe,srna,dpnii,nlaiii
-                       or "none".
-                       Default: truseq-adapter,truseq-srna,genomic,multiplexing,pe,srna
-  --adaptor-file     - FASTA file to read adaptors from
-  
-  --match NNN        - Minimum length adaptor match
-                       Default: 10
-                       
-  --max-errors N     - Maximum errors in adaptor match
-                       Note: slow for N > 1
-                       Default: 1
-  
-  --clip-ambiguous yes/no - Clip ambiguous bases, eg N
-                       Default: yes
-  
-  --quality NNN      - Quality cutoff
-                       Default: 10
-  
-  --qoffset NNN      - Quality character offset
-                       sanger: 33, solexa: 59, illumina: 64
-                       Default: guess
-  
-  --length NNN       - Reads shorter than this will be discarded
-                       Default: 24
-  
-  --homopolymers yes/no - Disallow reads containing all the same base
-                       Default: no (i.e. homopolymers allowed) 
-  
-  --trim-start NNN   - Trim NNN bases from start of each read
-                       irrespective of quality.
-                       Default: 0
-                       
-  --trim-end NNN     - Trim NNN bases from end of each read
-                       irrespective of quality.
-                       Default: 0
-
-  --revcom yes/no    - Reverse complement all reads
-                       ie convert opp-out pairs to opp-in
-                       Default: no
-
-  --fasta yes/no     - Output in fasta rather than fastq format
-                       Default: no
-
-  --gzip yes/no      - Gzip output
-                       Default: yes
-  
-  --rejects yes/no   - Output rejected reads in separate file
-                       Default: no 
-
-"""
-
 def deinterleave(iterator):
     for item1 in iterator:
         item2 = iterator.next()
@@ -329,7 +263,8 @@ Clip adaptors and low quality bases from Illumina reads or read pairs.
     'or "none".'
 )
 @config.String_flag('adaptor_file',
-    'FASTA file to read adaptors from'
+    'FASTA file to read adaptors from. '
+    'Note that this is in addition to adaptors specified by the "--adaptors" flag.'
 )
 @config.Int_flag('match',
     'Minimum length adaptor match.'
@@ -578,7 +513,6 @@ class Clip(config.Action_with_prefix):
             graduates = [ ]
             rejects = [ ]
             for i, (name, seq, qual) in enumerate(fragment):
-                name = name.split()[0]
                 seq = seq.upper()
                 total_in_length[i] += len(seq)
                                     
