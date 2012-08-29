@@ -506,6 +506,7 @@ def check_name_uniqueness(read_filenames, pair_filenames=[], interleaved_filenam
     names = set()
     for filename in read_filenames:
         for i, (name, seq) in enumerate(read_sequences(filename)):
+            name = name.split()[0]
             assert name not in names, 'Duplicate sequence name: '+name
             names.add(name)
             if i >= 1000: break
@@ -515,6 +516,8 @@ def check_name_uniqueness(read_filenames, pair_filenames=[], interleaved_filenam
             read_sequences(filename1),
             read_sequences(filename2),
         )):
+            name1 = name1.split()[0]
+            name2 = name2.split()[0]
             assert name1 not in names, 'Duplicate sequence name: '+name1
             assert name2 not in names, 'Duplicate sequence name: '+name2
             assert name1[:-4] == name2[:-4], 'Read pair with dissimilar names: '+name1+', '+name2
@@ -532,6 +535,8 @@ def check_name_uniqueness(read_filenames, pair_filenames=[], interleaved_filenam
                 name2, seq2 = iterator.next()
             except StopIteration:
                 assert False, 'Interleaved read file with odd number of reads.'
+            name1 = name1.split()[0]
+            name2 = name2.split()[0]
             assert name1 not in names, 'Duplicate sequence name: '+name1
             assert name2 not in names, 'Duplicate sequence name: '+name2
             assert name1[:-4] == name2[:-4], 'Read pair with dissimilar names: '+name1+', '+name2

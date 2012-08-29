@@ -425,6 +425,8 @@ class Clip(config.Action_with_prefix):
         read_in_fragment_names = [ 'read-1', 'read-2' ] if any_paired else [ 'read' ]
         
         assert iterators, 'Nothing to clip'
+        
+        io.check_name_uniqueness(self.reads, self.pairs, self.interleaved)
     
         if qoffset is None:
             guesses = [ io.guess_quality_offset(filename) for filename in filenames ]
