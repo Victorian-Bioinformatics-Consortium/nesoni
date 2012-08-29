@@ -24,6 +24,12 @@ class Test_clip(unittest.TestCase):
             pairs = [ [ data/'reads_1.txt.gz', data/'reads_2.txt.gz' ] ],
         ).run()
 
+    def test_custom_adapters(self):
+        nesoni.Clip(
+            output / 'clip',
+            reads = [ data/'reads_1.txt.gz' ],
+            adaptor_file = data/'test_adaptors.fa',
+        ).run()
 
 class Test_analyse_sample(unittest.TestCase):
     def setUp(self):
