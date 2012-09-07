@@ -111,9 +111,10 @@ def describe_bool(boolean):
 class Parameter(object):
     sort_order = 0
 
-    def __init__(self, name, help=''):
+    def __init__(self, name, help='', affects_output=True):
         self.name = name
         self.help = help
+        self.affects_output = affects_output
 
     def parse(self, obj, string):
         return string
@@ -217,8 +218,8 @@ class Float_flag(Flag):
 class Section(Parameter):
     sort_order = 3
 
-    def __init__(self, name, help='', allow_flags=False, empty_is_ok=True):
-        Parameter.__init__(self,name,help)
+    def __init__(self, name, help='', affects_output=True, allow_flags=False, empty_is_ok=True):
+        Parameter.__init__(self,name=name,help=help,affects_output=affects_output)
         self.allow_flags = allow_flags
         self.empty_is_ok = empty_is_ok
 
@@ -281,8 +282,14 @@ class Main_section(Section):
 
 
 class Configurable_section(Section):
-    def __init__(self, name, help='', empty_is_ok=True, allow_none=False):
-        super(Configurable_section,self).__init__(name,help=help,allow_flags=True,empty_is_ok=empty_is_ok)
+    def __init__(self, name, help='', affects_output=True, empty_is_ok=True, allow_none=False):
+        super(Configurable_section,self).__init__(
+            name=name,
+            help=help,
+            affects_output=affects_output,
+            allow_flags=True,
+            empty_is_ok=empty_is_ok
+        )
         self.allow_none = allow_none
 
     def parse(self, obj, args):
@@ -476,6 +483,9 @@ class Configurable(object):
         c = cmp(self.__class__, other.__class__)
         if c: return c
         for parameter in self.parameters:
+            if not parameter.affects_output: 
+                continue
+            
             c = cmp(parameter.get(self), parameter.get(other))
             if c: return c
         return 0

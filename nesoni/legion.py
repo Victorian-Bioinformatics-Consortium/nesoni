@@ -844,11 +844,17 @@ def process_make(action, stage=None):
 Execute a shell command, optionally reading stdin from a file, \
 and optionally sending stdout to a file.
 """)
-@config.Int_flag('cores','Advise how many cores the command will use.')
+@config.Int_flag('cores','Advise how many cores the command will use.', 
+    affects_output=False)
 @config.Main_section('command','Command to execute', allow_flags=True, empty_is_ok=False)
+@config.Section('execution_options',
+    'Extra options to add to start of command, eg to set the number of cores to use. '
+    'These should not affect the output, and changing them will not cause the command to be re-run.', 
+    affects_output=False)
 class Execute(config.Action_filter):
     cores = 1
     command = [ ]
+    execution_options = [ ]
 
     def cores_required(self):
         return self.cores
@@ -869,7 +875,8 @@ class Execute(config.Action_filter):
         f_in = self.begin_input()
         f_out = self.begin_output()
         try:
-            io.execute(self.command, stdin=f_in, stdout=f_out)
+            io.execute(self.command[:1] + self.execution_options + self.command[1:], 
+                       stdin=f_in, stdout=f_out)
         finally:
             self.end_output(f_out)
             self.end_input(f_in)

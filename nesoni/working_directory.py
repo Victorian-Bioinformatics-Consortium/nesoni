@@ -2,6 +2,8 @@
 import os
 
 from nesoni import grace, io, config, reference_directory
+   
+
 
 class Working(io.Workspace):
     def set_reference(self, path):
@@ -23,6 +25,32 @@ class Working(io.Workspace):
             path = self.working_dir
         
         return reference_directory.Reference(path, must_exist=True)
+
+    #def matches(self, expression):
+    #    terms = expression.split(',')
+    #    return name in terms or any( item in terms for item in self.param.get('tags',()) )
+
+
+
+@config.help("""\
+Label a working directory with a list of tags.
+
+(The list is stored in the file <workding_dir>/parameters.)
+""")
+@config.Main_section('tags', 'Tags to give working directory.\n(Any existing tags are discarded.)')
+class Tag(config.Action_with_working_dir):
+    tags = [ ]
+    
+    _workspace_class = Working
+    
+    def run(self):
+        for tag in tags:
+            for char in ', \t':
+                assert char not in tag, 'Tags shouldn\'t contain "'+char+'".'
+        
+        workspace = self.get_workspace()
+        workspace.update_param(tags=self.tags)
+
 
 
 

@@ -5,6 +5,7 @@ import sys
 
 from reference_directory import Make_reference
 from clip import Clip
+from working_directory import Tag
 from samimport import Import
 from samshrimp import Shrimp
 from samconsensus import Filter, Reconsensus, Consensus

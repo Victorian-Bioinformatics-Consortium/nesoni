@@ -125,43 +125,32 @@ def abspath(*components):
 #    return p.stdout
     
 def open_possibly_compressed_file(filename):
-    """ Read a file. It might be compressed. """
-    #if isinstance(filename, file):
-    #    return filename #Whatever
+    """ Notionally, cast "filename" to a file-like object.
+    
+        If filename is already file-like, return it.
+        If it's compressed, return a decompressing file-like object.
+        If it's a BAM file, return a file-like object that produces SAM format.
+        Otherwise, just return an open file!
+    """
+    if hasattr(filename, 'read'):
+        return filename #It's already file-like
         
-    #peek, f = peek_and_pipe(open_possibly_remote_file(filename), 4)
-
     from nesoni import sam    
     
     f = open(filename,'rb')
     peek = f.read(4)
     f.close()
-    #f = open(filename,'rb')
 
-    if peek.startswith('\x1f\x8b'):
-        #command = 'gunzip'
-        if sam.is_bam(filename):
+    if peek.startswith('\x1f\x8b'): #gzip format
+        if sam.is_bam(filename): #it might be a BAM
             return sam.open_bam(filename)
             
         return gzip.open(filename, 'rb')
-    elif peek.startswith('BZh'):
-        #command = 'bunzip2'
+    elif peek.startswith('BZh'): #bzip2 format
         return bz2.BZFile(filename, 'rb')
     else:
-        #command = None
         return open(filename, 'rb')
-    
-    #if command:
-    #    p = legion.subprocess_Popen(
-    #        [command],
-    #        stdin=f,       
-    #        stdout=subprocess.PIPE,
-    #        close_fds=True,
-    #        )
-    #    f.close()        
-    #    f = p.stdout        
-    #
-    #return f
+
 
 def copy_file(source, dest):
     f_in = open_possibly_remote_file(source)
@@ -585,11 +574,72 @@ def read_evidence_file(filename):
 
 
 
+class _Named_list(object):
+    """ Abstract base class of named lists. 
+        Behaves very much like a dictionary.
+    """
+    def __init__(self, values):
+        assert len(values) == len(self._keys)
+        self._values = values
+        
+    def __len__(self):
+        return len(self._keys)
+    
+    def __iter__(self):
+        return iter(self._keys)
+    
+    def __getitem__(self, key):
+        return self._values[self._key_map[key]]
+    
+    def __setitem__(self, key, value):
+        self._values[self._key_map[key]] = value
+    
+    def __repr__(self):
+        return '({%s})' % (', '.join( '%s:%s' % (repr(a),repr(b)) for a,b in zip(self._keys,self._values) ))
+
+    def keys(self):
+        return self._keys
+        
+    def values(self):
+        return self._values
+    
+    def items(self):
+        return zip(self._keys, self._values)     
+
+    def iterkeys(self):
+        return iter(self._keys)
+    
+    def itervalues(self):
+        return iter(self._values)
+
+    def iteritems(self):
+        return itertools.izip(self._keys, self._values)
+
+
+def named_list_type(keys):
+    """ Create a named list class. Somewhat forgiving of duplicate names. """
+    class Named_list(_Named_list):
+        _keys = keys
+        _key_map = { }
+        _key_bad = set()        
+        for i, name in enumerate(keys):
+            if name in _key_map:
+                _key_bad.add(name)
+                del _key_map[name]
+            if name not in _key_bad:
+                _key_map[name] = i
+
+    return Named_list            
+
+
 class Table_reader(object):
     def __init__(self, filename):
         self.f = open(filename, 'rb')
         line = self.f.readline()
+        self.groups = [ ]
         while line and line.startswith('#') or not line.strip():
+            if line.startswith('#Groups'):
+                self.groups = line.rstrip('\n').split(',')
             line = self.f.readline()    
         
         assert line, 'Table has not even a heading'
@@ -602,6 +652,29 @@ class Table_reader(object):
             assert False, 'Strange table'
         
         self.headings = self.parse(line)
+
+        
+        if not self.groups:
+            #Is it an old counts file?
+            i = 0
+            while i < len(self.headings) and not self.headings[i].startswith('RPKM '):
+                i += 1
+            if i < len(self.headings):
+                n = i-1
+                self.groups = [''] + ['Count']*n + ['RPKM']*n + ['Annotation']*(len(self.headings)-n*2-1)
+                
+        if not self.groups:
+            self.groups = [''] + ['All']*(len(self.headings)-1)
+        
+        if len(self.groups) < len(self.headings):
+            self.groups.extend([''] * (len(self.headings)-len(self.groups)))
+        
+        self.groups[0] = ''
+        for i in xrange(1,len(self.groups)):
+            if not self.groups[i]:
+                self.groups[i] = self.groups[i-1] or 'All'
+        
+        self.row_type = named_list_type(self.headings)
     
     def __iter__(self):
         return self
@@ -616,9 +689,59 @@ class Table_reader(object):
             if not values: continue
             
             assert len(values) == len(self.headings)
-            return collections.OrderedDict(zip(self.headings,values))
+            #return collections.OrderedDict(zip(self.headings,values))
+            return self.row_type(values)
 
 read_table = Table_reader
+
+
+def read_grouped_table(filename, group_cast={'All':str}):
+    """ 
+    Read some groups of columns from a grouped-column table file.
+    
+    A grouped column table file is
+    - CSV (preferred) or tab separated
+    - The first column is a row name column
+    - May contain comments starting with #
+    - May contain a line starting with #Groups specifying the group of each column.
+      This is a comma separated list.
+    
+    If a #Groups line is not present, all columns belong to group 'All'.
+    
+    group_cast is a dictionary specifying a parser for the values in each group
+    """
+
+    reader = Table_reader(filename)
+
+    group_types = { }
+    groups = { }
+    group_columns = { }
+    for group in group_cast:
+        groups[group] = [ ]
+        group_columns[group] = [ ]
+        for i, group1 in enumerate(reader.groups):
+            if group == group1:
+                group_columns[group].append(i)
+        assert group_columns[group], '"%s" group is missing from table file' % group
+        
+        group_types[group] = named_list_type(
+            [ reader.headings[index] for index in group_columns[group] ]
+        )
+    
+    names = [ ]
+    for record in reader:
+        names.append(record._values[0])        
+        for group in groups:
+            groups[group].append(group_types[group]([
+                group_cast[group]( record._values[index] ) for index in group_columns[group]
+            ]))
+
+    result_type = named_list_type(names)
+    return dict(
+        (group, result_type(groups[group]))
+        for group in groups
+    )
+
 
 
 def write_csv(filename, iterable):
