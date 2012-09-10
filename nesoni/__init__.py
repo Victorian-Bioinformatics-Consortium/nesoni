@@ -21,7 +21,7 @@ from workflows import Analyse_sample
 from legion import *
 
 
-VERSION='0.82'
+VERSION='0.84'
 
 BOLD = '\x1b[1m'
 END = '\x1b[m'

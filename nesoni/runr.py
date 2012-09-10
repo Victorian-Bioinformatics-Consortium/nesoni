@@ -366,22 +366,28 @@ if (nrow(dgelist$counts) == 0) {
         lrt <- glmLRT(d, fit, coef=1:N_TO_TEST)
     }
     
-    # FUCK
+    # Construct result frame
     result <- data.frame(
         Feature = rownames(dgelist$counts)
     )
-    result$"log2 concentration" <- lrt$table$logConc
+    
+    # 10/9/2012: logConc changed to logCPM (concentration per million?)
+    result$"log2 average per million" <- lrt$table$logCPM
 
     if (USE_CONTRAST) {
         result$"log2 contrast" <- lrt$table$logFC
     }
     
     for(i in 1:N_TO_TEST) {
-        result[, colnames(design)[i]] <- lrt$coefficients.full[,i] / log(2)
+        result[, colnames(design)[i]] <- lrt$coefficients.full[,i] 
+        #10/9/2012: Coefficients full now appears to be in log2
     }
                     
-    result$p <- lrt$table$p.value
-    result$FDR <- p.adjust(lrt$table$p.value, method='BH')
+    #result$p <- lrt$table$p.value
+    #result$FDR <- p.adjust(lrt$table$p.value, method='BH')
+    #10/9/2012: p.value appears to have been renamed
+    result$p <- lrt$table$PValue
+    result$FDR <- p.adjust(lrt$table$PValue, method='BH')
     
     #for(i in (N_ALL_SAMPLES*2+2):ncol(data)) {
     #    result[ , colnames(data)[i]] = data[, i]
@@ -411,14 +417,17 @@ if (nrow(dgelist$counts) == 0) {
     if (USE_CONTRAST) {
         pngname = sprintf('%s.png', OUTPUT_PLOT)
         png(pngname, width=800, height=800 )
-        plot(result[,"log2 concentration"], 
-             result[,"log2 contrast"],
-             xlab="log2 concentration",
+
+        sane <- abs(result[,'log2 contrast']) < 1000.0
+
+        plot(result[sane,"log2 average per million"], 
+             result[sane,"log2 contrast"],
+             xlab="log2 average per million",
              ylab="log2 contrast",
              main='Contrast',
              pch=19, cex=0.25) 
-        points(result[,"log2 concentration"][significant],
-               result[,"log2 contrast"][significant],
+        points(result[significant & sane,"log2 average per million"],
+               result[significant & sane,"log2 contrast"],
                pch=19, cex=0.25,
                col="red")
         dev.off()
@@ -430,21 +439,23 @@ if (nrow(dgelist$counts) == 0) {
                 } else {
                     pngname = sprintf('%s-%s.png', OUTPUT_PLOT, TERM_NAMES[i]) 
                 }
+                
+                sane <- abs(result[,colnames(design)[i]]) < 1000.0
             
                 png(pngname, width=800, height=800 )
-                plot(result[,"log2 concentration"], 
-                     result[,colnames(design)[i]],
-                     xlab="log2 concentration",
+                plot(result[sane,"log2 average per million"], 
+                     result[sane,colnames(design)[i]],
+                     xlab="log2 average per million",
                      ylab="log2 fold change",
                      main=TERM_NAMES[i],
                      pch=19, cex=0.25)
                      
-                points(result[,"log2 concentration"][significant],
-                       result[,colnames(design)[i]][significant],
+                points(result[significant & sane,"log2 average per million"],
+                       result[significant & sane,colnames(design)[i]],
                        pch=19, cex=0.25,
                        col="red")
             
-                #points((result$"log2 concentration"),
+                #points((result$"log2 average per million"),
                 #       sqrt( dispersion[reordering] ),
                 #       pch=19,
                 #       col="blue")
@@ -729,7 +740,7 @@ Examples: A=fold-change A^B=interaction-between-A-and-B
 @config.Bool_flag('tell', 'Output R code instead of executing it.')
 @config.Positional('counts_file', 'The table of counts produced by "count:".')
 @config.Main_section('test', 'Terms to test.')
-@config.Section('contrast', 'Instead of doing an ANOVA on multiple terms, perform a contrast with the given weights.')
+@config.Float_section('contrast', 'Instead of doing an ANOVA on multiple terms, perform a contrast with the given weights.')
 @config.Section('with_', 'Also include these terms in the model.')
 @config.Section('use', 'Only use samples matching these regexes.')
 class Test_counts(config.Action_with_prefix):

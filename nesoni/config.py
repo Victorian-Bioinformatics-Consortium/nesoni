@@ -73,7 +73,7 @@ def get_flag_value(args, option, conversion_function):
 
 def expect_no_further_flags(args):
     for arg in args:
-        if arg.startswith('-'):
+        if re.match(r'--?[A-Za-z\-]+$', arg):
             raise Error('Unexpected flag "%s"' % arg)
         if arg.endswith(':'):
             raise Error('Unexpected section "%s"' % arg)

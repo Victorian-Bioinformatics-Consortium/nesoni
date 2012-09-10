@@ -1,4 +1,9 @@
 
+0.84 - update "test-counts:" to work with recent edgeR
+
+0.83 - bugfix reading seqeucnes from gff3 file
+       nesoni.config parameters now have "affects_output" flag, Execute tool now uses this
+
 0.82 - "clip:" can take a file of adaptors, or use builtin list (updated).
        "clip:" retains read descriptions (Illumina reads now include useful information in description).
        "clip:" checks for non-duplicate read names.
