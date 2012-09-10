@@ -1109,12 +1109,15 @@ hmap.elist(PREFIX, elist, min.sd=MIN_SD, min.span=MIN_SPAN, min.svd=MIN_SVD, svd
 Produce a heatmap (and table) of voomed expression levels (log2(count+0.5) normalized by effective library size).
 
 Hierachical clustering and ordering of rows is performed using the "seriation" package in R+.
+
+You will typically need to turn on both an "expression level filter" and a "fold change filter" \
+in order to show a useful list of genes.
 """)
-@config.Int_flag('min_total', 'Exclude genes with less than this total number of reads')
-@config.Int_flag('min_max', 'Exclude genes with no sample having at least this many reads')
-@config.Float_flag('min_sd', 'Exclude genes with less than this standard deviation of log2 expression levels')
-@config.Float_flag('min_span', 'Exclude genes where there is no pair of samples that differ in log2 expression by this much')
-@config.Float_flag('min_svd', 'Using the SVD of log2 expression levels, '
+@config.Int_flag('min_total', 'Expression level filter:\nExclude genes with less than this total number of reads')
+@config.Int_flag('min_max', 'Expression level filter:\nExclude genes with no sample having at least this many reads')
+@config.Float_flag('min_sd', 'Fold change filter:\nExclude genes with less than this standard deviation of log2 expression levels')
+@config.Float_flag('min_span', 'Fold change filter:\nExclude genes where there is no pair of samples that differ in log2 expression by this much')
+@config.Float_flag('min_svd', 'Fold change filter:\nUsing the SVD of log2 expression levels, '
                               'exclude genes where the sum of squares of the U matrix row for the gene is less than this many standard deviations.')
 @config.Int_flag('svd_rank', 'Only use the top this many columns of the SVD U matrix when applying --min-svd.')
 @config.Bool_flag('reorder_columns', 'Cluster and optimally order columns as well as rows.')
