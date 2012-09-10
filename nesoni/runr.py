@@ -1,7 +1,7 @@
 
 import sys, re, subprocess
 
-from nesoni import grace, config, legion
+from nesoni import grace, config, legion, io
 
 def R_literal(item):
     if item is None:
@@ -515,7 +515,7 @@ VOOM = COMMON + r"""
 library(limma)
 
 if (MODE == 'nullvoom') {
-    voom.design <- design[, (N_TO_TEST+1):ncol(design) ]
+    voom.design <- design[, (N_TO_TEST+1):ncol(design), drop=FALSE]
 } else {
     voom.design <- design
 }
@@ -555,7 +555,7 @@ if (MODE == 'voom') {
     stopifnot(!USE_CONTRAST) #Not supported.
 
     nullfit <- lmFit(y, voom.design)
-    df <- ncol(counts) - ncol(voom.design)
+    df <- ncol(dgelist$counts) - ncol(voom.design)
     s2 <- nullfit$sigma ^ 2
     
     #Trimmed chisq (untrimmed turns out to work just as well)
@@ -847,13 +847,20 @@ def test_counts_run(
     if use_contrast:
         contrast_weights += [ 0.0 ] * (len(all_terms)-len(test_terms))
     
-    f = open(filename,'rb')
-    header = f.readline()
-    f.close()
-    parts = header.rstrip('\n').split('\t')
+    #f = open(filename,'rb')
+    #header = f.readline()
+    #f.close()
+    #parts = header.rstrip('\n').split('\t')
+    #
+    #n_all_samples = parts.index('RPKM '+parts[1])-1    
+    #all_samples = parts[1:n_all_samples+1]
     
-    n_all_samples = parts.index('RPKM '+parts[1])-1    
-    all_samples = parts[1:n_all_samples+1]
+    data = io.read_grouped_table(filename,{'Count':str,'Annotation':str})
+    assert len(data['Count']), 'Count file is empty'
+    
+    all_samples = data['Count'].values()[0].keys()
+    n_all_samples = len(all_samples)
+    
     
     keep = [ any( re.search(use_expr, item) for use_expr in use_terms ) for item in all_samples ]
     samples = [ all_samples[i] for i in xrange(n_all_samples) if keep[i] ]
@@ -875,12 +882,25 @@ def test_counts_run(
     log.log('Model matrix (terms being tested for significance shown in { }):\n')
     for i in xrange(n_samples):
         log.log('{ ')
-        for j in xrange(len(all_terms)):
+        j = 0
+        while True:
             if j == n_to_test:
                 log.log('} ')
+            if j >= len(all_terms): 
+                break
             log.log('%d ' % model[i][j])
+            j += 1
         log.log(samples[i] + '\n')
     log.log('\n')    
+    
+    
+    assert len(all_terms) <= n_all_samples, 'Can\'t have more linear model terms than samples.'
+    if mode not in ('poisson','nullvoom'):
+        assert len(all_terms) < n_all_samples, (
+            'Can\'t have as many linear model terms as samples, within group variation can\'t be estimated. '
+            'I wouldn\'t recommend using --mode poisson or --mode nullvoom, '
+            'you should go and sequence some more samples.'
+        )
     
     
     log.log('Analysis mode: %s\n%s\n'%(mode,MODE_HELP[mode]))
