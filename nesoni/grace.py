@@ -254,3 +254,13 @@ def require_sff2fastq():
         raise Error("Couldn't run 'sff2fastq'. Not installed?")
 
 
+def get_numpy():
+    try:
+        import numpy
+    except ImportError:
+        try:
+            import numpypy as numpy
+        except ImportError:
+            raise Error('Neither numpy nor numpypy are available.')
+    return numpy
+

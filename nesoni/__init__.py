@@ -10,6 +10,7 @@ from samimport import Import
 from samshrimp import Shrimp
 from samconsensus import Filter, Reconsensus, Consensus
 from nway_diff import Nway
+from fisher_diff import Fisher
 from core import Core
 from samcount import Count
 from runr import Test_counts, Plot_counts, Heatmap, Compare_tests, Norm_from_counts, NMF
@@ -21,7 +22,7 @@ from workflows import Analyse_sample
 from legion import *
 
 
-VERSION='0.84'
+VERSION='0.85'
 
 BOLD = '\x1b[1m'
 END = '\x1b[m'
@@ -249,10 +250,6 @@ def get_commands():
     @add
     def consequences(args):
         grace.load('consequences').main(args)
-    
-    @add
-    def fisher(args):
-        grace.load('fisher_diff').main(args)
         
     @add
     def bag(args):

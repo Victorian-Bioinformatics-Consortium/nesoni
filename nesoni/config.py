@@ -211,6 +211,8 @@ class Float_flag(Flag):
     def describe(self, value):
         if value is None: 
            return 'N.NN'
+        if abs(value) < 0.01:
+           return '%.3e' % value
         return '%.3f' % value
 
         

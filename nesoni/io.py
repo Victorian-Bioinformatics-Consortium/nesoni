@@ -580,6 +580,9 @@ class _Named_list(object):
     """
     def __init__(self, values):
         assert len(values) == len(self._keys)
+        if self._value_type:
+            for item in values:
+                assert isinstance(item, self._value_type)
         self._values = values
         
     def __len__(self):
@@ -597,6 +600,7 @@ class _Named_list(object):
     def __repr__(self):
         return '({%s})' % (', '.join( '%s:%s' % (repr(a),repr(b)) for a,b in zip(self._keys,self._values) ))
 
+    @classmethod
     def keys(self):
         return self._keys
         
@@ -606,6 +610,7 @@ class _Named_list(object):
     def items(self):
         return zip(self._keys, self._values)     
 
+    @classmethod
     def iterkeys(self):
         return iter(self._keys)
     
@@ -616,18 +621,20 @@ class _Named_list(object):
         return itertools.izip(self._keys, self._values)
 
 
-def named_list_type(keys):
+def named_list_type(keys, value_type=None):
     """ Create a named list class. Somewhat forgiving of duplicate names. """
     class Named_list(_Named_list):
         _keys = keys
         _key_map = { }
         _key_bad = set()        
-        for i, name in enumerate(keys):
-            if name in _key_map:
-                _key_bad.add(name)
-                del _key_map[name]
-            if name not in _key_bad:
-                _key_map[name] = i
+        _value_type = value_type
+        
+    for i, name in enumerate(keys):
+        if name in Named_list._key_map:
+            Named_list._key_bad.add(name)
+            del Named_list._key_map[name]
+        if name not in Named_list._key_bad:
+            Named_list._key_map[name] = i
 
     return Named_list            
 
@@ -736,21 +743,56 @@ def read_grouped_table(filename, group_cast={'All':str}):
                 group_cast[group]( record._values[index] ) for index in group_columns[group]
             ]))
 
-    result_type = named_list_type(names)
     return dict(
-        (group, result_type(groups[group]))
+        (group, named_list_type(names,group_types[group])(groups[group]))
         for group in groups
     )
 
 
+def write_grouped_csv(filename, groups, rowname_name='Name', comments=[], group_line=True):
+    """
+    Write some groups of columns to a file in CSV format.
+    
+    groups should be a list of tuple (group name, data)
+    where data is a named_list of named_lists
+    """
+    group_names = [ '#Groups' ]
+    column_names = [ rowname_name ]
+    rownames = groups[0][1].keys()
+    for name, table in groups:
+        group_names.extend([ name ] * len(table._value_type.keys()))
+        column_names.extend(table._value_type.keys())
+        assert table.keys() == rownames
+    
+    with open(filename, 'wb') as f:
+        for line in comments:
+            f.write('#%s\n' % line)
+            
+        writer = csv.writer(f)
+        if group_line:
+            writer.writerow(group_names)
+        writer.writerow(column_names)
+        for i, rowname in enumerate(rownames):
+            writer.writerow(
+                [ rowname ] +
+                [ item #str(item)
+                  for _, table in groups
+                  for item in table.values()[i].values()
+                ]
+            )
+        
 
-def write_csv(filename, iterable):
+def write_csv(filename, iterable, comments=[]):
     """ Write a sequence of OrderedDicts of strings as a CSV 
     
         Keys may be either simply a string or tuples of (group, column_name)
         The first item is the row name, and can't have a group
     """
     f = open(filename, 'wb')
+    
+    for line in comments:
+        f.write('#%s\n' % line)
+    
     writer = csv.writer(f)
     keys = None
     

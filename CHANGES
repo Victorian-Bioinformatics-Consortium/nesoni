@@ -1,4 +1,6 @@
 
+0.85 - update "fisher:" to work again
+
 0.84 - update "test-counts:" to work with recent edgeR
 
 0.83 - bugfix reading seqeucnes from gff3 file
