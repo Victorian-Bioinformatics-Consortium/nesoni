@@ -1,5 +1,5 @@
 
-import os, cPickle, json
+import os, cPickle, json, tempfile, contextlib
 
 class Workspace(object):
     """ Directory containing pickled objects, etc 
@@ -103,6 +103,26 @@ class Workspace(object):
             path = os.path.join(*path)
         return self.relative_path_as_path(path)
 
+
+
+@contextlib.contextmanager
+def tempspace():
+    """ Use this in a "with" statement to create a temporary workspace. 
+        
+        Example:
+        
+        with workspace.tempspace() as temp:
+            with open(temp/'hello.c','wb') as f:
+                f.write('#include <stdio.h>\nint main() { printf("Hello world\\n"); }')
+            os.system('cd '+temp.working_dir+' && gcc hello.c && ./a.out')
+    """
+    path = tempfile.mkdtemp()
+    try:
+        yield Workspace(path, must_exist=True)
+    finally:
+        for filename in os.listdir(path):
+            os.unlink(os.path.join(path, filename))
+        os.rmdir(path)
 
 
 

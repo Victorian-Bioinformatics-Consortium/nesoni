@@ -600,6 +600,16 @@ class _Named_list(object):
     def __repr__(self):
         return '({%s})' % (', '.join( '%s:%s' % (repr(a),repr(b)) for a,b in zip(self._keys,self._values) ))
 
+    def value_type(self):
+        if self._value_type:
+            return self._value_type
+
+        assert self.values, 'Trying to get the type of values in an empty Named_list.'
+        result = type(self.values[0])
+        for item in self.values:
+            assert type(item) == result, 'Trying to get the type of values in a Named_list containing several types of object.'
+        return result
+
     @classmethod
     def keys(self):
         return self._keys
@@ -622,7 +632,8 @@ class _Named_list(object):
 
 
 def named_list_type(keys, value_type=None):
-    """ Create a named list class. Somewhat forgiving of duplicate names. """
+    """ Create a named list class. Somewhat forgiving of duplicate names. 
+    """
     class Named_list(_Named_list):
         _keys = keys
         _key_map = { }
@@ -637,6 +648,13 @@ def named_list_type(keys, value_type=None):
             Named_list._key_map[name] = i
 
     return Named_list            
+
+def named_list(items, value_type=None):
+    """ Create a named list from a list of (name,value) pairs.
+    """
+    keys = [ a for a,b in items ]
+    values = [ b for a,b in items ]
+    return named_list_type(keys, value_type)(values)
 
 
 class Table_reader(object):
@@ -760,8 +778,8 @@ def write_grouped_csv(filename, groups, rowname_name='Name', comments=[], group_
     column_names = [ rowname_name ]
     rownames = groups[0][1].keys()
     for name, table in groups:
-        group_names.extend([ name ] * len(table._value_type.keys()))
-        column_names.extend(table._value_type.keys())
+        group_names.extend([ name ] * len(table.value_type().keys()))
+        column_names.extend(table.value_type().keys())
         assert table.keys() == rownames
     
     with open(filename, 'wb') as f:
