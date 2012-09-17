@@ -22,7 +22,7 @@ from workflows import Analyse_sample
 from legion import *
 
 
-VERSION='0.85'
+VERSION='0.86'
 
 BOLD = '\x1b[1m'
 END = '\x1b[m'

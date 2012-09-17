@@ -668,7 +668,7 @@ def report_exception():
     exception = sys.exc_info()[1]
     
     brief = False
-    for item in (Error, IOError):
+    for item in (Error, EnvironmentError):
         if isinstance(exception, item) and len(exception.args) > 0:
             brief = True
     
@@ -678,9 +678,16 @@ def report_exception():
 
     write_colored_text(sys.stderr, 
         '\n' + colored(1,colored(31, exception.__class__.__name__+':')) + '\n')
-    for arg in exception.args:
-        write_colored_text(sys.stderr, 
-            colored(31, wrap(str(arg), 70, '    ')) + '\n')
+    
+    if isinstance(exception, EnvironmentError):
+        args = [ exception.strerror, exception.filename ]
+    else:
+        args = exception.args
+    
+    for arg in args:
+        if arg:
+            write_colored_text(sys.stderr, 
+                colored(31, wrap(str(arg), 70, '    ')) + '\n')
     sys.stderr.write('\n')
 
 
