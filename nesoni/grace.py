@@ -257,7 +257,9 @@ def require_sff2fastq():
 def check_installation(f=sys.stdout):
     """ Print out any problems with the installation. 
     """
-    from . import runr, config
+    import nesoni
+    from nesoni import runr, config
+    
     ok = [True]
     def report(line):
         if ok[0]:
@@ -272,10 +274,14 @@ def check_installation(f=sys.stdout):
         report('Couldn\'t run R. Some tools require R.')
 
     if ok:
-        try: runr.run_script('library(nesoni)',silent=True)
+        try: 
+            runr.run_script(
+                'library(nesoni)\n'
+                'stopifnot(nesoni_version() == version)',
+            silent=True,version=nesoni.VERSION)
         except AssertionError:
             path = os.path.join(os.path.dirname(__file__),'nesoni-r')
-            report('Nesoni R module not installed. To install:')
+            report('Nesoni R module not installed or wrong version. To install:')
             report('  R CMD INSTALL '+path)
         
     try: require_samtools()
