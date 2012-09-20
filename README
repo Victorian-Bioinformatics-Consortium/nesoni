@@ -124,13 +124,9 @@ update is deferred to a more convenient time. This is very useful for large numb
 of random writes, such as in constructing an inverted index.
 
 The performance is similar to performing an on disk merge sort, then using bisection 
-search to retrieve values. However the merging occurs in the background, and the 
-database is always live, you can retrieve keys at any time. If you have multiple 
-CPUs, merge operations can run in parallel.
+search to retrieve values.
 
 treemaker uses memory mapping, and therefore requires a 64-bit CPU for large
 data sets.
-
-If you have a lot of data, you might find it useful.
 
 
