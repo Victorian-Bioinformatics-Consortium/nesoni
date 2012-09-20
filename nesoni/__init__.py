@@ -16,7 +16,7 @@ from samcount import Count
 from runr import Test_counts, Plot_counts, Heatmap, Compare_tests, Norm_from_counts, NMF
 from trivia import Test, As_fasta, As_gff, Sample, Stats
 from shred import Shred
-from igv import Make_genome, IGV_plots, As_userplots 
+from igv import Make_genome, IGV_plots, As_userplots, Run_igv
 from workflows import Analyse_sample
 
 from legion import *
@@ -129,6 +129,8 @@ samcount, for analysis with BioConductor packages.
                     for viewing in Artemis.
     
     make-genome:  - Make an IGV .genome file.
+    
+    run-igv:      - Run IGV with a specified .genome file.
     
     sample:       - Randomly sample from a sequence file.
     

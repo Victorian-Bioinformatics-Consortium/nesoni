@@ -19,20 +19,33 @@ def close(f):
         STREAM_PROCESS[f].kill()
     f.close()
 
-def run(args, stdin=None, stdout=subprocess.PIPE, stderr=None):
+def run(args, stdin=None, stdout=subprocess.PIPE, stderr=None, shell=False):
     return subprocess.Popen(
         args,
         bufsize=1<<24,
         stdin=stdin,        
         stdout=stdout,
         stderr=stderr,
+        shell=shell,
         close_fds=True,
     )
 
-def execute(args, stdin=None, stdout=None):
-    p = run(args, stdin=stdin, stdout=stdout)
+def execute(args, stdin=None, stdout=None, shell=False):
+    p = run(args, stdin=stdin, stdout=stdout, shell=shell)
     assert p.wait() == 0, 'Failed to execute "%s"' % ' '.join(args)
 
+def find_jar(jarname):    
+    search = [ ]    
+    if 'JARPATH' in os.environ: # I just made this up
+        search.extend(os.environ['JARPATH'].split(':'))
+    if 'PATH' in os.environ:
+        search.extend(os.environ['PATH'].split(os.pathsep))
+    
+    for dirname in search:
+        filename = os.path.join(dirname, jarname)
+        if os.path.isabs(dirname) and os.path.exists(filename):
+            return filename
+    raise Error('Couldn\'t find "%s". Directories listed in JARPATH and PATH were searched.' % jarname)
 
 #def peek_and_pipe(f, n_peek):
 #    try:

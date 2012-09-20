@@ -7,7 +7,7 @@ Produce files for use with IGV
 
 """
 
-from nesoni import config, io, grace, legion, trivia, annotation, working_directory
+from nesoni import config, io, grace, legion, trivia, annotation, working_directory, reference_directory
 
 import itertools, math, os
 
@@ -19,10 +19,11 @@ def iter_add(a,b):
 
 
 @config.help("""\
-Create an IGV .genome from sequences and annotations. 
+Create an IGV .genome file from sequences and annotations, \
+or from a nesoni reference directory created with "nesoni make-reference:".
 """)
 @config.String_flag('name', 'Descriptive name.')
-@config.Main_section('filenames', 'Input filenames.')
+@config.Main_section('filenames', 'Input filenames or reference directory.')
 class Make_genome(config.Action_with_prefix):
     prefix = None
     name = None
@@ -36,6 +37,12 @@ class Make_genome(config.Action_with_prefix):
         
         for filename in self.filenames:
             any = False
+            if os.path.isdir(filename):
+                reference = reference_directory.Reference(filename,must_exist=True)
+                sequences.append(reference.reference_fasta_filename())
+                if reference.annotations_filename():
+                    annotations.append(reference.annotations_filename())
+                any = True
             if io.is_sequence_file(filename):
                 sequences.append(filename)
                 any = True
@@ -366,7 +373,8 @@ class IGV_plots(config.Action_with_prefix):
         
 
 @config.help("""
-Convert .igv files, for example as produced by "igv-plots: --delete-igv no" to .userplot files for use with Artemis.
+Convert .igv files, for example as produced by "igv-plots: --delete-igv no" \
+to .userplot files for use with Artemis.
 """)
 @config.Main_section('files', '.igv files.')
 class As_userplots(config.Action_with_output_dir):
@@ -410,6 +418,66 @@ class As_userplots(config.Action_with_output_dir):
                     item.close()
             grace.status('')
 
+@config.help("""\
+Open IGV with a specified .genome file. \
+If the file is not in IGV's list of user defined genomes, it will be added.
+
+.genome files can be created with "nesoni make-genome:".
+""")
+@config.Positional('genome','.genome file.')
+@config.Main_section('args','command line arguments to IGV, eg files to load.', allow_flags=True)
+class Run_igv(config.Action):
+    genome = None
+    args = [ ]
+
+    def run(self):
+        igv_dir = os.path.join(os.environ['HOME'],'igv')
+        if not os.path.exists(igv_dir):
+            os.mkdir(igv_dir)
+        genomes_dir = os.path.join(igv_dir,'genomes')
+        if not os.path.exists(genomes_dir):
+            os.mkdir(genomes_dir)
+        genomes_filename = os.path.join(
+            os.environ['HOME'],
+            'igv', 'genomes', 'user-defined-genomes.txt'
+        )
+        genomes = [ ]
+        if os.path.exists(genomes_filename):
+            with open(genomes_filename,'rU') as f:
+                for line in f:
+                    genomes.append(line.rstrip('\n').split('\t'))
+    
+        genome_filename = os.path.abspath(self.genome)
+        
+        name = None
+        for item in genomes:
+            if os.path.abspath(item[1]) == genome_filename:
+                name = item[2]
+                break
+        
+        if name is None:
+            names = set(item[2] for item in genomes)
+            i = 0
+            while True:
+                name = os.path.splitext(os.path.basename(genome_filename))[0]
+                name += str(i).lstrip('0')
+                if name and name not in names: break
+                i += 1
+            genomes.append([ name, genome_filename, name ])
+
+            print 'Genome not in user defined genomes list.'
+            print 'Adding it as:', name
+        
+            with open(genomes_filename,'wt') as f:
+                for item in genomes:
+                    print >> f, '\t'.join(item)
+    
+        #igv.sh does not begin with #!/bin/sh as at version 2.1.24
+        #io.execute(['igv.sh','-g',name] + self.args)
+        
+        io.execute(['java','-jar',io.find_jar('igv.jar'),'-g',name] + self.args)
+        
+        
 
 
 

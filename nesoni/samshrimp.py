@@ -140,9 +140,26 @@ class Shrimp(config.Action_with_output_dir):
             read_sets.append( (item, True) )
         for item in self.interleaved:
             read_sets.append( ([item], True) )
+
+        #Create working directory
         
-        default_options = { '-E' : None, '-T' : None, '-N' : str(grace.how_many_cpus()), '-n':'2', '-w':'200%',
-                            '-p': 'opp-in', '-I': '0,500', '-X':None }
+        workspace = self.get_workspace() #working_directory.Working(self.output_dir, must_exist=False)
+        workspace.setup_reference(self.references)        
+        reference = workspace.get_reference()
+        reference_filename = reference.reference_fasta_filename()
+
+
+        
+        default_options = { 
+            '-E' : None, 
+            '-T' : None, 
+            '-N' : str(grace.how_many_cpus()), 
+            '-n':'2', 
+            '-w':'200%',
+            '-p': 'opp-in', 
+            '-I': '0,500', 
+            '-X':None,
+        }
         
         if self.sam_unaligned:
             default_options['--sam-unaligned'] = None
@@ -156,14 +173,7 @@ class Shrimp(config.Action_with_output_dir):
         cutoff = '55%' #Default changed in SHRiMP 2.0.2
         if '-h' in self.shrimp_options:
             cutoff = self.shrimp_options[ self.shrimp_options.index('-h')+1 ]
-        
-        #Create working directory
-        
-        workspace = self.get_workspace() #working_directory.Working(self.output_dir, must_exist=False)
-        workspace.setup_reference(self.references)        
-        reference = workspace.get_reference()
-        reference_filename = reference.reference_fasta_filename()
-        
+                
         #workspace = io.Workspace(self.output_dir)
         #
         #workspace.update_param( 
@@ -271,7 +281,7 @@ class Shrimp(config.Action_with_output_dir):
             assert len(set(guesses)) == 1, 'Conflicting quality offset guesses, please specify --qv-offset manually.'
             default_options['--qv-offset'] = str(guesses[0])
                 
-        for filenames, is_paired in read_sets:
+        for i, (filenames, is_paired) in enumerate(read_sets):
             options = self.shrimp_options[:]
                
             has_qualities = all(
@@ -308,6 +318,11 @@ class Shrimp(config.Action_with_output_dir):
             else:
                 reads_parameters = [ '-1', filenames[0], '-2', filenames[1] ]
             
+            default_options['--read-group'] = '%s-%d,%s' % (
+                workspace.name.replace(',','_'),
+                i+1,
+                workspace.name.replace(',','_')
+            )
             for flag in default_options:
                 if flag not in options:
                     options.append(flag)
