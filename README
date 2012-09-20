@@ -52,11 +52,20 @@ Optional R+ libraries:
 ~ Installation
 ==============
 
+The easy way:
+
+    pip install nesoni
+
+Then type "nesoni" and follow the command to install the R module.
+
+
+From source, download and untar the source tarball, then:
+
     python setup.py install
 
 Optional:
 
-    R CMD INSTALL nesoni-r
+    R CMD INSTALL nesoni/nesoni-r
 
 
 ~ Using nesoni

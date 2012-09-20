@@ -1,0 +1,9 @@
+Package: nesoni
+Version: 0.0
+License: GPL-2
+Title: Nesoni R component
+Description: The R component of the Nesoni toolsuite.
+Author: Paul Harrison
+Maintainer: Paul Harrison <paul.harrison@monash.edu>
+Depends: limma, edgeR
+Suggests: seriation, NMF

@@ -254,6 +254,43 @@ def require_sff2fastq():
         raise Error("Couldn't run 'sff2fastq'. Not installed?")
 
 
+def check_installation(f=sys.stdout):
+    """ Print out any problems with the installation. 
+    """
+    from . import runr, config
+    ok = [True]
+    def report(line):
+        if ok[0]:
+            ok[0] = False
+            config.write_colored_text(f,config.colored(31,'\nInstallation problems:\n\n'))        
+        print >> f, line
+        print >> f
+    
+    try:
+        runr.run_script('',silent=True)
+    except AssertionError:
+        report('Couldn\'t run R. Some tools require R.')
+
+    if ok:
+        try: runr.run_script('library(nesoni)',silent=True)
+        except AssertionError:
+            path = os.path.join(os.path.dirname(__file__),'nesoni-r')
+            report('Nesoni R module not installed. To install:')
+            report('  R CMD INSTALL '+path)
+        
+    try: require_samtools()
+    except Error:
+        report('samtools not installed.')
+    
+    try: require_shrimp_2()
+    except Error:
+        report('SHRiMP not installed.')
+    
+    return ok
+    
+    
+
+
 def get_numpy():
     try:
         import numpy

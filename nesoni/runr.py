@@ -32,7 +32,7 @@ def R_literal(item):
     else:
         assert False, "Can't encode %s" % repr(item)
 
-def run_script(script, only_tell=False, **kwargs):
+def run_script(script, only_tell=False, silent=False, **kwargs):
     script = (
         r"""options(warn=1,error=function(){dump.frames(); cat(names(last.dump),sep='\n'); q('no',1);}); """ + 
         '\n' +
@@ -49,11 +49,18 @@ def run_script(script, only_tell=False, **kwargs):
     if only_tell:
         print script
         return
+        
+    if silent:
+        stdout = subprocess.PIPE
+    else:
+        stdout = None
  
     process = subprocess.Popen(
         ['Rscript', '-'],
         bufsize=1<<24,
         stdin=subprocess.PIPE,        
+        stdout=stdout,
+        stderr=stdout,
         close_fds=True,
     )
     process.stdin.write(script)

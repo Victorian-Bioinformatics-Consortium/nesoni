@@ -14,7 +14,7 @@ setup(name='nesoni',
       
       package_data = {
           'treemaker' : ['*.pyx'],
-          'nesoni' : ['*.pyx'],
+          'nesoni' : ['*.pyx','nesoni-r/DESCRIPTION','nesoni-r/R/*'],                    
       },
       
       scripts=['nesoni_scripts/nesoni'],
