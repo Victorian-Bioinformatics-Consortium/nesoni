@@ -161,7 +161,7 @@ try:
     #assert 0 == os.system('sudo -E /bio/sw/python/bin/pypy setup.py install_lib')
     #assert 0 == os.system('sudo -E /bio/sw/python/bin/python2.6 setup.py install_lib')
     assert 0 == os.system('sudo pypy setup.py install --home /bio/sw/python')
-    assert 0 == os.system('sudo R CMD INSTALL --library=/bio/sw/R nesoni-r')
+    assert 0 == os.system('sudo R CMD INSTALL --library=/bio/sw/R nesoni/nesoni-r')
     
     print
     print

@@ -309,6 +309,7 @@ def main(args):
 
     if not args:
         config.write_colored_text(sys.stdout, USAGE)
+        grace.check_installation()
         return 1
 
     commands = get_commands()
