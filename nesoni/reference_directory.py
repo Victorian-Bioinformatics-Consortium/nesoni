@@ -144,6 +144,9 @@ class Make_reference(config.Action_with_output_dir):
             if not any:
                 raise grace.Error(filename + ' is neither a sequence file nor an annotation file that nesoni can read.')
         
+        if not sequences:
+            raise grace.Error('No reference sequence files given.')
+        
         reference = Reference(self.output_dir, must_exist=False)        
         reference.set_sequences(sequences)
         reference.set_annotations(annotations)

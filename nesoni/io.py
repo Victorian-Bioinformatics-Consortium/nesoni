@@ -367,8 +367,11 @@ def filter_no_qualities(iterator):
 def read_sequences(filename, qualities=False, genbank_callback=None):
     """ Read fasta or illumina sequences, possibly compressed 
     
+        Valid values for qualities: False,True,'required'
+    
         Post reading filters can be applied.
     """
+    assert qualities in (False,True,'required')
     
     parts = filename.split('~~')
 
@@ -397,6 +400,9 @@ def read_sequences(filename, qualities=False, genbank_callback=None):
         result = read_illumina_with_quality(process.stdout)
     else:
         raise grace.Error('Unrecognized file format for '+filename)
+
+    if qualities == 'required' and not have_qualities:
+        raise grace.Error('Need base qualities in '+filename)
     
     for part in parts[1:]:
         for prefix in FILTERS:

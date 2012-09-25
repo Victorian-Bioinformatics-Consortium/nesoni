@@ -8,6 +8,9 @@ from nesoni import config, workspace, working_directory, reference_directory, io
 
 Align reads using Bowtie 2.
 
+Paired end reads should either be given as two files in the "pairs"
+section, or as a single interleaved file in the "interleaved" section.
+
 """)
 @config.Main_section('references', 
     'Reference sequence filenames, '
@@ -29,6 +32,8 @@ class Bowtie(config.Action_with_output_dir):
     _workspace_class = working_directory.Working
 
     def run(self):
+        assert self.reads or self.pairs or self.interleaved, 'No reads given'
+    
         io.check_name_uniqueness(self.reads, self.pairs, self.interleaved)
         
         working = self.get_workspace()
@@ -50,7 +55,7 @@ class Bowtie(config.Action_with_output_dir):
                     return filename            
                 result_name = tempname()
                 with open(result_name,'wb') as f:
-                    for name, seq, qual in io.read_sequences(filename, qualities=True):
+                    for name, seq, qual in io.read_sequences(filename, qualities='required'):
                         io.write_fastq(f, name, seq, qual)
                 return result_name
             
@@ -70,7 +75,7 @@ class Bowtie(config.Action_with_output_dir):
                 twos.append(right_name)
                 with open(left_name,'wb') as left, \
                      open(right_name,'wb') as right:
-                    reader = io.read_sequences(item, qualities=True)
+                    reader = io.read_sequences(item, qualities='required')
                     while True:
                         try:
                             name, seq, qual = reader.next()
