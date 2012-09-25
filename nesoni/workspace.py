@@ -104,9 +104,8 @@ class Workspace(object):
         return self.relative_path_as_path(path)
 
 
-
 @contextlib.contextmanager
-def tempspace():
+def tempspace(dir=None):
     """ Use this in a "with" statement to create a temporary workspace. 
         
         Example:
@@ -116,7 +115,7 @@ def tempspace():
                 f.write('#include <stdio.h>\nint main() { printf("Hello world\\n"); }')
             os.system('cd '+temp.working_dir+' && gcc hello.c && ./a.out')
     """
-    path = tempfile.mkdtemp()
+    path = tempfile.mkdtemp(dir=dir)
     try:
         yield Workspace(path, must_exist=True)
     finally:

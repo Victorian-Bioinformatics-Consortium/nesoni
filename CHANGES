@@ -1,4 +1,6 @@
 
+0.87 - added "bowtie:"
+
 0.86 - IOError now displays error message
 
 0.85 - update "fisher:" to work again

@@ -9,13 +9,13 @@ class Working(io.Workspace):
     def set_reference(self, path):
         self.update_param(reference=self.path_as_relative_path(path))
 
-    def setup_reference(self, filenames):
+    def setup_reference(self, filenames, bowtie=False):
         if len(filenames) == 1 and os.path.isdir(filenames[0]):
             self.set_reference(filenames[0])
             return
         
         path = self / 'reference'
-        reference_directory.Make_reference(path, filenames=filenames).run()
+        reference_directory.Make_reference(path, filenames=filenames, bowtie=bowtie).run()
         self.set_reference(path)
 
     def get_reference(self):

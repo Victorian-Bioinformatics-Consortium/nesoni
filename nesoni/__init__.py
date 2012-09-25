@@ -8,6 +8,7 @@ from clip import Clip
 from working_directory import Tag
 from samimport import Import
 from samshrimp import Shrimp
+from bowtie import Bowtie
 from samconsensus import Filter, Reconsensus, Consensus
 from nway_diff import Nway
 from fisher_diff import Fisher
@@ -22,7 +23,7 @@ from workflows import Analyse_sample
 from legion import *
 
 
-VERSION='0.86'
+VERSION='0.87'
 
 BOLD = '\x1b[1m'
 END = '\x1b[m'
@@ -40,9 +41,12 @@ Give <tool>: without further arguments for help on using that tool.
 
     make-reference:
                   - Set up a directory containing a reference sequence,
-                    annotations, and files for SHRiMP.
+                    annotations, and files for SHRiMP and/or Bowtie.
 
     shrimp:       - Run SHRiMP 2 on a read set to set up a working
+                    directory.
+    
+    bowtie:       - Run Bowtie 2 on a read set to set up a working
                     directory.
     
     consensus     - Filter read hits, and try to call a consensus for each 

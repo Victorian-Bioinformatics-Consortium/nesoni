@@ -103,7 +103,9 @@ Useful shrimp options:
                   If not specified, nesoni will attempt to guess.
                   For Sanger format fastq and recent Illumina, use 33.
 """)
-@config.Main_section('references', 'Reference sequence filenames. Giving a GENBANK file will allow smarter downstream processing.')
+@config.Main_section('references', 
+    'Reference sequence filenames, '
+    'or a directory created using "nesoni make-reference: --bowtie yes" (recommended).')
 @config.Bool_flag('cs', 'Are reads in colorspace?')
 @config.Bool_flag('sam_unaligned', 'Pass --sam-unaligned to gmapper?')
 @config.Bool_flag('half_paired', 'Pass --half-paired to gmapper?')

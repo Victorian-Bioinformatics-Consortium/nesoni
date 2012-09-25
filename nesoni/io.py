@@ -6,18 +6,9 @@ Read and write various types of file / directory
 
 from nesoni import grace, legion
 
-import os, sys, re, weakref, collections, csv, subprocess, gzip, bz2, itertools
+import os, sys, re, collections, csv, subprocess, gzip, bz2, itertools
 
 from nesoni.workspace import Workspace
-
-
-
-STREAM_PROCESS = weakref.WeakKeyDictionary()
-def close(f):
-    """ Violently close pipes """
-    if f in STREAM_PROCESS:
-        STREAM_PROCESS[f].kill()
-    f.close()
 
 def run(args, stdin=None, stdout=subprocess.PIPE, stderr=None):
     return subprocess.Popen(
@@ -34,106 +25,9 @@ def execute(args, stdin=None, stdout=None):
     assert p.wait() == 0, 'Failed to execute "%s"' % ' '.join(args)
 
 
-#def peek_and_pipe(f, n_peek):
-#    try:
-#        f.seek(0)
-#        peek = f.read(n_peek)
-#        f.seek(0)
-#        f.flush() #Necessary in CPython but noy PyPy to actually seek file
-#        return peek, f
-#    except IOError: #Non-seekable
-#        pass
-#
-#    script = """
-#
-#import os, sys, select
-#n = %d
-#f_in = os.fdopen(os.dup(sys.stdin.fileno()),'rb',0)
-#f_out = os.fdopen(os.dup(sys.stdout.fileno()),'wb',0)
-#try:
-#    peek = f_in.read(n)
-#    f_out.write(peek + chr(0) * (n-len(peek)))
-#    f_out.write(peek)
-#    chunks = [ ]
-#    done = False
-#    while not done or chunks:
-#        rlist, wlist, elist = select.select([ f_in ] if len(chunks) < 16 else [ ], [ f_out ] if chunks else [ ], [ ])
-#        if wlist:
-#            f_out.write(chunks.pop(0))
-#        elif rlist:
-#            chunk = f_in.read(1<<16)
-#            if not chunk:
-#                done = True                
-#            else:
-#                chunks.append( chunk )
-#except IOError, error:
-#    if error.errno != 32: #Broken pipe
-#        raise error
-#except KeyboardInterrupt:
-#    sys.exit(1)
-#
-#""" % n_peek
-#
-#    p = legion.subprocess_Popen(
-#         [sys.executable,'-u','-c',script],
-#         bufsize=0, #Random crashes if set to, eg, 1<<20
-#         stdin=f,       
-#         stdout=subprocess.PIPE,
-#         close_fds=True,
-#         )
-#    f.close()
-#    
-#    peek = p.stdout.read(n_peek).rstrip(chr(0))
-#    d = os.dup(p.stdout.fileno())
-#    p.stdout.close()
-#    f_out = os.fdopen(d,'rb', 1<<20)
-#    STREAM_PROCESS[f_out] = p
-#    
-#    return peek, f_out
-#
-#def process_buffer(f):
-#    return peek_and_pipe(f, 0)[1]  
-
-
-def is_remote_filename(filename):
-    return bool( re.match('\w+:', filename) )
-
-def abspath(*components):
-    """ Absolute path of a filename.
-        Note: this also ensures the filename does not look like a flag.
-    """    
-    filename = os.path.join(*components)
-
-    if is_remote_filename(filename):
-        return filename
-    else:
-        return os.path.abspath(filename)
-
-#def open_possibly_remote_file(filename):
-#    """ Use lftp to read remote files.
-#    """
-#
-#    if not is_remote_filename(filename):
-#        # Doesn't look like a URL
-#        return open(filename, 'rb')
-#    
-#    p = legion.subprocess_Popen(
-#         ['lftp', '-c', 'cat', filename],
-#         stdout=subprocess.PIPE,
-#         close_fds=True,
-#         )
-#    return p.stdout
-    
-def open_possibly_compressed_file(filename):
-    """ Notionally, cast "filename" to a file-like object.
-    
-        If filename is already file-like, return it.
-        If it's compressed, return a decompressing file-like object.
-        If it's a BAM file, return a file-like object that produces SAM format.
-        Otherwise, just return an open file!
-    """
+def get_compression_type(filename):
     if hasattr(filename, 'read'):
-        return filename #It's already file-like
+        return 'none' #It's already file-like
         
     from nesoni import sam    
     
@@ -143,13 +37,73 @@ def open_possibly_compressed_file(filename):
 
     if peek.startswith('\x1f\x8b'): #gzip format
         if sam.is_bam(filename): #it might be a BAM
-            return sam.open_bam(filename)
+            return 'bam'
             
-        return gzip.open(filename, 'rb')
+        return 'gzip'
     elif peek.startswith('BZh'): #bzip2 format
-        return bz2.BZFile(filename, 'rb')
+        return 'bzip2'
     else:
+        return 'none'
+
+def open_possibly_compressed_file(filename, compression_type=None):
+    """ Notionally, cast "filename" to a file-like object.
+    
+        If filename is already file-like, return it.
+        If it's compressed, return a decompressing file-like object.
+        If it's a BAM file, return a file-like object that produces SAM format.
+        Otherwise, just return an open file!
+    """
+    if hasattr(filename, 'read'):
+        return filename #It's already file-like
+    
+    if compression_type is None:
+       compression_type = get_compression_type(filename)
+        
+    if compression_type == 'none':
         return open(filename, 'rb')
+    elif compression_type == 'gzip':
+        return gzip.open(filename, 'rb')
+    elif compression_type == 'bzip2':
+        return bz2.BZFile(filename, 'rb')
+    elif compression_type == 'bam':
+        from nesoni import sam        
+        return sam.open_bam(filename)
+    else:
+        raise grace.Error('Unknown compression type: '+compression_type) 
+
+
+def get_file_type(filename):
+    f = open_possibly_compressed_file(filename)
+    peek = f.read(8)
+    f.close()
+    
+    have_qualities = False
+    
+    if not peek:
+        return 'empty'
+    elif peek.startswith('>'):
+        return 'fasta'
+    elif peek.startswith('LOCUS'):
+        return 'genbank'
+    elif peek.startswith('@'):
+        return 'fastq'
+    elif peek.startswith('##gff'):
+        return 'gff'
+    elif peek.startswith('.sff'):
+        return 'sff'
+    else:
+        raise grace.Error('Unrecognized file format for '+filename)
+
+
+
+def abspath(*components):
+    """ Absolute path of a filename.
+        Note: this also ensures the filename does not look like a flag.
+    """    
+    filename = os.path.join(*components)
+    return os.path.abspath(filename)
+
+    
 
 
 def copy_file(source, dest):

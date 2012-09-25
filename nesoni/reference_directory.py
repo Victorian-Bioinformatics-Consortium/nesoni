@@ -70,6 +70,18 @@ class Reference(io.Workspace):
             self.reference_fasta_filename(),
         ])
         grace.status('')
+
+    def build_bowtie_index(self):
+        io.execute([
+            'bowtie2-build',
+            self.reference_fasta_filename(),
+            self/'bowtie',
+        ])
+    
+    def get_bowtie_index_prefix(self):
+        assert os.path.exists(self/'bowtie.1.bt2'), 'bowtie2 index was not created. Please use "make-reference:" with "--bowtie yes".'
+        return self/'bowtie'
+    
     
     def shrimp_command(self, cs=False, parameters = [ ]):
         """ Parameters:
@@ -110,10 +122,12 @@ and links to annotations.
 """)
 @config.Bool_flag('ls', 'Generate gmapper-ls mmap (faster SHRiMP startup for base-space reads).')
 @config.Bool_flag('cs', 'Generate gmapper-cs mmap (faster SHRiMP startup for color-space reads).')
+@config.Bool_flag('bowtie', 'Generate bowtie2 index (necessary in order to use "nesoni bowtie:").')
 @config.Main_section('filenames', 'Sequence and annotation files.')
 class Make_reference(config.Action_with_output_dir):
     ls = False
     cs = False
+    bowtie = False
     filenames = [ ]
 
     def run(self):
@@ -137,7 +151,8 @@ class Make_reference(config.Action_with_output_dir):
             reference.build_shrimp_mmap(False)
         if self.cs:
             reference.build_shrimp_mmap(True)
-        
+        if self.bowtie:
+            reference.build_bowtie_index()
             
         
         
