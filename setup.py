@@ -15,7 +15,9 @@ setup(name='nesoni',
       
       packages = [
           'nesoni', 
-          'treemaker'
+          'nesoni.third_party',
+          'nesoni.third_party.vcf',
+          'treemaker',
       ],
       
       package_data = {
