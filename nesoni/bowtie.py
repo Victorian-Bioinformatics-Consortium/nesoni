@@ -1,6 +1,4 @@
 
-import subprocess
-
 from nesoni import config, workspace, working_directory, reference_directory, io, grace
 
 
@@ -96,7 +94,7 @@ class Bowtie(config.Action_with_output_dir):
                 'bowtie2', '-x', reference.get_bowtie_index_prefix(),
                 '--rg-id', '1',
                 '--rg', 'SM:'+working.name
-            ]
+                ]
             if ones:
                 command.extend([ '-1', ','.join(ones), '-2', ','.join(twos) ])
             if singles:
@@ -104,30 +102,24 @@ class Bowtie(config.Action_with_output_dir):
             
             command.extend(self.bowtie_options)
             
-            self.log.log('Running:\n' + ' '.join(command) + '\n')
-            
-            
             temp_bam_name = temp/'temp.bam'
 
-            writer = io.run(['samtools', 'view', '-S', '-b', '-'],
-                stdout=open(temp_bam_name,'wb'),
-                stdin=subprocess.PIPE,
-                stderr=log_file
-            )            
-
-            bowtie = io.run(command,
-                stdout=writer.stdin,
-                stderr=log_file
-            )
-
-            writer.stdin.close()
+            self.log.log('Running:\n' + ' '.join(command) + '\n')
             
-            assert bowtie.wait() == 0, 'bowtie2 failed, consult log: '+self.log_filename()
-            assert writer.wait() == 0, 'samtools failed, consult log: '+self.log_filename()
+            with io.pipe_to(
+                     ['samtools', 'view', '-S', '-b', '-'],
+                     stdout=open(temp_bam_name,'wb'),
+                     stderr=log_file
+                     ) as f:
+                io.execute(
+                    command,
+                    stdout=f,
+                    stderr=log_file
+                    )
 
             io.execute([
                 'samtools', 'sort', '-n', temp_bam_name, working/'alignments'
-            ])
+                ])
             
         log_file.close()
 

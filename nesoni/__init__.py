@@ -19,6 +19,7 @@ from trivia import Test, As_fasta, As_gff, Sample, Stats
 from shred import Shred
 from igv import Make_genome, IGV_plots, As_userplots 
 from workflows import Analyse_sample
+from variant import Test_variant_call
 
 from legion import *
 
@@ -160,7 +161,6 @@ behaviour:
 - annotation files can be in GENBANK or GFF format 
   (GFF is not yet supported by all tools).
 - nesoni is able to read files compressed with gzip or bzip2.
-- remote files can be specified as a URL (will be streamed using lftp).
 
 """ % { 'BOLD' : '\x1b[1m', 'END' : '\x1b[m', 'VERSION' : VERSION, 'MAKE' : Make().describe('', show_help=True) }
 

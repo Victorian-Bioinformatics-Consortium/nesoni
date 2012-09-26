@@ -284,7 +284,13 @@ class Main_section(Section):
 
 
 class Configurable_section(Section):
-    def __init__(self, name, help='', affects_output=True, empty_is_ok=True, allow_none=False):
+    """ A section containing another configuarbale.
+    
+        presets if given is a list [(name, item, description)]        
+        
+        Each item may be a configurable or None    
+    """
+    def __init__(self, name, help='', affects_output=True, empty_is_ok=True, presets=[]):
         super(Configurable_section,self).__init__(
             name=name,
             help=help,
@@ -292,22 +298,49 @@ class Configurable_section(Section):
             allow_flags=True,
             empty_is_ok=empty_is_ok
         )
-        self.allow_none = allow_none
+        self.presets = presets
+        
+        if self.presets:
+            self.help += '\n\nChoose from the following, then supply extra flags as needed:\n'
+            for item in presets:
+                self.help += ' ' + item[0] + ' - ' + item[2] + '\n'
+        
 
     def parse(self, obj, args):
-        if self.allow_none and len(args) == 1 and args[0].lower() == 'no':
-            return None
-    
-        old = self.get(obj)
-        assert old is not None, 'Can\'t modify empty section'        
-        new = old()
-        new.parse( args )
+        for item in self.presets:
+            if args and args[0].lower() == item[0].lower():
+                base = item[1]
+                args = args[1:]
+                break
+        else:
+            base = self.get(obj)
+        
+        if base is None:
+            assert not args, 'Can\'t modify empty section'        
+            new = None
+        else:
+            new = base()
+            new.parse( args )
         return new
 
     def describe_shell(self, value, verbose=True):
-        if value is None:
-            return colored(34, self.shell_name()) + ' no'
-        return colored(34, self.shell_name()) + value.describe(invocation='')
+        preset_guess = None
+        for item in self.presets:
+            if value == item[1]:
+                preset_guess = item
+                break
+        if not preset_guess:
+            for item in self.presets:
+                if type(value) == type(item[1]):
+                    preset_guess = item
+                    break
+        
+        result = colored(34, self.shell_name()) 
+        if preset_guess:
+            result += ' ' + colored(35,preset_guess[0])
+        if value is not None and (not verbose or not preset_guess or (value != preset_guess[1])):
+            result += value.describe(invocation='',show_help=False,escape_newlines=False)
+        return result
 
 
 def help(short, extra=''):
@@ -492,16 +525,16 @@ class Configurable(object):
             if c: return c
         return 0
     
-    def describe(self, invocation=None, show_help=False):
+    def describe(self, invocation=None, show_help=False, escape_newlines=True):
         if invocation is None:
             invocation = self.shell_name() + ':'
     
         desc = [ colored(1, invocation) ]
         
-        if show_help:
-            suffix = ''
-        else:
+        if escape_newlines:
             suffix = ' \\'
+        else:
+            suffix = ''
         
         order = sorted(
             range(len(self.parameters)),
@@ -701,7 +734,7 @@ def shell_run(action, args, invocation=None, help=True):
 
     if (args_needed and not args) or args == ['-h'] or args == ['--help']:
         write_colored_text(sys.stdout, 
-            '\n'+action.describe(invocation, True)+'\n'+
+            '\n'+action.describe(invocation, show_help=True, escape_newlines=False)+'\n'+
             wrap(action.help, 70)+'\n\n\n'
         )
         sys.exit(1)        

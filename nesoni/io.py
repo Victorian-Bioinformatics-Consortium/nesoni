@@ -6,11 +6,25 @@ Read and write various types of file / directory
 
 from nesoni import grace, legion
 
-import os, sys, re, collections, csv, subprocess, gzip, bz2, itertools
+import os, sys, re, collections, csv, subprocess, gzip, bz2, itertools, contextlib
 
 from nesoni.workspace import Workspace
 
-def run(args, stdin=None, stdout=subprocess.PIPE, stderr=None):
+from subprocess import PIPE, STDOUT
+
+def run(args, stdin=None, stdout=PIPE, stderr=None):
+    """ Start a process using subprocess.Popen    
+        
+        Set close_fds=True so process doesn't inherit any other pipes we might be using.
+        
+        stdin stdout and stderr may be:
+          None                - inherit existing
+          nesoni.io.PIPE      - create a pipe          
+          a file or fd number - the file 
+                                (be sure to flush() anything you've written to it first!)
+        
+        stderr may also be nesoni.io.STDOUT
+    """
     return subprocess.Popen(
         args,
         bufsize=1<<24,
@@ -20,8 +34,47 @@ def run(args, stdin=None, stdout=subprocess.PIPE, stderr=None):
         close_fds=True,
     )
 
-def execute(args, stdin=None, stdout=None):
-    p = run(args, stdin=stdin, stdout=stdout)
+
+@contextlib.contextmanager
+def pipe_to(args, stdout=None, stderr=None):
+    """ Context to pipe to a process, eg
+    
+        with io.pipe_to(['less']) as f:
+            print >> f, 'Hello, world.'
+    
+    """
+    process = run(args, stdin=PIPE, stdout=stdout, stderr=stderr)
+    try:
+        yield process.stdin
+    finally:
+        process.stdin.close()
+        exit_code = process.wait()
+    assert exit_code == 0, 'Failed: "%s"' % ' '.join(args)
+
+
+@contextlib.contextmanager
+def pipe_from(args, stdin=None, stderr=None):
+    """ Context to pipe from a process, eg
+    
+        with io.pipe_from(['ls']) as f:
+            print f.read().rstrip('\n').split('\n')
+    
+    """
+    process = run(args, stdin=stdin, stdout=PIPE, stderr=stderr)
+    try:
+        yield process.stdout
+    finally:
+        process.stdout.close()
+        exit_code = process.wait()
+    assert exit_code == 0, 'Failed: "%s"' % ' '.join(args)
+
+
+def execute(args, stdin=None, stdout=None, stderr=None):
+    """ Run a program.
+    
+        Raise an error if it has an exit code other than 0.
+    """
+    p = run(args, stdin=stdin, stdout=stdout, stderr=stderr)
     assert p.wait() == 0, 'Failed to execute "%s"' % ' '.join(args)
 
 
@@ -120,8 +173,6 @@ def copy_file(source, dest):
 class Pipe_writer(object):
     """ Write to a file via another process. 
     
-        Buffering to avoid slowness in pypy.
-        
         Drop-in replacement for a file, assuming
         you only use write and close.
     """
@@ -129,27 +180,8 @@ class Pipe_writer(object):
     def __init__(self, filename, command):
         self.command = command
         f_out = open(filename,'wb')
-        self.process = subprocess.Popen(
-            command,
-            stdin = subprocess.PIPE,
-            stdout = f_out,
-    #        bufsize = 1<<24,
-            close_fds = True
-        )
+        self.process = run(command, stdin=PIPE, stdout=f_out)
         f_out.close()
-        
-        #self.buffer = [ ]
-        #self.buf_size = 0
-
-    #def write(self, text):
-    #    self.buffer.append( text )
-    #    self.buf_size += len(text)
-    #    if self.buf_size >= 1<<20: self.flush_buffer()
-    
-    #def flush_buffer(self):
-    #    self.process.stdin.write( ''.join(self.buffer) )
-    #    self.buffer = [ ]
-    #    self.buf_size = 0
     
     def fileno(self):
         return self.process.stdin.fileno()
@@ -157,11 +189,7 @@ class Pipe_writer(object):
     def write(self, text):
         self.process.stdin.write( text )
     
-    def flush_buffer(self):
-        pass
-    
     def close(self):
-        self.flush_buffer()
         self.process.stdin.close()
         assert self.process.wait() == 0, ' '.join(self.command) + ' failed'
 
