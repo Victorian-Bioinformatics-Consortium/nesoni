@@ -67,7 +67,9 @@ def load(module_name):
 
 def pretty_number(number, width=0):
     """ Adds commas for readability. """
-    if isinstance(number, float):
+    if isinstance(number, bool):
+        result = 'yes' if number else 'no'
+    elif isinstance(number, float):
         result = '%.3f' % number
     else:
         assert isinstance(number,int)    

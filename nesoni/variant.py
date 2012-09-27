@@ -5,10 +5,10 @@ Tools to do with variant calling.
 """
 
 
-import random, os, re
+import random, os, re, sys
 
 import nesoni
-from nesoni import config, legion, io, bio, workspace, working_directory, workflows, bowtie, sam
+from nesoni import config, legion, io, bio, workspace, working_directory, workflows, bowtie, sam, reporting
 from nesoni.third_party import vcf
 
 @config.help("""
@@ -187,7 +187,9 @@ _analysis_presets = [
 ]
 
 @config.Positional('ref', 'Reference sequence\neg AAG')
-@config.Main_section('variants', 'Variants, each with a number of reads\neg ACGx10 ATGx5')
+@config.Main_section('variants', 
+    'Variants, each with a number of reads, eg ACGx10 ATGx5. '
+    'The first variant given is treated as the correct variant.')
 @config.Configurable_section('analysis', presets=_analysis_presets)
 class Test_variant_call(config.Action_with_output_dir):
     ref = None
@@ -291,6 +293,10 @@ class Test_variant_call(config.Action_with_output_dir):
         #io.execute(['igvtools','index',workspace/'variants.vcf'])
         
         reader = vcf.Reader(open(workspace/'filtered.vcf','rU'))
+        
+        good_count = 0
+        bad_count = 0
+        
         for record in reader:
             variants = [ record.REF ]
             if isinstance(record.ALT,list):
@@ -315,8 +321,73 @@ class Test_variant_call(config.Action_with_output_dir):
                 call = None
             print pos, variants, call, variants_used[0][0]            
             
-            good = call and pos == read_length and variants[0] == self.ref and call == variants_used[0][0]
-            print good
+            if call is not None:
+                good = pos == read_length and variants[0] == self.ref and call == variants_used[0][0]
+                if good:
+                    good_count += 1
+                else:
+                    bad_count += 1
+
+        self.log.log('\n')
+        self.log.datum(workspace.name,'correct variant', good_count > 0)
+        self.log.datum(workspace.name,'incorrect variants', bad_count)
+        self.log.log('\n')
+
+
+@config.help("""
+Assess ability to call variants under a spread of different conditions.
+""")
+@config.Configurable_section('template','Setting for "nesoni test-variant-call".')
+class Power_variant_call(config.Action_with_output_dir):
+    template = Test_variant_call()
+
+    def tryout(self, ref, variants):
+        work = self.get_workspace()
+        with workspace.tempspace(work.working_dir) as temp:
+            job = self.template(temp.working_dir, ref=ref, variants=variants)            
+            job.run()            
+            
+            result = dict( tuple(item.values()) for item in reporting.mine_logs([job.log_filename()]) )
+            good = {'yes':True,'no':False}[result['correct variant']]
+            bad = int(result['incorrect variants'])
+            return good, bad
+
+    def depth_test(self, ref, variant, others=[]):
+        depths = range(1,30+1)
+        results = [ self.tryout(ref, ['%sx%d'%(variant,i)] + others) for i in depths ]
+        
+        report = '%s -> %s' % (ref or '-', variant or '-')
+        if others: report += '  with contamination  ' + ', '.join(others)
+        report += '\n'
+        
+        report += 'good  [' + ''.join( '+' if item[0] else ' ' for item in results ) + ']\n'
+        report += 'bad   [' + ''.join( 'x' if item[1] else ' ' for item in results ) + ']\n'
+
+        depth_line = ''
+        for i in depths:
+            if i == 1 or i % 5 == 0:
+                depth_line += ' '*(i-len(depth_line)) + str(i)
+        report += 'depth '+depth_line+'\n'
+        
+        return report
+        
+
+    def run(self):
+        work = self.get_workspace()
+        
+        #print [ self.tryout('A', ['CCCCCx%d'%i]) for i in xrange(1,11) ]
+        
+        report = ''
+        
+        for job in [
+            ('A','C',[]),
+            ('A','C',['Gx1']),
+            ('A','',[]),
+            ('','A',[]),
+        ]:        
+            report += self.depth_test(*job)+'\n'
+        
+        print report
 
 
 
