@@ -19,7 +19,7 @@ from trivia import Test, As_fasta, As_gff, Sample, Stats
 from shred import Shred
 from igv import Make_genome, IGV_plots, As_userplots 
 from workflows import Analyse_sample
-from variant import Test_variant_call
+from variant import Freebayes, Vcf_filter, Test_variant_call
 
 from legion import *
 
