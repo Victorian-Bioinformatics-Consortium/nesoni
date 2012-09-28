@@ -1,5 +1,5 @@
 
-import os, cPickle, json, tempfile, contextlib
+import os, cPickle, json, tempfile, contextlib, shutil
 
 class Workspace(object):
     """ Directory containing pickled objects, etc 
@@ -119,9 +119,7 @@ def tempspace(dir=None):
     try:
         yield Workspace(path, must_exist=True)
     finally:
-        for filename in os.listdir(path):
-            os.unlink(os.path.join(path, filename))
-        os.rmdir(path)
+        shutil.rmtree(path)
 
 
 

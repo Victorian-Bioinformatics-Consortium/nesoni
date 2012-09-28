@@ -26,6 +26,11 @@ class Working(io.Workspace):
         
         return reference_directory.Reference(path, must_exist=True)
 
+    def get_filtered_sorted_bam(self):
+        filename = self / 'alignments_filtered_sorted.bam'
+        assert os.path.exists(filename), 'Alignments in %s haven\'t been filtered, need to run "nesoni filter:" or "nesoni consensus:".' % self.name
+        return filename
+
     #def matches(self, expression):
     #    terms = expression.split(',')
     #    return name in terms or any( item in terms for item in self.param.get('tags',()) )
