@@ -189,7 +189,7 @@ class My_coordinator:
         with self.lock:
             assert number in self.futures, 'Future refcounting inconsistency'
             self.futures[number][2] -= 1
-            if self.futures[number] <= 0:
+            if self.futures[number][2] <= 0:
                 del self.futures[number]
     
     def deliver_future(self, number, value):
