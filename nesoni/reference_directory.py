@@ -5,7 +5,7 @@ from nesoni import io, grace, config, annotation
 
 class Reference(io.Workspace):
     def __init__(self, working_dir, must_exist):
-        super(Reference,self).__init__(working_dir, must_exist)        
+        super(Reference,self).__init__(working_dir, must_exist)
     
     def set_sequences(self, filenames):        
         reference_genbank_filename = self / 'reference.gbk'

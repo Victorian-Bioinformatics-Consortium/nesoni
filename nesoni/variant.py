@@ -2,13 +2,18 @@
 
 Tools to do with variant calling.
 
+
+TODO:
+
+test-variant-call should use vcf-patch-in
+
 """
 
 
-import random, os, re, sys
+import random, os, re, sys, collections
 
 import nesoni
-from nesoni import config, legion, io, bio, workspace, working_directory, workflows, bowtie, sam, reporting
+from nesoni import config, legion, io, bio, workspace, working_directory, reference_directory, workflows, bowtie, sam, reporting
 from nesoni.third_party import vcf
 
 @config.help("""
@@ -173,6 +178,69 @@ class Vcf_filter(config.Action_with_prefix):
             writer.write_record(record)
                 
         writer.close()
+
+@config.help("""\
+Patch variants in a VCF file into the reference sequence, \
+producing genome sequences for each sample in the VCF file.
+
+Only haploid variants are supported.
+
+Note that in parts of the sequence with insufficient coverage to call variants \
+or in which the variant could not be called for some other reason, \
+the reference sequence will incorrectly be retained.
+""")
+@config.Positional('reference', 'Reference directory')
+@config.Positional('vcf', 'VCF file')
+class Vcf_patch(config.Action_with_output_dir):
+    reference = None
+    vcf = None
+    
+    def run(self):
+        workspace = self.get_workspace()
+        
+        reference = reference_directory.Reference(self.reference, must_exist=True)
+        
+        reader = vcf.Reader(open(self.vcf,'rU'))
+        variants = collections.defaultdict(list)
+        for record in reader:
+            variants[record.CHROM].append(record)
+        
+        for chrom in variants:
+            variants[chrom].sort(key=lambda item: item.POS)
+        
+        filenames = [ workspace/(item+'.fa') for item in reader.samples ]
+        for filename in filenames:
+            with open(filename,'wb'): pass
+        
+        for name, seq in io.read_sequences(reference.reference_fasta_filename()):
+            for i, sample in enumerate(reader.samples):            
+                revised = [ ]
+                pos = 0
+                for variant in variants[name]:
+                    gt = variant.samples[i].data.GT
+                    if gt is None: continue
+                    assert gt.isdigit(), 'Unsupported genotype (can only use haploid genotypes): '+gt
+                    gt_number = int(gt)
+                    if gt_number == 0:
+                        var_seq = variant.REF
+                    else:
+                        var_seq = str(variant.ALT[gt_number-1])
+                        assert re.match('[ACGTN]*$', var_seq), 'Unsupported variant type: '+var_seq
+                    new_pos = variant.POS-1
+                    revised.append(seq[pos:new_pos])
+                    pos = new_pos
+                    revised.append(var_seq)
+                    assert seq[pos:pos+len(variant.REF)].upper() == variant.REF, 'REF column in VCF does not match reference sequence'
+                    pos += len(variant.REF)
+                revised.append(seq[pos:])
+                            
+                with open(filenames[i],'ab') as f:
+                    io.write_fasta(f, name, ''.join(revised))
+
+            del variants[name]        
+        assert not variants, 'Chromosome names in VCF not in reference: '+' '.join(variants)
+        
+        
 
 
 def rand_seq(n):

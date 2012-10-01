@@ -46,9 +46,11 @@ class Bowtie(config.Action_with_output_dir):
                 n[0] += 1
                 return temp/('%d.fq'%n[0])
             def convert(filename):
-                ok = io.get_compression_type(filename) in ('none','gzip','bzip2')
-                if ok:
-                    ok = io.get_file_type(filename) == 'fastq'
+                info = io.get_file_info(filename)
+                ok = ( ( 'compression none' in info or
+                         'compression gzip' in info or
+                         'compression bzip2' in info
+                       ) and 'type fastq' in info )
                 if ok:
                     return filename            
                 result_name = tempname()

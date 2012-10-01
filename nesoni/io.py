@@ -11,6 +11,7 @@ import os, sys, re, collections, csv, subprocess, gzip, bz2, itertools, contextl
 from nesoni.workspace import Workspace
 
 from subprocess import PIPE, STDOUT
+from os.path import join
 
 def run(args, stdin=None, stdout=PIPE, stderr=None):
     """ Start a process using subprocess.Popen    
@@ -125,28 +126,68 @@ def open_possibly_compressed_file(filename, compression_type=None):
         raise grace.Error('Unknown compression type: '+compression_type) 
 
 
-def get_file_type(filename):
-    f = open_possibly_compressed_file(filename)
-    peek = f.read(8)
-    f.close()
-    
-    have_qualities = False
-    
-    if not peek:
-        return 'empty'
-    elif peek.startswith('>'):
-        return 'fasta'
-    elif peek.startswith('LOCUS'):
-        return 'genbank'
-    elif peek.startswith('@'):
-        return 'fastq'
-    elif peek.startswith('##gff'):
-        return 'gff'
-    elif peek.startswith('.sff'):
-        return 'sff'
-    else:
-        raise grace.Error('Unrecognized file format for '+filename)
+def get_file_info(filename):
+    info = set()    
+    info.add( 'compression '+get_compression_type(filename) )
 
+    if os.path.isdir(filename):
+        any = False
+        if os.path.exists(join(filename,'alignments.bam')):
+            info.add('type working')
+            any = True
+        if os.path.exists(join(filename,'reference.fa')):
+            info.add('type reference')
+            any = True
+        if not any:
+            raise grace.Error('Unrecognized directory type '+filename)
+
+    else:    
+        f = open_possibly_compressed_file(filename)
+        peek = f.read(16)
+        f.close()
+        
+        if not peek:
+            info.add('type empty')
+        elif peek.startswith('>'):
+            info.add('type fasta')
+            info.add('sequences')
+        elif peek.startswith('LOCUS'):
+            info.add('type genbank')
+            info.add('sequences')
+        elif peek.startswith('@'):
+            info.add('type fastq')
+            info.add('sequences')
+            info.add('qualities')            
+        elif peek.startswith('##gff'):
+            info.add('type gff')
+            info.add('sequences')
+            info.add('annotations')
+        elif peek.startswith('.sff'):
+            info.add('type sff')
+            info.add('sequences')
+            info.add('qualities')
+        elif peek.startswith('##fileformat=VCF'):
+            info.add('type vcf')
+        else:
+            raise grace.Error('Unrecognized file format for '+filename)
+    
+    return info
+
+
+def classify_files(filenames, categories):
+    """ Put each of a set of files into one or more categories.    
+    """
+    results = [ [] for item in categories ]
+    for filename in filenames:
+        info = get_file_info(filename)
+        any = False
+        for i, category in enumerate(categories):
+            if category in info:
+                results[i].append(filename)
+                any = True
+        if not any:
+            raise grace.Error('Don\'t know what to do with '+filename)
+    return results
 
 
 def abspath(*components):
@@ -402,25 +443,23 @@ def read_sequences(filename, qualities=False, genbank_callback=None):
     assert qualities in (False,True,'required')
     
     parts = filename.split('~~')
-
-    f = open_possibly_compressed_file(parts[0])
-    peek = f.read(8)
-    f.close()
+    
+    info = get_file_info(parts[0])
     
     have_qualities = False
     
-    if not peek:
+    if 'type empty' in info:
         result = read_empty(parts[0])
-    elif peek.startswith('>'):
+    elif 'type fasta' in info:
         result = read_fasta(parts[0])
-    elif peek.startswith('LOCUS'):
+    elif 'type genbank' in info:
         result = read_genbank_sequence(parts[0], genbank_callback)
-    elif peek.startswith('@'):
+    elif 'type fastq' in info:
         have_qualities = True
         result = read_illumina_with_quality(parts[0])    
-    elif peek.startswith('##gff'):
+    elif 'type gff' in info:
         result = read_gff3_sequence(parts[0])
-    elif peek.startswith('.sff'):
+    elif 'type sff' in info:
         f.close()
         grace.require_sff2fastq()
         have_qualities = True
