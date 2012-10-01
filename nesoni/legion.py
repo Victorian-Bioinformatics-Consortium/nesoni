@@ -51,7 +51,7 @@ def _pickle_method(method):
 
     cls = method.im_class
     for func_class in cls.mro():
-        if func_class.__dict__[func_name] is func:
+        if func_name in func_class.__dict__ and func_class.__dict__[func_name] is func:
             break
     else:
         assert False, "Couln't find correct class for method "+func_name
@@ -189,7 +189,7 @@ class My_coordinator:
         with self.lock:
             assert number in self.futures, 'Future refcounting inconsistency'
             self.futures[number][2] -= 1
-            if self.futures[number] <= 0:
+            if self.futures[number][2] <= 0:
                 del self.futures[number]
     
     def deliver_future(self, number, value):

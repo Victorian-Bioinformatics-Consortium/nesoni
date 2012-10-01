@@ -9,13 +9,13 @@ class Working(io.Workspace):
     def set_reference(self, path):
         self.update_param(reference=self.path_as_relative_path(path))
 
-    def setup_reference(self, filenames):
+    def setup_reference(self, filenames, bowtie=False):
         if len(filenames) == 1 and os.path.isdir(filenames[0]):
             self.set_reference(filenames[0])
             return
         
         path = self / 'reference'
-        reference_directory.Make_reference(path, filenames=filenames).run()
+        reference_directory.Make_reference(path, filenames=filenames, bowtie=bowtie).run()
         self.set_reference(path)
 
     def get_reference(self):
@@ -25,6 +25,11 @@ class Working(io.Workspace):
             path = self.working_dir
         
         return reference_directory.Reference(path, must_exist=True)
+
+    def get_filtered_sorted_bam(self):
+        filename = self / 'alignments_filtered_sorted.bam'
+        assert os.path.exists(filename), 'Alignments in %s haven\'t been filtered, need to run "nesoni filter:" or "nesoni consensus:".' % self.name
+        return filename
 
     #def matches(self, expression):
     #    terms = expression.split(',')

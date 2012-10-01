@@ -6,33 +6,12 @@ Read and write various types of file / directory
 
 from nesoni import grace, legion
 
-import os, sys, re, weakref, collections, csv, subprocess, gzip, bz2, itertools
+import os, sys, re, collections, csv, subprocess, gzip, bz2, itertools, contextlib
 
 from nesoni.workspace import Workspace
 
-
-
-STREAM_PROCESS = weakref.WeakKeyDictionary()
-def close(f):
-    """ Violently close pipes """
-    if f in STREAM_PROCESS:
-        STREAM_PROCESS[f].kill()
-    f.close()
-
-def run(args, stdin=None, stdout=subprocess.PIPE, stderr=None, shell=False):
-    return subprocess.Popen(
-        args,
-        bufsize=1<<24,
-        stdin=stdin,        
-        stdout=stdout,
-        stderr=stderr,
-        shell=shell,
-        close_fds=True,
-    )
-
-def execute(args, stdin=None, stdout=None, shell=False):
-    p = run(args, stdin=stdin, stdout=stdout, shell=shell)
-    assert p.wait() == 0, 'Failed to execute "%s"' % ' '.join(args)
+from subprocess import PIPE, STDOUT
+from os.path import join
 
 def find_jar(jarname):    
     search = [ ]    
@@ -47,106 +26,73 @@ def find_jar(jarname):
             return filename
     raise Error('Couldn\'t find "%s". Directories listed in JARPATH and PATH were searched.' % jarname)
 
-#def peek_and_pipe(f, n_peek):
-#    try:
-#        f.seek(0)
-#        peek = f.read(n_peek)
-#        f.seek(0)
-#        f.flush() #Necessary in CPython but noy PyPy to actually seek file
-#        return peek, f
-#    except IOError: #Non-seekable
-#        pass
-#
-#    script = """
-#
-#import os, sys, select
-#n = %d
-#f_in = os.fdopen(os.dup(sys.stdin.fileno()),'rb',0)
-#f_out = os.fdopen(os.dup(sys.stdout.fileno()),'wb',0)
-#try:
-#    peek = f_in.read(n)
-#    f_out.write(peek + chr(0) * (n-len(peek)))
-#    f_out.write(peek)
-#    chunks = [ ]
-#    done = False
-#    while not done or chunks:
-#        rlist, wlist, elist = select.select([ f_in ] if len(chunks) < 16 else [ ], [ f_out ] if chunks else [ ], [ ])
-#        if wlist:
-#            f_out.write(chunks.pop(0))
-#        elif rlist:
-#            chunk = f_in.read(1<<16)
-#            if not chunk:
-#                done = True                
-#            else:
-#                chunks.append( chunk )
-#except IOError, error:
-#    if error.errno != 32: #Broken pipe
-#        raise error
-#except KeyboardInterrupt:
-#    sys.exit(1)
-#
-#""" % n_peek
-#
-#    p = legion.subprocess_Popen(
-#         [sys.executable,'-u','-c',script],
-#         bufsize=0, #Random crashes if set to, eg, 1<<20
-#         stdin=f,       
-#         stdout=subprocess.PIPE,
-#         close_fds=True,
-#         )
-#    f.close()
-#    
-#    peek = p.stdout.read(n_peek).rstrip(chr(0))
-#    d = os.dup(p.stdout.fileno())
-#    p.stdout.close()
-#    f_out = os.fdopen(d,'rb', 1<<20)
-#    STREAM_PROCESS[f_out] = p
-#    
-#    return peek, f_out
-#
-#def process_buffer(f):
-#    return peek_and_pipe(f, 0)[1]  
-
-
-def is_remote_filename(filename):
-    return bool( re.match('\w+:', filename) )
-
-def abspath(*components):
-    """ Absolute path of a filename.
-        Note: this also ensures the filename does not look like a flag.
-    """    
-    filename = os.path.join(*components)
-
-    if is_remote_filename(filename):
-        return filename
-    else:
-        return os.path.abspath(filename)
-
-#def open_possibly_remote_file(filename):
-#    """ Use lftp to read remote files.
-#    """
-#
-#    if not is_remote_filename(filename):
-#        # Doesn't look like a URL
-#        return open(filename, 'rb')
-#    
-#    p = legion.subprocess_Popen(
-#         ['lftp', '-c', 'cat', filename],
-#         stdout=subprocess.PIPE,
-#         close_fds=True,
-#         )
-#    return p.stdout
-    
-def open_possibly_compressed_file(filename):
-    """ Notionally, cast "filename" to a file-like object.
-    
-        If filename is already file-like, return it.
-        If it's compressed, return a decompressing file-like object.
-        If it's a BAM file, return a file-like object that produces SAM format.
-        Otherwise, just return an open file!
+def run(args, stdin=None, stdout=PIPE, stderr=None):
+    """ Start a process using subprocess.Popen    
+        
+        Set close_fds=True so process doesn't inherit any other pipes we might be using.
+        
+        stdin stdout and stderr may be:
+          None                - inherit existing
+          nesoni.io.PIPE      - create a pipe          
+          a file or fd number - the file 
+                                (be sure to flush() anything you've written to it first!)
+        
+        stderr may also be nesoni.io.STDOUT
     """
+    return subprocess.Popen(
+        args,
+        bufsize=1<<24,
+        stdin=stdin,        
+        stdout=stdout,
+        stderr=stderr,
+        close_fds=True,
+    )
+
+@contextlib.contextmanager
+def pipe_to(args, stdout=None, stderr=None):
+    """ Context to pipe to a process, eg
+    
+        with io.pipe_to(['less']) as f:
+            print >> f, 'Hello, world.'
+    
+    """
+    process = run(args, stdin=PIPE, stdout=stdout, stderr=stderr)
+    try:
+        yield process.stdin
+    finally:
+        process.stdin.close()
+        exit_code = process.wait()
+    assert exit_code == 0, 'Failed: "%s"' % ' '.join(args)
+
+@contextlib.contextmanager
+def pipe_from(args, stdin=None, stderr=None):
+    """ Context to pipe from a process, eg
+    
+        with io.pipe_from(['ls']) as f:
+            print f.read().rstrip('\n').split('\n')
+    
+    """
+    process = run(args, stdin=stdin, stdout=PIPE, stderr=stderr)
+    try:
+        yield process.stdout
+    finally:
+        process.stdout.close()
+        exit_code = process.wait()
+    assert exit_code == 0, 'Failed: "%s"' % ' '.join(args)
+
+
+def execute(args, stdin=None, stdout=None, stderr=None):
+    """ Run a program.
+    
+        Raise an error if it has an exit code other than 0.
+    """
+    p = run(args, stdin=stdin, stdout=stdout, stderr=stderr)
+    assert p.wait() == 0, 'Failed to execute "%s"' % ' '.join(args)
+
+
+def get_compression_type(filename):
     if hasattr(filename, 'read'):
-        return filename #It's already file-like
+        return 'none' #It's already file-like
         
     from nesoni import sam    
     
@@ -156,13 +102,113 @@ def open_possibly_compressed_file(filename):
 
     if peek.startswith('\x1f\x8b'): #gzip format
         if sam.is_bam(filename): #it might be a BAM
-            return sam.open_bam(filename)
+            return 'bam'
             
-        return gzip.open(filename, 'rb')
+        return 'gzip'
     elif peek.startswith('BZh'): #bzip2 format
-        return bz2.BZFile(filename, 'rb')
+        return 'bzip2'
     else:
+        return 'none'
+
+def open_possibly_compressed_file(filename, compression_type=None):
+    """ Notionally, cast "filename" to a file-like object.
+    
+        If filename is already file-like, return it.
+        If it's compressed, return a decompressing file-like object.
+        If it's a BAM file, return a file-like object that produces SAM format.
+        Otherwise, just return an open file!
+    """
+    if hasattr(filename, 'read'):
+        return filename #It's already file-like
+    
+    if compression_type is None:
+       compression_type = get_compression_type(filename)
+        
+    if compression_type == 'none':
         return open(filename, 'rb')
+    elif compression_type == 'gzip':
+        return gzip.open(filename, 'rb')
+    elif compression_type == 'bzip2':
+        return bz2.BZFile(filename, 'rb')
+    elif compression_type == 'bam':
+        from nesoni import sam        
+        return sam.open_bam(filename)
+    else:
+        raise grace.Error('Unknown compression type: '+compression_type) 
+
+
+def get_file_info(filename):
+    info = set()    
+    info.add( 'compression '+get_compression_type(filename) )
+
+    if os.path.isdir(filename):
+        any = False
+        if os.path.exists(join(filename,'alignments.bam')):
+            info.add('type working')
+            any = True
+        if os.path.exists(join(filename,'reference.fa')):
+            info.add('type reference')
+            any = True
+        if not any:
+            raise grace.Error('Unrecognized directory type '+filename)
+
+    else:    
+        f = open_possibly_compressed_file(filename)
+        peek = f.read(16)
+        f.close()
+        
+        if not peek:
+            info.add('type empty')
+        elif peek.startswith('>'):
+            info.add('type fasta')
+            info.add('sequences')
+        elif peek.startswith('LOCUS'):
+            info.add('type genbank')
+            info.add('sequences')
+        elif peek.startswith('@'):
+            info.add('type fastq')
+            info.add('sequences')
+            info.add('qualities')            
+        elif peek.startswith('##gff'):
+            info.add('type gff')
+            info.add('sequences')
+            info.add('annotations')
+        elif peek.startswith('.sff'):
+            info.add('type sff')
+            info.add('sequences')
+            info.add('qualities')
+        elif peek.startswith('##fileformat=VCF'):
+            info.add('type vcf')
+        else:
+            raise grace.Error('Unrecognized file format for '+filename)
+    
+    return info
+
+
+def classify_files(filenames, categories):
+    """ Put each of a set of files into one or more categories.    
+    """
+    results = [ [] for item in categories ]
+    for filename in filenames:
+        info = get_file_info(filename)
+        any = False
+        for i, category in enumerate(categories):
+            if category in info:
+                results[i].append(filename)
+                any = True
+        if not any:
+            raise grace.Error('Don\'t know what to do with '+filename)
+    return results
+
+
+def abspath(*components):
+    """ Absolute path of a filename.
+        Note: this also ensures the filename does not look like a flag.
+    """    
+    filename = os.path.join(*components)
+    return os.path.abspath(filename)
+
+    
 
 
 def copy_file(source, dest):
@@ -179,8 +225,6 @@ def copy_file(source, dest):
 class Pipe_writer(object):
     """ Write to a file via another process. 
     
-        Buffering to avoid slowness in pypy.
-        
         Drop-in replacement for a file, assuming
         you only use write and close.
     """
@@ -188,27 +232,8 @@ class Pipe_writer(object):
     def __init__(self, filename, command):
         self.command = command
         f_out = open(filename,'wb')
-        self.process = subprocess.Popen(
-            command,
-            stdin = subprocess.PIPE,
-            stdout = f_out,
-    #        bufsize = 1<<24,
-            close_fds = True
-        )
+        self.process = run(command, stdin=PIPE, stdout=f_out)
         f_out.close()
-        
-        #self.buffer = [ ]
-        #self.buf_size = 0
-
-    #def write(self, text):
-    #    self.buffer.append( text )
-    #    self.buf_size += len(text)
-    #    if self.buf_size >= 1<<20: self.flush_buffer()
-    
-    #def flush_buffer(self):
-    #    self.process.stdin.write( ''.join(self.buffer) )
-    #    self.buffer = [ ]
-    #    self.buf_size = 0
     
     def fileno(self):
         return self.process.stdin.fileno()
@@ -216,11 +241,7 @@ class Pipe_writer(object):
     def write(self, text):
         self.process.stdin.write( text )
     
-    def flush_buffer(self):
-        pass
-    
     def close(self):
-        self.flush_buffer()
         self.process.stdin.close()
         assert self.process.wait() == 0, ' '.join(self.command) + ' failed'
 
@@ -426,29 +447,30 @@ def filter_no_qualities(iterator):
 def read_sequences(filename, qualities=False, genbank_callback=None):
     """ Read fasta or illumina sequences, possibly compressed 
     
+        Valid values for qualities: False,True,'required'
+    
         Post reading filters can be applied.
     """
+    assert qualities in (False,True,'required')
     
     parts = filename.split('~~')
-
-    f = open_possibly_compressed_file(parts[0])
-    peek = f.read(8)
-    f.close()
+    
+    info = get_file_info(parts[0])
     
     have_qualities = False
     
-    if not peek:
+    if 'type empty' in info:
         result = read_empty(parts[0])
-    elif peek.startswith('>'):
+    elif 'type fasta' in info:
         result = read_fasta(parts[0])
-    elif peek.startswith('LOCUS'):
+    elif 'type genbank' in info:
         result = read_genbank_sequence(parts[0], genbank_callback)
-    elif peek.startswith('@'):
+    elif 'type fastq' in info:
         have_qualities = True
         result = read_illumina_with_quality(parts[0])    
-    elif peek.startswith('##gff'):
+    elif 'type gff' in info:
         result = read_gff3_sequence(parts[0])
-    elif peek.startswith('.sff'):
+    elif 'type sff' in info:
         f.close()
         grace.require_sff2fastq()
         have_qualities = True
@@ -456,6 +478,9 @@ def read_sequences(filename, qualities=False, genbank_callback=None):
         result = read_illumina_with_quality(process.stdout)
     else:
         raise grace.Error('Unrecognized file format for '+filename)
+
+    if qualities == 'required' and not have_qualities:
+        raise grace.Error('Need base qualities in '+filename)
     
     for part in parts[1:]:
         for prefix in FILTERS:

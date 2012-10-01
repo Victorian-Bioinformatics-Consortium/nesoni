@@ -8,6 +8,7 @@ from clip import Clip
 from working_directory import Tag
 from samimport import Import
 from samshrimp import Shrimp
+from bowtie import Bowtie
 from samconsensus import Filter, Reconsensus, Consensus
 from nway_diff import Nway
 from fisher_diff import Fisher
@@ -18,11 +19,12 @@ from trivia import Test, As_fasta, As_gff, Sample, Stats
 from shred import Shred
 from igv import Make_genome, IGV_plots, As_userplots, Run_igv
 from workflows import Analyse_sample
+from variant import Freebayes, Vcf_filter, Vcf_patch, Test_variant_call, Power_variant_call
 
 from legion import *
 
 
-VERSION='0.86'
+VERSION='0.87'
 
 BOLD = '\x1b[1m'
 END = '\x1b[m'
@@ -40,9 +42,12 @@ Give <tool>: without further arguments for help on using that tool.
 
     make-reference:
                   - Set up a directory containing a reference sequence,
-                    annotations, and files for SHRiMP.
+                    annotations, and files for SHRiMP and/or Bowtie.
 
     shrimp:       - Run SHRiMP 2 on a read set to set up a working
+                    directory.
+    
+    bowtie:       - Run Bowtie 2 on a read set to set up a working
                     directory.
     
     consensus     - Filter read hits, and try to call a consensus for each 
@@ -158,7 +163,6 @@ behaviour:
 - annotation files can be in GENBANK or GFF format 
   (GFF is not yet supported by all tools).
 - nesoni is able to read files compressed with gzip or bzip2.
-- remote files can be specified as a URL (will be streamed using lftp).
 
 """ % { 'BOLD' : '\x1b[1m', 'END' : '\x1b[m', 'VERSION' : VERSION, 'MAKE' : Make().describe('', show_help=True) }
 

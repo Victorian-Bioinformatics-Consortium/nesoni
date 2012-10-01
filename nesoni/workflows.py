@@ -1,17 +1,26 @@
 
 import nesoni
 
-from nesoni import config, clip, samshrimp, samconsensus, working_directory
+from nesoni import config, clip, samshrimp, bowtie, samconsensus, working_directory
 
 @config.help('Analyse reads from a single sample.')
 @config.Positional('reference', 'Reference directory created by "make-reference:".')
 @config.Section('reads', 'Files containing unpaired reads.')
 @config.Section('interleaved', 'Files containing interleaved read pairs.')
 @config.Grouped_section('pairs', 'Pair of files containing read pairs.')
-@config.Configurable_section('clip', 'Options for clip', allow_none=True)
-@config.Configurable_section('align', 'Options for shrimp')
+@config.Configurable_section('clip', 'Options for clip', presets=[
+    ('clip', clip.Clip(), 'Clip reads'),
+    ('none', None, 'Don\'t clip reads'),
+])
+@config.Configurable_section('align', 'Options for aligner', presets=[
+    ('shrimp', samshrimp.Shrimp(), 'Align using SHRiMP 2'),
+    ('bowtie', bowtie.Bowtie(), 'Align using Bowtie 2'),
+])
 @config.Configurable_section('filter', 'Options for filter')
-@config.Configurable_section('reconsensus', 'Options for reconsensus', allow_none=True)
+@config.Configurable_section('reconsensus', 'Options for reconsensus', presets=[
+    ('reconsensus', samconsensus.Reconsensus(), 'Do consensus call'),
+    ('none',        None,                       'Do not do consensus call'),
+])
 class Analyse_sample(config.Action_with_output_dir):
     reference = None
     reads = [ ]

@@ -34,13 +34,20 @@ def R_literal(item):
 
 def run_script(script, only_tell=False, silent=False, **kwargs):
     script = (
-        r"""options(warn=1,error=function(){dump.frames(); cat(names(last.dump),sep='\n'); q('no',1);}); """ + 
+        '{\n'
+        "options(warn=1,error=function() {\n"
+        " dump.frames(); cat(names(last.dump),sep='\n'); q('no',1);\n"
+        "});\n"
+        '\n'
+        "if (capabilities('cairo')) {\n"
+        "  options(bitmapType='cairo');\n"
+        "}\n"
         '\n' +
         ''.join([
             key + ' <- ' + R_literal(kwargs[key]) + '\n'
             for key in kwargs
         ]) + 
-        '{\n' +
+        '\n' +
         script +
         '\ninvisible();\n'   #Rscript prints the return value of top level expressions. No thanks.
         '}\n'        
