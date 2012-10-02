@@ -29,9 +29,11 @@ then reducing the ploidy to 1 using "nesoni vcf-filter".
     '(nesoni\'s wrappers of read aligners do this as of version 0.87).'
     )
 @config.Int_flag('ploidy', 'Ploidy of genotype calls.')
+@config.Section('freebayes_options', 'Flags to pass to FreeBayes.')
 class Freebayes(config.Action_with_prefix):
-    ploidy = 2
+    ploidy = 1
     samples = [ ]
+    freebayes_options = [ ]
 
     def run(self):
         bams = [ ]
@@ -58,10 +60,9 @@ class Freebayes(config.Action_with_prefix):
         command = [ 
             'freebayes',
             '-f', reference,
-            #'--no-population-priors',
             '--ploidy',str(self.ploidy),
             '--pvar','0.0',
-            ] + bams
+            ] + self.freebayes_options + bams
         
         self.log.log('Running: '+' '.join(command)+'\n')
         
@@ -139,15 +140,11 @@ class Vcf_filter(config.Action_with_prefix):
         #print reader.infos
         #print 
         for record in reader:
-            print record
             variants = [ record.REF ]
             if isinstance(record.ALT,list):
                 variants.extend(str(item) for item in record.ALT)
             else:
                 variants.append(str(record.ALT))
-            print variants
-            
-            print record.INFO
             
             any = False
             
@@ -174,10 +171,11 @@ class Vcf_filter(config.Action_with_prefix):
                 #else:
                 #    any = True
             
-            #if any:
-            writer.write_record(record)
+            if any:
+                writer.write_record(record)
                 
         writer.close()
+
 
 @config.help("""\
 Patch variants in a VCF file into the reference sequence, \
@@ -227,6 +225,7 @@ class Vcf_patch(config.Action_with_output_dir):
                         var_seq = str(variant.ALT[gt_number-1])
                         assert re.match('[ACGTN]*$', var_seq), 'Unsupported variant type: '+var_seq
                     new_pos = variant.POS-1
+                    assert new_pos >= pos, 'Variants overlap.'
                     revised.append(seq[pos:new_pos])
                     pos = new_pos
                     revised.append(var_seq)
@@ -250,19 +249,23 @@ def rand_seq(n):
     )
 
 _analysis_presets = [
-    ('shrimp', workflows.Analyse_sample(clip=None,reconsensus=None), 'Do analysis using SHRiMP'),
-    ('bowtie', workflows.Analyse_sample(clip=None,align=bowtie.Bowtie(),reconsensus=None), 'Do analysis using Bowtie'),
+    ('shrimp', workflows.Analyse_sample(clip=None), 'Do analysis using SHRiMP'),
+    ('bowtie', workflows.Analyse_sample(clip=None,align=bowtie.Bowtie()), 'Do analysis using Bowtie'),
 ]
 
 @config.Positional('ref', 'Reference sequence\neg AAG')
 @config.Main_section('variants', 
     'Variants, each with a number of reads, eg ACGx10 ATGx5. '
     'The first variant given is treated as the correct variant.')
-@config.Configurable_section('analysis', presets=_analysis_presets)
+@config.Configurable_section('analysis', 'Options for "nesoni analyse-sample:"', presets=_analysis_presets)
+@config.Configurable_section('freebayes', 'Options for "nesoni freebayes:"')
+@config.Configurable_section('vcf_filter', 'Options for "nesoni vcf-filter:"')
 class Test_variant_call(config.Action_with_output_dir):
     ref = None
     variants = [ ]
     analysis = _analysis_presets[0][1]()
+    freebayes = Freebayes()
+    vcf_filter = Vcf_filter()
     
     def run(self):
         workspace = self.get_workspace()
@@ -280,30 +283,32 @@ class Test_variant_call(config.Action_with_output_dir):
             if flank != self.ref[-1:]: break
         right = flank+right
         
-        with open(workspace/'reference.fa','wb') as f:
-            io.write_fasta(f,'chr1',left+self.ref+right)
-        
         i = 0
         
         variants_used = [ ]
         
         with open(workspace/'reads.fq','wb') as f:
-            for variant in self.variants:
+            for i, variant in enumerate(self.variants):
                 if 'x' in variant:
                     variant, count = variant.split('x')
                     count = int(count)
                 else:
                     count = 10
                 variants_used.append( (variant,count) )
+                seq = left+variant+right
                 for j in xrange(count):
-                    seq = left+variant+right
-                    
                     pos = len(variant)+random.randrange(read_length-len(variant))
                     read = seq[pos:pos+read_length]
                     if random.randrange(2):
                         read = bio.reverse_complement(read)
                     i += 1
                     io.write_fastq(f,'read_%s_%d' % (variant,i),read,chr(64+30)*len(read))
+
+        reference = left+self.ref+right
+        primary_variant = left+variants_used[0][0]+right
+
+        with open(workspace/'reference.fa','wb') as f:
+            io.write_fasta(f,'chr1',reference)
         
         legion.remake_needed()
         
@@ -311,94 +316,40 @@ class Test_variant_call(config.Action_with_output_dir):
             workspace/'sample',
             workspace/'reference.fa',
             reads = [ workspace/'reads.fq' ],
-        ).run()
+            ).run()
         
-        Freebayes(
+        self.freebayes(
             workspace/'freebayes',
             workspace/'sample',
-        ).run()
+            ).run()
         
-        Vcf_filter(
+        self.vcf_filter(
             workspace/'filtered',
             workspace/'freebayes.vcf',
-        ).run()
+            ).run()
         
-        #nesoni.Shrimp(
-        #    workspace/'align',
-        #    workspace/'reference.fa',
-        #    reads=[ workspace/'reads.fq' ],
-        #    ).run()
-        #
-        #nesoni.Consensus(
-        #    workspace/'align',
-        #    ).run()
-        #
-        #nesoni.Make_genome(
-        #    workspace/'genome',
-        #    workspace/'align/reference'
-        #    ).run()
-        #
-        #output_dir = self.output_dir                
+        Vcf_patch(
+            workspace/'patch',
+            workspace/('sample','reference'),
+            workspace/'filtered.vcf'
+            ).run()
         
-        #command = (
-        #   'samtools mpileup -f %(output_dir)s/align/reference/reference.fa %(output_dir)s/align/alignments_filtered_sorted.bam'
-        #   ' |java -jar VarScan.v2.3.2.jar mpileup2cns --variants 1 --output-vcf 1'
-        #   % locals()
-        #)
-        #print command
-        #assert 0 == os.system(command)
+        patched = io.read_sequences(workspace/('patch','sample.fa')).next()[1]
         
-        with open(workspace/'variants.vcf','wb') as f:
-            io.execute([
-                'freebayes',
-                workspace/('sample','alignments_filtered_sorted.bam'),
-                '-f', workspace/('sample','reference','reference.fa'),
-                '--no-population-priors',
-                '--ploidy','4',
-                '--pvar','0.0',
-            ], stdout=f)
+        masked = io.read_sequences(workspace/('sample','consensus_masked.fa')).next()[1].upper()
         
-        #io.execute(['igvtools','index',workspace/'variants.vcf'])
+        raw_count = len(list(vcf.Reader(open(workspace/'freebayes.vcf','rU'))))
+        filtered_count = len(list(vcf.Reader(open(workspace/'filtered.vcf','rU'))))
         
-        reader = vcf.Reader(open(workspace/'filtered.vcf','rU'))
-        
-        good_count = 0
-        bad_count = 0
-        
-        for record in reader:
-            variants = [ record.REF ]
-            if isinstance(record.ALT,list):
-                variants.extend(str(item) for item in record.ALT)
-            else:
-                variants.append(str(record.ALT))
-            sample = record.samples[0]
-            pos = record.POS-1
-            if sample.data.GT and sample.data.GT.isdigit():
-                call = variants[ int(sample.data.GT) ]
-            else:
-                call = None
-
-            print pos, variants, call, variants_used[0][0]            
-            while len(set( item[:1] for item in variants )) == 1:
-                variants = [ item[1:] for item in variants ]
-                pos += 1
-
-            if sample.data.GT and sample.data.GT.isdigit():
-                call = variants[ int(sample.data.GT) ]
-            else:
-                call = None
-            print pos, variants, call, variants_used[0][0]            
-            
-            if call is not None:
-                good = pos == read_length and variants[0] == self.ref and call == variants_used[0][0]
-                if good:
-                    good_count += 1
-                else:
-                    bad_count += 1
+        nesoni_count = len(open(workspace/('sample','report.txt'),'rb').readlines()) - 1
 
         self.log.log('\n')
-        self.log.datum(workspace.name,'correct variant', good_count > 0)
-        self.log.datum(workspace.name,'incorrect variants', bad_count)
+        self.log.datum(workspace.name,'changes found by "nesoni consensus:"', nesoni_count)
+        self.log.datum(workspace.name,'is correctly patched by "nesoni consensus:"', masked == primary_variant)
+        self.log.log('\n')
+        self.log.datum(workspace.name,'raw variants', raw_count)
+        self.log.datum(workspace.name,'variants after filtering', filtered_count)
+        self.log.datum(workspace.name,'is correctly patched by VCF pipeline', patched == primary_variant)
         self.log.log('\n')
 
 
@@ -406,19 +357,20 @@ class Test_variant_call(config.Action_with_output_dir):
 Assess ability to call variants under a spread of different conditions.
 """)
 @config.Configurable_section('template','Setting for "nesoni test-variant-call".')
-class Power_variant_call(config.Action_with_output_dir):
+class Power_variant_call(config.Action_with_prefix):
     template = Test_variant_call()
 
     def tryout(self, ref, variants):
-        work = self.get_workspace()
-        with workspace.tempspace(work.working_dir) as temp:
+        with workspace.tempspace() as temp:
             job = self.template(temp.working_dir, ref=ref, variants=variants)            
             job.run()            
             
             result = dict( tuple(item.values()) for item in reporting.mine_logs([job.log_filename()]) )
-            good = {'yes':True,'no':False}[result['correct variant']]
-            bad = int(result['incorrect variants'])
-            return good, bad
+            nesoni_count = int(result['changes found by "nesoni consensus:"'])
+            nesoni_good = {'yes':True,'no':False}[result['is correctly patched by "nesoni consensus:"']]
+            vcf_count = int(result['variants after filtering'])
+            vcf_good = {'yes':True,'no':False}[result['is correctly patched by VCF pipeline']]
+            return nesoni_count, nesoni_good, vcf_count, vcf_good
 
     def depth_test(self, ref, variant, others=[]):
         depths = range(1,30+1)
@@ -428,34 +380,44 @@ class Power_variant_call(config.Action_with_output_dir):
         if others: report += '  with contamination  ' + ', '.join(others)
         report += '\n'
         
-        report += 'good  [' + ''.join( '+' if item[0] else ' ' for item in results ) + ']\n'
-        report += 'bad   [' + ''.join( 'x' if item[1] else ' ' for item in results ) + ']\n'
+        report += 'nesoni consensus: [' + ''.join( '+' if item[1] else 'X' if item[0] else ' ' for item in results ) + ']\n'
+        report += 'VCF pipeline      [' + ''.join( '+' if item[3] else 'X' if item[2] else ' ' for item in results ) + ']\n'
 
         depth_line = ''
         for i in depths:
             if i == 1 or i % 5 == 0:
                 depth_line += ' '*(i-len(depth_line)) + str(i)
-        report += 'depth '+depth_line+'\n'
+        report += 'depth             '+depth_line+'\n'
         
         return report
         
 
     def run(self):
-        work = self.get_workspace()
-        
-        #print [ self.tryout('A', ['CCCCCx%d'%i]) for i in xrange(1,11) ]
-        
         report = ''
         
         for job in [
             ('A','C',[]),
             ('A','C',['Gx1']),
             ('A','',[]),
+            ('AC','',[]),
+            ('ACGT','',[]),
+            ('ACGTAGCT','',[]),
+            ('ACGTAGCTAGACCTGT','',[]),
             ('','A',[]),
+            ('','AC',[]),
+            ('','ACGT',[]),
+            ('','ACGTAGCT',[]),
+            ('','ACGTAGCTAGACCTGT',[]),
         ]:        
             report += self.depth_test(*job)+'\n'
         
-        print report
+        self.log.log(
+            '\n'
+            ' + = correct variant called\n'
+            ' X = incorrect variant called\n'
+            '\n')
+        
+        self.log.log(report + '\n')
 
 
 

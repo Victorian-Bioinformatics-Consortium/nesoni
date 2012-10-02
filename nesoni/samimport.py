@@ -8,15 +8,18 @@ import os, sys
 Set up a nesoni working directory using a SAM or BAM file.
 
 """)
+@config.Float_flag('snp_cost', 'Cost per SNP in alignment scores of BAM.')
 @config.Positional('input', 'SAM or BAM file.')
 @config.Main_section('reference', 'Reference directory from "make-reference:", or reference sequences and annotations.')
 class Import(config.Action_with_output_dir):
+    snp_cost = 2.0
     input = None
     reference = [ ]
     
     def run(self):
         workspace = working_directory.Working(self.output_dir)        
         workspace.setup_reference(self.reference)
+        workspace.update_param(snp_cost = self.snp_cost)
         
         #assert os.path.exists(self.reference), 'Reference file does not exist'
         #reference_filename = workspace._object_filename('reference.fa')

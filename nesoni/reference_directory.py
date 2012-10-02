@@ -1,5 +1,5 @@
 
-import os
+import sys, os
 
 from nesoni import io, grace, config, annotation
 
@@ -60,23 +60,27 @@ class Reference(io.Workspace):
     def reference_fasta_filename(self):
         return self.object_filename('reference.fa')
 
-    def build_shrimp_mmap(self, cs=False):
+    def build_shrimp_mmap(self, cs=False, log_to=sys.stdout):
         suffix = '-cs' if cs else '-ls'
         
         grace.status('Building SHRiMP mmap')
-        io.execute([
-            'gmapper' + suffix,
-            '--save', self.object_filename('reference' + suffix),
-            self.reference_fasta_filename(),
-        ])
+        io.execute( [
+                'gmapper' + suffix,
+                '--save', self.object_filename('reference' + suffix),
+                self.reference_fasta_filename(),            
+                ],
+            stdout=log_to
+            )
         grace.status('')
 
-    def build_bowtie_index(self):
+    def build_bowtie_index(self, log_to=sys.stdout):
         io.execute([
-            'bowtie2-build',
-            self.reference_fasta_filename(),
-            self/'bowtie',
-        ])
+                'bowtie2-build',
+                self.reference_fasta_filename(),
+                self/'bowtie',
+                ],
+            stdout = log_to,
+            )
     
     def get_bowtie_index_prefix(self):
         assert os.path.exists(self/'bowtie.1.bt2'), 'bowtie2 index was not created. Please use "make-reference:" with "--bowtie yes".'
@@ -150,12 +154,14 @@ class Make_reference(config.Action_with_output_dir):
         reference = Reference(self.output_dir, must_exist=False)        
         reference.set_sequences(sequences)
         reference.set_annotations(annotations)
-        if self.ls:
-            reference.build_shrimp_mmap(False)
-        if self.cs:
-            reference.build_shrimp_mmap(True)
-        if self.bowtie:
-            reference.build_bowtie_index()
+        
+        with open(self.log_filename(),'wb') as f:
+            if self.ls:
+                reference.build_shrimp_mmap(False, f)
+            if self.cs:
+                reference.build_shrimp_mmap(True, f)
+            if self.bowtie:
+                reference.build_bowtie_index(f)
             
         
         

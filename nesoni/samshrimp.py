@@ -79,6 +79,7 @@ class Shrimp(config.Action_with_output_dir):
         
         workspace = self.get_workspace() #working_directory.Working(self.output_dir, must_exist=False)
         workspace.setup_reference(self.references)        
+        workspace.update_param(snp_cost=25)
         reference = workspace.get_reference()
         reference_filename = reference.reference_fasta_filename()
 

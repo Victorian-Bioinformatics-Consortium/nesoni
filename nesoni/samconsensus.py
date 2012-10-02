@@ -82,9 +82,9 @@ def write_userplots(prefix, arrays, output_strand_specific_depths):
 @config.help("""\
 Filter BAM file in directory created by "shrimp:" or "import:", and calculate depth of coverage.
 """)
-@config.Int_flag('infidelity', 
+@config.Float_flag('infidelity_snps', 
     'Any runner-up alignments scoring this close to the best alignment\'s score are considered possibly valid alignments. '
-    'Note: each extra base mismatch in SHRiMP loses 25 points.')
+    'Unit is number of SNPs, allowance for indels depends on aligner\'s scoring scheme relative to SNPs.')
 @config.Bool_flag('monogamous', 'Discard fragments with more than one possibly valid alignment.')
 @config.Bool_flag('userplots', 'Output Artemis userplots.')
 @config.Bool_flag('strand_specific', 'Output strand-specific Artemis userplots.')
@@ -92,7 +92,7 @@ Filter BAM file in directory created by "shrimp:" or "import:", and calculate de
     'Instead of using all ambiguous alignments, pick one at random from the equal top alignments. '
     'Affects depth of coverage plots, and base calling if --monogamous is no.')
 class Filter(config.Action_with_working_dir):
-    infidelity = 50
+    infidelity_snps = 2.0
     monogamous = True
     userplots = True
     strand_specific = False
@@ -102,7 +102,7 @@ class Filter(config.Action_with_working_dir):
     
     def run(self, log=None):
         grace.require_samtools()
-        filter(self.working_dir, self.infidelity, self.monogamous, self.userplots, self.strand_specific, self.random, self.log)    
+        filter(self.working_dir, self.infidelity_snps, self.monogamous, self.userplots, self.strand_specific, self.random, self.log)    
 
 
 
@@ -170,9 +170,11 @@ class Filter(config.Action_with_working_dir):
 
 class Hit_already_seen(object): pass
 
-def filter(working_dir, infidelity, is_monogamous, output_userplots, output_strand_specific_depths, use_random, log):    
+def filter(working_dir, infidelity_snps, is_monogamous, output_userplots, output_strand_specific_depths, use_random, log):    
     workspace = working_directory.Working(working_dir, must_exist=True)
     reference = workspace.get_reference()
+    
+    infidelity = infidelity_snps * workspace.param.get('snp-cost',25)
     
     #if 'shrimp_cutoff' in workspace.param:
     #    calc_cutoff = samshrimp.cutoff_interpreter(workspace.param['shrimp_cutoff'])
@@ -598,20 +600,28 @@ class Ref_seq(object):
                 if insertion_call_with_purity != call1 or insertion_call_with_purity != call2:
                     insertion_call_with_purity = None
             
-            insertion_call_without_purity, p = consensus.bayesian_consensus(self.insertions_before[i], 0.0,insertion_present_prior,insertion_absent_prior,total_prior, proportion)
-            
-            #Indicate lack of purity with lower case in alignment and consensus files
-            if insertion_call_without_purity is not None and insertion_call_with_purity is None:
-                insertion_call_without_purity = insertion_call_without_purity.lower()
-
-            if insertion_call_without_purity is not None and insertion_call_without_purity != '-': 
-                self.consensus.append(insertion_call_without_purity)
-                self.consensus_masked.append(insertion_call_without_purity)
-                
-                self.alignment_result.append(insertion_call_without_purity)
-                self.alignment_reference.append('-' * len(insertion_call_without_purity))
+            #2/10/2012 - this isn't useful
+            #
+            # insertion_call_without_purity, p = consensus.bayesian_consensus(self.insertions_before[i], 0.0,insertion_present_prior,insertion_absent_prior,total_prior, proportion)
+            #
+            # #Indicate lack of purity with lower case in alignment and consensus files
+            # if insertion_call_without_purity is not None and insertion_call_with_purity is None:
+            #    insertion_call_without_purity = insertion_call_without_purity.lower()
+            #
+            # if insertion_call_without_purity is not None and insertion_call_without_purity != '-': 
+            #     self.consensus.append(insertion_call_without_purity)
+            #     self.consensus_masked.append(insertion_call_without_purity)
+            #     
+            #     self.alignment_result.append(insertion_call_without_purity)
+            #     self.alignment_reference.append('-' * len(insertion_call_without_purity))
 
             if insertion_call_with_purity is not None and insertion_call_with_purity != '-':
+                self.consensus.append(insertion_call_with_purity)
+                self.consensus_masked.append(insertion_call_with_purity)
+                
+                self.alignment_result.append(insertion_call_with_purity)
+                self.alignment_reference.append('-' * len(insertion_call_with_purity))
+
                 self.report.append(('insertion-before', i, '-', insertion_call_with_purity, self.insertions_before[i],self.stranded_insertions_before[0][i],self.stranded_insertions_before[1][i]))
 
             self.insertion_calls.append(insertion_call_with_purity or 'N')

@@ -1,5 +1,6 @@
 
 0.87 - added "bowtie:"
+       added tools for variant calling using VCF format (under development)
 
 0.86 - IOError now displays error message
        Added "run-igv:"

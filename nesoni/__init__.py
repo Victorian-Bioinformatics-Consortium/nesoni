@@ -57,6 +57,27 @@ Give <tool>: without further arguments for help on using that tool.
     (filter:      - Filter read hits, but do not call consensus)
     (reconsensus: - Re-call consensus, using previously filtered hits)
 
+%(BOLD)sAlignment to reference -- VCF based tools: (under development)%(END)s
+
+These provide an alternative to consensus calling using "nesoni consensus:"
+- better handling of complicated Multi-Nucleotide Polymorphisms
+- can't distinguish between absence of a variant and insufficient data
+  (but can distinguish absence of a variant from insufficient data 
+   in a single sample if variant present in other samples)
+
+    freebayes:    - Run FreeBayes to produce a VCF file.
+    
+    vcf-filter:   - Filter a VCF file, eg as produced by "nesoni freebayes:".
+    
+    vcf-patch:    - Apply variants
+    
+    test-variant-call:
+                  - Generate synthetic reads, see what variant is called.
+    
+    power-variant-call:
+                  - Apply "neosni test-variant-call:" to a variety of
+                    different variants over a range of depths.
+
 %(BOLD)sAlignment to reference -- analysis tools:%(END)s
 
     igv-plots:    - Generate plots for IGV.

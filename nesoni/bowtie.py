@@ -35,7 +35,8 @@ class Bowtie(config.Action_with_output_dir):
         io.check_name_uniqueness(self.reads, self.pairs, self.interleaved)
         
         working = self.get_workspace()
-        working.setup_reference(self.references, bowtie=True)        
+        working.setup_reference(self.references, bowtie=True)
+        working.update_param(snp_cost=2.0)        
         reference = working.get_reference()
         
         log_file = open(self.log_filename(),'wb')
