@@ -29,7 +29,7 @@ then reducing the ploidy to 1 using "nesoni vcf-filter".
     '(nesoni\'s wrappers of read aligners do this as of version 0.87).'
     )
 @config.Int_flag('ploidy', 'Ploidy of genotype calls.')
-@config.Section('freebayes_options', 'Flags to pass to FreeBayes.')
+@config.Section('freebayes_options', 'Flags to pass to FreeBayes.', allow_flags=True)
 class Freebayes(config.Action_with_prefix):
     ploidy = 1
     samples = [ ]
@@ -66,10 +66,8 @@ class Freebayes(config.Action_with_prefix):
         
         self.log.log('Running: '+' '.join(command)+'\n')
         
-        io.execute(
-            command,
-            stdout = open(self.prefix + '.vcf','wb'),
-            )
+        with open(self.prefix+'.vcf','wb') as f:
+            io.execute(command, stdout=f)
 
 class _Filter(Exception): pass
 
@@ -130,7 +128,8 @@ class Vcf_filter(config.Action_with_prefix):
             
     
     def run(self):
-        reader = vcf.Reader(open(self.vcf,'rU'))
+        reader_f = open(self.vcf,'rU')
+        reader = vcf.Reader(reader_f)
         
         writer = vcf.Writer(open(self.prefix + '.vcf','wb'), reader)
         
@@ -175,6 +174,7 @@ class Vcf_filter(config.Action_with_prefix):
                 writer.write_record(record)
                 
         writer.close()
+        reader_f.close()
 
 
 @config.help("""\
@@ -198,10 +198,12 @@ class Vcf_patch(config.Action_with_output_dir):
         
         reference = reference_directory.Reference(self.reference, must_exist=True)
         
-        reader = vcf.Reader(open(self.vcf,'rU'))
+        reader_f = open(self.vcf,'rU')
+        reader = vcf.Reader(reader_f)
         variants = collections.defaultdict(list)
         for record in reader:
             variants[record.CHROM].append(record)
+        reader_f.close()
         
         for chrom in variants:
             variants[chrom].sort(key=lambda item: item.POS)
@@ -338,10 +340,16 @@ class Test_variant_call(config.Action_with_output_dir):
         
         masked = io.read_sequences(workspace/('sample','consensus_masked.fa')).next()[1].upper()
         
-        raw_count = len(list(vcf.Reader(open(workspace/'freebayes.vcf','rU'))))
-        filtered_count = len(list(vcf.Reader(open(workspace/'filtered.vcf','rU'))))
+        with open(workspace/'freebayes.vcf','rU') as f:
+            reader = vcf.Reader(f)
+            raw_count = len(list(reader))
         
-        nesoni_count = len(open(workspace/('sample','report.txt'),'rb').readlines()) - 1
+        with open(workspace/'filtered.vcf','rU') as f:
+            reader =  vcf.Reader(f)
+            filtered_count = len(list(vcf.Reader(open(workspace/'filtered.vcf','rU'))))
+        
+        with open(workspace/('sample','report.txt'),'rb') as f:
+            nesoni_count = len(f.readlines()) - 1
 
         self.log.log('\n')
         self.log.datum(workspace.name,'changes found by "nesoni consensus:"', nesoni_count)
@@ -401,13 +409,13 @@ class Power_variant_call(config.Action_with_prefix):
             ('A','',[]),
             ('AC','',[]),
             ('ACGT','',[]),
-            ('ACGTAGCT','',[]),
-            ('ACGTAGCTAGACCTGT','',[]),
+            #('ACGTAGCT','',[]),
+            #('ACGTAGCTAGACCTGT','',[]),
             ('','A',[]),
             ('','AC',[]),
             ('','ACGT',[]),
-            ('','ACGTAGCT',[]),
-            ('','ACGTAGCTAGACCTGT',[]),
+            #('','ACGTAGCT',[]),
+            #('','ACGTAGCTAGACCTGT',[]),
         ]:        
             report += self.depth_test(*job)+'\n'
         
