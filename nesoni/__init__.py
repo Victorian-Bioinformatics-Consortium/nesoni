@@ -69,7 +69,8 @@ These provide an alternative to consensus calling using "nesoni consensus:"
     
     vcf-filter:   - Filter a VCF file, eg as produced by "nesoni freebayes:".
     
-    vcf-patch:    - Apply variants
+    vcf-patch:    - Patch in variants to produce genome of samples.
+                    (similar to consensus_masked.fa produced by "nesoni consensus:")
     
     test-variant-call:
                   - Generate synthetic reads, see what variant is called.
