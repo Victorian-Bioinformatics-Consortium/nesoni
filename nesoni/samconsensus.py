@@ -82,7 +82,7 @@ def write_userplots(prefix, arrays, output_strand_specific_depths):
 @config.help("""\
 Filter BAM file in directory created by "shrimp:" or "import:", and calculate depth of coverage.
 """)
-@config.Float_flag('infidelity_snps', 
+@config.Float_flag('infidelity', 
     'Any runner-up alignments scoring this close to the best alignment\'s score are considered possibly valid alignments. '
     'Unit is number of SNPs, allowance for indels depends on aligner\'s scoring scheme relative to SNPs.')
 @config.Bool_flag('monogamous', 'Discard fragments with more than one possibly valid alignment.')
@@ -92,7 +92,7 @@ Filter BAM file in directory created by "shrimp:" or "import:", and calculate de
     'Instead of using all ambiguous alignments, pick one at random from the equal top alignments. '
     'Affects depth of coverage plots, and base calling if --monogamous is no.')
 class Filter(config.Action_with_working_dir):
-    infidelity_snps = 2.0
+    infidelity = 2.0
     monogamous = True
     userplots = True
     strand_specific = False
@@ -102,7 +102,7 @@ class Filter(config.Action_with_working_dir):
     
     def run(self, log=None):
         grace.require_samtools()
-        filter(self.working_dir, self.infidelity_snps, self.monogamous, self.userplots, self.strand_specific, self.random, self.log)    
+        filter(self.working_dir, self.infidelity, self.monogamous, self.userplots, self.strand_specific, self.random, self.log)    
 
 
 

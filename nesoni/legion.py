@@ -695,23 +695,28 @@ def _get_timestamp(action):
         If pickled value matches return the timestamp.
     """
     try:
-        if not os.path.exists('.state'):
-            os.mkdir('.state')
-    
-        filename = os.path.join('.state', grace.filesystem_friendly_name(action.ident()))
-        if os.path.exists(filename):
-            with open(filename,'rb') as f:
-                old = pickle.load(f)
-            
-            if action == old:
+        for filename in [
+            action.state_filename(),
+            os.path.join('.state', grace.filesystem_friendly_name(action.ident())), #Old location of state files
+        ]:
+            if os.path.exists(filename):
+                with open(filename,'rb') as f:
+                    old = pickle.load(f)
+                
+                if action != old:
+                    return None
+                
                 if not hasattr(old, 'timestamp'):
                     return None                        
+                
+                if hasattr(old, 'timestamp_for') and old.timestamp_for != filename:
+                    return None
+                
                 return old.timestamp
-            
-            #for parameter in self.parameters:
-            #    if parameter.get(self) != parameter.get(old):
-            #        print >> sys.stderr, parameter.name, parameter.get(old), '->', parameter.get(self)
-            
+                
+                #for parameter in self.parameters:
+                #    if parameter.get(self) != parameter.get(old):
+                #        print >> sys.stderr, parameter.name, parameter.get(old), '->', parameter.get(self)            
     except Exception, error:
         import traceback
         traceback.print_exc()
@@ -720,8 +725,10 @@ def _get_timestamp(action):
     return None
     
 def _run_and_save_state(action, timestamp):
-    filename = os.path.join('.state', grace.filesystem_friendly_name(action.ident()))
-    temp_filename = os.path.join('.state', 'temp-' + grace.filesystem_friendly_name(action.ident()))
+    #filename = os.path.join('.state', grace.filesystem_friendly_name(action.ident()))
+    #temp_filename = os.path.join('.state', 'temp-' + grace.filesystem_friendly_name(action.ident()))
+    filename = action.state_filename()
+    temp_filename = filename + '.temp'
     
     if os.path.exists(filename):
         os.unlink(filename)
@@ -733,6 +740,15 @@ def _run_and_save_state(action, timestamp):
     
     LOCAL.time = max(LOCAL.time, timestamp)
     action.timestamp = timestamp
+    action.timestamp_for = filename 
+    #timestamp_for is used to ensure the action is being 
+    # run from the same (relative) current directory as previously
+
+    dirname = os.path.dirname(filename)
+    if dirname and not os.path.exists(dirname):
+        os.mkdir(dirname)
+
+    print temp_filename    
     with open(temp_filename,'wb') as f:
         pickle.dump(action, f)
     os.rename(temp_filename, filename)

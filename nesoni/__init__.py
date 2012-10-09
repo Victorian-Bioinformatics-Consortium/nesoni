@@ -24,7 +24,7 @@ from variant import Freebayes, Vcf_filter, Vcf_patch, Test_variant_call, Power_v
 from legion import *
 
 
-VERSION='0.87'
+VERSION='0.89'
 
 BOLD = '\x1b[1m'
 END = '\x1b[m'

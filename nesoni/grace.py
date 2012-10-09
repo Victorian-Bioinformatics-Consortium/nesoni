@@ -43,7 +43,36 @@ class Log:
         if self.f:
            self.f.write(text)
            self.f.flush()
+
+
+class Multicontext(object):    
+    def __init__(self):
+        self.contexts = [ ]
+        self.active = False
     
+    def __enter__(self):
+        assert not self.active
+        self.active = True
+        return self
+    
+    def use(self, context):
+        assert self.active
+        self.contexts.append(context)
+        return context.__enter__()
+    
+    def __exit__(self):
+        assert self.active
+        exc = (None,None,None)
+        while self.contexts:
+            try:
+                if self.contexts.pop(-1).__exit__(*exc):
+                    exc = (None,None,None)
+            except:
+                exc = sys.get_exc()
+        self.active = False
+        if exc != (None,None,None):
+            raise exc[0],exc[1],exc[2]
+            
 
 
 def status(string):

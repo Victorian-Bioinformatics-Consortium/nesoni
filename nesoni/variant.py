@@ -10,10 +10,12 @@ test-variant-call should use vcf-patch-in
 """
 
 
-import random, os, re, sys, collections
+import random, os, re, sys, collections, math
 
 import nesoni
-from nesoni import config, legion, io, bio, workspace, working_directory, reference_directory, workflows, bowtie, sam, reporting
+from nesoni import config, legion, io, bio, workspace, working_directory, \
+                   reference_directory, workflows, bowtie, sam, reporting, \
+                   statistics
 from nesoni.third_party import vcf
 
 @config.help("""
@@ -31,7 +33,7 @@ then reducing the ploidy to 1 using "nesoni vcf-filter".
 @config.Int_flag('ploidy', 'Ploidy of genotype calls.')
 @config.Section('freebayes_options', 'Flags to pass to FreeBayes.', allow_flags=True)
 class Freebayes(config.Action_with_prefix):
-    ploidy = 1
+    ploidy = 4
     samples = [ ]
     freebayes_options = [ ]
 
@@ -74,11 +76,21 @@ class _Filter(Exception): pass
 @config.help("""\
 Filter a VCF file, eg as produced by "nesoni freebayes:".
 
+Ploidy reduction:
+
 - reduce ploidy of genotype calls
   eg reducing ploidy from 4 to 2 would
      1/1/1/1 -> 1/1
      1/1/2/2 -> 1/2
      1/2/2/2 -> ./. (fail)
+
+Dirichlet qualities:
+
+- genome qualities (GQ) are 
+
+- this currently reduces the ploidy to one
+
+Filtering:
 
 - genotype calls that don't pass filters (eg genotype quality) are failed
 
@@ -89,20 +101,67 @@ Note:
 - phased VCF files are not supported
 
 """)
-@config.Positional('vcf', 'VCF file, eg as produced by "nesoni freebayes:"')
+@config.Bool_flag('dirichlet',
+    'Replace existing genotype qualities (GQ) with dirichlet distribution derived qualities. '
+    )
+@config.Float_flag('dirichlet_prior',
+    'Prior weight given to the reference and each variant.'
+    )
+@config.Float_flag('dirichlet_total_prior',
+    'Minimum total prior. '
+    'Allows that there might be further unobserved variants. '
+    'Note that in the simple case of a SNP '
+    ' --dirichlet yes --dirichlet-prior 0.2 --dirichlet-total-prior 1.0 '
+    'yields prior beliefs as though there was a single observation of '
+    'that may have been A, C, G, T, or something else (indel/MNP).'
+    )
+@config.Float_flag('dirichlet_majority',
+    'A mixture of variants is genotyped as being a particular variant if it makes up at least this '
+    'proportion of the mixture.'
+    )
 @config.Float_flag('min_gq', 'Genotype quality cutoff, based on GQ as produced by Freebayes, phred scale.')
 @config.Int_flag('ploidy', 
     'Reduce to this polidy. Should be a divisor of the ploidy of the input. '
     'If the genotype does not have an exact representation at the reduced ploidy, it is filtered.')
+@config.Positional('vcf', 'VCF file, eg as produced by "nesoni freebayes:"')
 class Vcf_filter(config.Action_with_prefix):
     vcf = None
+    
+    dirichlet = False
+    dirichlet_prior = 0.2
+    dirichlet_total_prior = 1.0
+    dirichlet_majority = 0.5
+
     min_gq = 20.0
     ploidy = 1
     
     def _blank_gt(self):
         return '/'.join(['.']*self.ploidy)
     
+
+    def _make_sample_dirichlet(self, variants, sample):
+        AO = sample.data.AO
+        if not isinstance(AO,list):
+            AO = [AO]
+        counts = [ sample.data.RO ] + AO
+        
+        GT = max(xrange(len(counts)), key=lambda i:counts[i])
+        
+        p = statistics.probability_of_proportion_at_least(
+            counts[GT]+self.dirichlet_prior,
+            sum(counts)+max(self.dirichlet_total_prior, self.dirichlet_prior*len(counts)),
+            self.dirichlet_majority)
+
+        sample.data = sample.data._replace(
+            GT=str(GT),
+            GQ=math.log10(1-p) * -10.0,
+            )
+
+            
     def _modify_sample(self, variants, sample):
+        if self.dirichlet:
+            self._make_sample_dirichlet(variants, sample)
+        
         try:
             if '.' in sample.data.GT: 
                 raise _Filter()
@@ -128,6 +187,9 @@ class Vcf_filter(config.Action_with_prefix):
             
     
     def run(self):
+        if self.dirichlet:
+            assert self.ploidy == 1, 'Dirichlet mode is not available for ploidy > 1'
+        
         reader_f = open(self.vcf,'rU')
         reader = vcf.Reader(reader_f)
         
@@ -169,6 +231,9 @@ class Vcf_filter(config.Action_with_prefix):
                 #    print call.data
                 #else:
                 #    any = True
+            
+            if self.dirichlet:
+                record.QUAL = sum(sample.data.GQ for sample in record.samples)
             
             if any:
                 writer.write_record(record)

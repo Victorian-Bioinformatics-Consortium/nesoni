@@ -558,6 +558,9 @@ class Action(Configurable):
     def cores_required(self):
         return 1
     
+    def state_filename(self):
+        return os.path.join('.state', filesystem_friendly_name(self.ident()))
+    
     def make(self):
         from nesoni import legion
         legion.make(self)
@@ -565,6 +568,7 @@ class Action(Configurable):
     def process_make(self, stage=None):
         from nesoni import legion
         legion.process_make(self, stage)
+        
 
 
 
@@ -622,6 +626,8 @@ class Action_with_prefix(Action_with_log):
         if self.prefix is None: return None
         return self.prefix + '_log.txt'
 
+    def state_filename(self):
+        return self.prefix + '.state'
 
 @Positional('output_dir', 'Directory for output files (will be created if does not exist).')
 class Action_with_output_dir(Action_with_log):
@@ -638,6 +644,9 @@ class Action_with_output_dir(Action_with_log):
         if self.output_dir is None: return None
         return os.path.join(self.output_dir, self.shell_name() + '_log.txt')
 
+    def state_filename(self):
+        return os.path.join(self.output_dir, self.shell_name() + '.state')
+
 
 @Positional('working_dir', 'Directory for input and output files.')
 class Action_with_working_dir(Action_with_log):
@@ -653,6 +662,9 @@ class Action_with_working_dir(Action_with_log):
     def log_filename(self):
         if self.working_dir is None: return None
         return os.path.join(self.working_dir, self.shell_name() + '_log.txt')
+
+    def state_filename(self):
+        return os.path.join(self.working_dir, self.shell_name() + '.state')
 
 
 

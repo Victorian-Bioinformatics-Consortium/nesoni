@@ -1,4 +1,10 @@
 
+0.89 - Change "--infidelity-snps" back to "--infidelity"
+       Added Dirichlet-based quality calculation to "vcf-filter:"
+
+0.88 - State files are no longer hidden in ".state", they're placed in
+       the same location as output files.
+
 0.87 - added "bowtie:"
        added tools for variant calling using VCF format (under development)
 
