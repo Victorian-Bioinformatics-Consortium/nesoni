@@ -1,6 +1,7 @@
 
 import sys, os
 
+import nesoni
 from nesoni import io, grace, config, annotation
 
 class Reference(io.Workspace):
@@ -85,7 +86,17 @@ class Reference(io.Workspace):
     def get_bowtie_index_prefix(self):
         assert os.path.exists(self/'bowtie.1.bt2'), 'bowtie2 index was not created. Please use "make-reference:" with "--bowtie yes".'
         return self/'bowtie'
+
+    def build_genome(self):
+        nesoni.Make_genome(
+            prefix = self/self.name,
+            name = self.name,
+            filenames = [ self.working_dir ],
+            ).run()
     
+    def get_genome_filename(self):
+        filename = self / (self.name+'.genome')
+        assert os.path.exists(filename), 'IGV .genome was not created. Please use "make-reference:" with "--genome yes".'
     
     def shrimp_command(self, cs=False, parameters = [ ]):
         """ Parameters:
@@ -121,17 +132,26 @@ class Reference(io.Workspace):
 
 
 @config.help("""\
-Create a directory with a reference sequence, SHRiMP mmap files, \
-and links to annotations.
+Create a directory with a reference sequence, 
+and optionally reference annotations, \
+SHRiMP mmap files, Bowtie2 index files, \
+and IGV .genome file.
+
+If sequence filenames are not given, \
+the directory must already exist, \
+and files will be generated as requested \
+using existing sequences and annotations.
 """)
 @config.Bool_flag('ls', 'Generate gmapper-ls mmap (faster SHRiMP startup for base-space reads).')
 @config.Bool_flag('cs', 'Generate gmapper-cs mmap (faster SHRiMP startup for color-space reads).')
 @config.Bool_flag('bowtie', 'Generate bowtie2 index (necessary in order to use "nesoni bowtie:").')
+@config.Bool_flag('genome', 'Create .genome file and directory for use with IGV.')
 @config.Main_section('filenames', 'Sequence and annotation files.')
 class Make_reference(config.Action_with_output_dir):
     ls = False
     cs = False
     bowtie = False
+    genome = True
     filenames = [ ]
 
     def run(self):
@@ -149,11 +169,12 @@ class Make_reference(config.Action_with_output_dir):
                 raise grace.Error(filename + ' is neither a sequence file nor an annotation file that nesoni can read.')
         
         if not sequences:
-            raise grace.Error('No reference sequence files given.')
-        
-        reference = Reference(self.output_dir, must_exist=False)        
-        reference.set_sequences(sequences)
-        reference.set_annotations(annotations)
+            assert not annotations, 'Annotations given without any reference sequences.'
+            reference = Reference(self.output_dir, must_exist=True)        
+        else:
+            reference = Reference(self.output_dir, must_exist=False)        
+            reference.set_sequences(sequences)
+            reference.set_annotations(annotations)
         
         with open(self.log_filename(),'wb') as f:
             if self.ls:
@@ -162,6 +183,8 @@ class Make_reference(config.Action_with_output_dir):
                 reference.build_shrimp_mmap(True, f)
             if self.bowtie:
                 reference.build_bowtie_index(f)
+            if self.genome:
+                reference.build_genome()
             
         
         

@@ -50,7 +50,7 @@ class Make_genome(config.Action_with_prefix):
                 annotations.append(filename)
                 any = True
             assert any, 'File is neither a recognized sequence or annotation file'
-
+        
         cytoband_filename = os.path.join(self.prefix,base+'_cytoband.txt')
         property_filename = os.path.join(self.prefix,'property.txt')
         gff_filename = os.path.join(self.prefix,base+'.gff')

@@ -628,6 +628,11 @@ class Action_with_prefix(Action_with_log):
 
     def state_filename(self):
         return self.prefix + '.state'
+    
+    def _before_run(self):
+        if not self.prefix:
+            raise Error('You need to specify a prefix for the output files.')
+
 
 @Positional('output_dir', 'Directory for output files (will be created if does not exist).')
 class Action_with_output_dir(Action_with_log):
@@ -646,6 +651,10 @@ class Action_with_output_dir(Action_with_log):
 
     def state_filename(self):
         return os.path.join(self.output_dir, self.shell_name() + '.state')
+    
+    def _before_run(self):
+        if not self.output_dir:
+            raise Error('You need to specify an output directory.')
 
 
 @Positional('working_dir', 'Directory for input and output files.')
@@ -665,6 +674,10 @@ class Action_with_working_dir(Action_with_log):
 
     def state_filename(self):
         return os.path.join(self.working_dir, self.shell_name() + '.state')
+    
+    def _before_run(self):
+        if not self.working_dir:
+            raise Error('You need to specify a working directory.')
 
 
 

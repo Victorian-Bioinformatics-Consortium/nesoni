@@ -748,7 +748,6 @@ def _run_and_save_state(action, timestamp):
     if dirname and not os.path.exists(dirname):
         os.mkdir(dirname)
 
-    print temp_filename    
     with open(temp_filename,'wb') as f:
         pickle.dump(action, f)
     os.rename(temp_filename, filename)

@@ -1,4 +1,7 @@
 
+0.90 - Sensible error if prefix or output dir not given.
+       "shred:" can now output fastq.
+
 0.89 - Change "--infidelity-snps" back to "--infidelity"
        Added Dirichlet-based quality calculation to "vcf-filter:"
 
