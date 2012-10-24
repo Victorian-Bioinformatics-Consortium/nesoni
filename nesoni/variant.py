@@ -10,13 +10,44 @@ test-variant-call should use vcf-patch-in
 """
 
 
-import random, os, re, sys, collections, math
+import random, os, re, sys, collections, math, fractions
 
 import nesoni
 from nesoni import config, legion, io, bio, workspace, working_directory, \
                    reference_directory, workflows, bowtie, sam, reporting, \
-                   statistics
+                   statistics, grace
 from nesoni.third_party import vcf
+
+def get_variants(record):
+    variants = [ record.REF ]
+    if isinstance(record.ALT,list):
+        variants.extend(str(item) for item in record.ALT)
+    else:
+        variants.append(str(record.ALT))
+    return variants
+
+def get_genotype(call):
+    if '.' in call.data.GT:
+        return None
+    assert re.match('[0-9]+(/[0-9]+)*$', call.data.GT), 'Unsupported genotype format: '%call.data.GT        
+    return sorted(int(item) for item in call.data.GT.split('/'))
+
+def genotypes_equal(gt1, gt2):
+    if gt1 is None or gt2 is None:
+        return False
+    if len(gt1) == len(gt2):
+        return gt1 == gt2
+    n = fractions.gcd(len(gt1),len(gt2))
+    gt1 = sorted(gt1 * (n//len(gt1)))
+    gt2 = sorted(gt2 * (n//len(gt2)))
+    return gt1 == gt2
+
+def describe_genotype(gt, variants):
+    if gt is None:
+        return '?'
+    return '/'.join(variants[item] for item in gt)
+
+    
 
 @config.help("""
 Run FreeBayes on a set of samples.
@@ -42,12 +73,15 @@ class Freebayes(config.Action_with_prefix):
         reference = None
         reference2 = None
         
+        extra = [ ]
+        
         for sample in self.samples:
             if sam.is_bam(sample):
                 bams.append(sample)
             elif os.path.isdir(sample):
                 working = working_directory.Working(sample,True)
                 bams.append( working.get_filtered_sorted_bam() )
+                extra.append( '##sampleTags=' + ','.join(working.get_tags()) )
                 if reference2 is None:
                     reference2 = working.get_reference().reference_fasta_filename()
             elif io.is_sequence_file(sample):
@@ -68,8 +102,17 @@ class Freebayes(config.Action_with_prefix):
         
         self.log.log('Running: '+' '.join(command)+'\n')
         
-        with open(self.prefix+'.vcf','wb') as f:
-            io.execute(command, stdout=f)
+        with nesoni.Stage() as stage:
+            f_out = stage.enter( open(self.prefix+'.vcf','wb') )
+            f_in  = stage.enter( io.pipe_from(command) )
+            done_extra = False
+            for line in f_in:
+                if not done_extra and not line.startswith('##'):
+                    for extra_line in extra:
+                        f_out.write(extra_line+'\n')
+                    done_extra = True
+                f_out.write(line)
+
 
 class _Filter(Exception): pass
 
@@ -168,9 +211,7 @@ class Vcf_filter(config.Action_with_prefix):
             if self.min_gq is not None and sample.data.GQ < self.min_gq:
                 raise _Filter()
         
-            assert re.match('[0-9]+(/[0-9]+)*$', sample.data.GT), 'Unsupported genotype format: '%sample.data.GT
-        
-            gt = sorted(int(item) for item in sample.data.GT.split('/'))
+            gt = get_genotype(sample)            
             assert len(gt) % self.ploidy == 0, 'Can\'t reduce ploidy from %d to %d' % (len(gt),self.ploidy)
             stride = len(gt) // self.ploidy
         
@@ -201,11 +242,7 @@ class Vcf_filter(config.Action_with_prefix):
         #print reader.infos
         #print 
         for record in reader:
-            variants = [ record.REF ]
-            if isinstance(record.ALT,list):
-                variants.extend(str(item) for item in record.ALT)
-            else:
-                variants.append(str(record.ALT))
+            variants = get_variants(record)
             
             any = False
             
@@ -240,6 +277,57 @@ class Vcf_filter(config.Action_with_prefix):
                 
         writer.close()
         reader_f.close()
+
+
+@config.help("""\
+Run SnpEff to annotate variants with their effects.
+""")
+@config.Positional('reference', 'Reference directory')
+@config.Positional('vcf', 'VCF file')
+class Snpeff(config.Action_with_prefix):
+    reference = None
+    vcf = None
+    
+    def run(self):
+        reference = reference_directory.Reference(self.reference, must_exist=True)
+        
+        jar = io.find_jar('snpEff.jar')
+        
+        with open(self.prefix + '.vcf','wb') as f:
+            io.execute('java -jar JAR eff GENOME VCF -c CONFIG',
+                JAR=jar, GENOME=reference.name, VCF=self.vcf, CONFIG=reference/'snpeff.config',
+                stdout=f)
+
+
+@config.help("""\
+Summarize a VCF file in various ways.
+""")
+@config.Bool_flag('reference', 'Include reference in comparison.')
+@config.Positional('vcf', 'VCF file')
+class Vcf_nway(config.Action_with_prefix):
+    reference = True
+
+    vcf = None
+    
+    def run(self):
+        reader_f = open(self.vcf,'rU')
+        reader = vcf.Reader(reader_f)
+        
+        if self.reference:
+            samples = [ 'reference'] + reader.samples
+        else:
+            samples = reader.samples
+        
+        for record in reader:
+            variants = get_variants(record)
+            genotypes = [ get_genotype(call) for call in record.samples ]
+            if self.reference:
+                genotypes = [ [0] ]+genotypes
+            
+            print ' '.join( describe_genotype(gt, variants) for gt in genotypes )
+            
+            exec grace.DEBUG in locals()
+            goo
 
 
 @config.help("""\

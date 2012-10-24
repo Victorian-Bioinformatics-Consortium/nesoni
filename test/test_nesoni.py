@@ -37,7 +37,8 @@ class Test_analyse_sample(unittest.TestCase):
         
         nesoni.Make_reference(
             output_dir=output/'reference', 
-            filenames=[ data/'NC_001422.gbk' ]
+            filenames=[ data/'NC_001422.gbk' ],
+            bowtie=True,
         ).run()
 
     def test_check_names(self):
@@ -90,6 +91,13 @@ class Test_analyse_sample(unittest.TestCase):
             what='unique',
         ).run()
 
+    def test_bowtie(self):
+        nesoni.Analyse_sample(
+            output_dir=output/'test-analyse', 
+            reference=output/'reference',
+            pairs=[[data/'reads_1.txt.gz',data/'reads_2.txt.gz']],
+            align=nesoni.Bowtie(),
+        ).run()
 
 if __name__ == '__main__':
     unittest.main()

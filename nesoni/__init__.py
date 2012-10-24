@@ -19,12 +19,12 @@ from trivia import Test, As_fasta, As_gff, Sample, Stats
 from shred import Shred
 from igv import Make_genome, IGV_plots, As_userplots, Run_igv
 from workflows import Analyse_sample
-from variant import Freebayes, Vcf_filter, Vcf_patch, Test_variant_call, Power_variant_call
+from variant import Freebayes, Vcf_filter, Snpeff, Vcf_nway, Vcf_patch, Test_variant_call, Power_variant_call
 
 from legion import *
 
 
-VERSION='0.89'
+VERSION='0.90'
 
 BOLD = '\x1b[1m'
 END = '\x1b[m'
@@ -68,6 +68,10 @@ These provide an alternative to consensus calling using "nesoni consensus:"
     freebayes:    - Run FreeBayes to produce a VCF file.
     
     vcf-filter:   - Filter a VCF file, eg as produced by "nesoni freebayes:".
+    
+    snpeff:       - Run snpEff to annotate variants with their effects.
+    
+    vcf-nway:     - Summarize a VCF file in a variety of possible ways (under development!).
     
     vcf-patch:    - Patch in variants to produce genome of samples.
                     (similar to consensus_masked.fa produced by "nesoni consensus:")

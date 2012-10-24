@@ -1,5 +1,7 @@
 global-include *.py *.pyx
 exclude release.py
+exclude backyard
+exclude backyard/*
 include nesoni-script
 include nesoni_scripts/*
 include README

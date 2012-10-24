@@ -1,5 +1,5 @@
 
-from nesoni import config, workspace, working_directory, reference_directory, io, grace
+from nesoni import config, legion, workspace, working_directory, reference_directory, io, grace
 
 
 @config.help("""\
@@ -28,6 +28,10 @@ class Bowtie(config.Action_with_output_dir):
     bowtie_options = []
     
     _workspace_class = working_directory.Working
+    
+    def cores_required(self):
+        # All of them, please.
+        return legion.coordinator().get_cores()
 
     def run(self):
         assert self.reads or self.pairs or self.interleaved, 'No reads given'
@@ -94,31 +98,39 @@ class Bowtie(config.Action_with_output_dir):
                 singles.append(convert(item))
 
             command = [ 
-                'bowtie2', '-x', reference.get_bowtie_index_prefix(),
+                'bowtie2', 
+                '--threads', str(self.cores_required()),
                 '--rg-id', '1',
-                '--rg', 'SM:'+working.name
+                '--rg', 'SM:'+working.name,
+                '--all',
+                '--no-discordant',
+                ] + self.bowtie_options + [
+                '-x', reference.get_bowtie_index_prefix(),
                 ]
+            commands = [ ]
             if ones:
-                command.extend([ '-1', ','.join(ones), '-2', ','.join(twos) ])
+                commands.append(command + [ '-1', ','.join(ones), '-2', ','.join(twos) ])
             if singles:
-                command.extend([ '-U', ','.join(singles) ])
-            
-            command.extend(self.bowtie_options)
+                commands.append(command + [ '-U', ','.join(singles) ])
             
             temp_bam_name = temp/'temp.bam'
 
-            self.log.log('Running:\n' + ' '.join(command) + '\n')
-            
             with io.pipe_to(
                      ['samtools', 'view', '-S', '-b', '-'],
                      stdout=open(temp_bam_name,'wb'),
                      stderr=log_file
                      ) as f:
-                io.execute(
-                    command,
-                    stdout=f,
-                    stderr=log_file
-                    )
+                header_sent = False
+                for command in commands:
+                    self.log.log('Running:\n' + ' '.join(command) + '\n')            
+                    with io.pipe_from(
+                        command,
+                        stderr=log_file
+                        ) as f_out:
+                        for line in f_out:
+                            if not header_sent or not line.startswith('@'):
+                                f.write(line)
+                    header_sent = True
 
             io.execute([
                 'samtools', 'sort', '-n', temp_bam_name, working/'alignments'

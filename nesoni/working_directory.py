@@ -1,8 +1,40 @@
 
-import os
+import os, re
 
 from nesoni import grace, io, config, reference_directory
-   
+
+def _is_bool(item):
+    return type(item) is bool
+
+def matches(expression, tags):
+    priority = { '[':3, ']':0, ':':2, '+':1, '-':1 }
+    exp = re.split('(['+''.join('\\'+item for item in priority)+'])',expression)
+    exp = [ item for item in exp if item ]
+    exp = [ item in tags if item not in priority else item for item in exp ]
+    i = 0
+    while i < len(exp)-2:
+        print exp
+        if i == len(exp)-3:
+           p = 0
+        else:
+           p = priority.get(exp[i+3],0)
+           
+        if exp[i] == '[' and _is_bool(exp[i+1]) and exp[i+2] == ']':
+            exp[i:i+3] = [ exp[i+1] ]
+            i = 0
+        elif p <= 2 and _is_bool(exp[i]) and exp[i+1] == ':' and _is_bool(exp[i+2]):
+            exp[i:i+3] = [ exp[i] and exp[i+2] ]
+            i = 0
+        elif p <= 1 and _is_bool(exp[i]) and exp[i+1] == '+' and _is_bool(exp[i+2]):
+            exp[i:i+3] = [ exp[i] or exp[i+2] ]
+            i = 0
+        elif p <= 1 and _is_bool(exp[i]) and exp[i+1] == '-' and _is_bool(exp[i+2]):
+            exp[i:i+3] = [ exp[i] and not exp[i+2] ]
+            i = 0
+        else:
+            i += 1
+    assert len(exp) == 1, 'Could not parse "%s"' % expression
+    return exp[0]
 
 
 class Working(io.Workspace):
@@ -31,9 +63,11 @@ class Working(io.Workspace):
         assert os.path.exists(filename), 'Alignments in %s haven\'t been filtered, need to run "nesoni filter:" or "nesoni consensus:".' % self.name
         return filename
 
-    #def matches(self, expression):
-    #    terms = expression.split(',')
-    #    return name in terms or any( item in terms for item in self.param.get('tags',()) )
+    def get_tags(self):
+        return [self.name,'all']+self.param.get('tags',[])
+
+    def matches(self, expression):
+        return matches(expression, self.get_tags())
 
 
 
@@ -50,7 +84,7 @@ class Tag(config.Action_with_working_dir):
     
     def run(self):
         for tag in tags:
-            for char in ', \t':
+            for char in '+-:, \t\'\"':
                 assert char not in tag, 'Tags shouldn\'t contain "'+char+'".'
         
         workspace = self.get_workspace()

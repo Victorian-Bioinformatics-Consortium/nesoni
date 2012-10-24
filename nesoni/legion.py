@@ -87,7 +87,7 @@ import cPickle as pickle
 
 from nesoni import grace, config
 
-class Child_exception(grace.Error): pass
+class Stage_exception(grace.Error): pass
 
 
 def chunk(iterable, chunk_size):
@@ -216,11 +216,19 @@ class My_coordinator:
 
     def _update(self):
         with self.lock:
-            for i in xrange(len(self.waiters)-1,-1,-1):
-                if self.waiters[i][0] + self.used <= self.cores:
-                    self.used += self.waiters[i][0]
-                    self.waiters[i][1].set()
-                    del self.waiters[i]
+            #Conservative policy: use no more than the given cores
+            #for i in xrange(len(self.waiters)-1,-1,-1):
+            #    if self.waiters[i][0] + self.used <= self.cores:
+            #        self.used += self.waiters[i][0]
+            #        self.waiters[i][1].set()
+            #        del self.waiters[i]
+            
+            #Greedy policy: whenever there are cores free, start something up, 
+            #               even if it uses more cores than available
+            while self.waiters and self.used < self.cores:
+                self.used += self.waiters[-1][0]
+                self.waiters[-1][1].set()
+                del self.waiters[-1]
     
     def set_cores(self, n):
         with self.lock:
@@ -242,11 +250,8 @@ class My_coordinator:
 
     def trade_cores(self, old, new):
         with self.lock:
-            assert new <= self.cores, 'Don\'t have %d cores.' % new
+            #assert new <= self.cores, 'Don\'t have %d cores.' % new
             self.used -= old
-            if self.used + new <= self.cores:
-                self.used += new
-                return
             event = threading.Event()
             self.waiters.append((new, event))
             self._update()
@@ -373,8 +378,10 @@ class Stage(object):
     """ All the world's a stage,
         And all the men and women merely players 
     
-        Use this class to synchronize with sets of 
-        processes that you start.
+        Use this class to 
+        - synchronize with sets of processes that you start.
+        - enter context managers without deeply nesting "with"
+          statements.
         
         Example:
         
@@ -385,13 +392,33 @@ class Stage(object):
         ...
         
         stage.barrier()   #Wait for all processes started by this stage to finish
+        
+        Or:
+        
+        with Stage() as stage:
+            stage.process(my_func1,...)
+            stage.process(my_func2,...)
+        # (barrier as with block exits)
 
         
-        Limitations: 
+        Limitations:
+        
         A stage object can not be passed to a different process.
     """
     def __init__(self):
         self.futures = [ ]
+        self.contexts = [ ]
+        self.entered = False
+    
+    def __enter__(self):
+        assert not self.entered
+        self.entered = True
+        return self
+    
+    def __exit__(self, *exc):
+        assert self.entered
+        self.entered = False
+        self.barrier()
 
     def add(self, future):
         """ Add an existing future to this stage's collection. 
@@ -416,23 +443,44 @@ class Stage(object):
         self.add(item)
         return item
 
+    def enter(self, context):
+        """ Enter a context.
+            Context will be exited at next barrier. """
+        value = context.__enter__()
+        self.contexts.append(context)
+        return value
+
     def barrier(self):
         """ Wait for all processes that have been added to this stage
-            to finish. """
+            to finish. 
+            
+            Leave all contexts that were entered.
+            """
+        exceptions = [ ]
+
         if self.futures:
             LOCAL.stages.remove(self)
 
-            exceptions = [ ]
             while self.futures:
                 try:
-                    self.futures.pop()()
+                    self.futures.pop(0)()
                 except Exception as e:
-                    if isinstance(e, Child_exception):
+                    if isinstance(e, Stage_exception):
                         exceptions.extend(e.args)
                     else:
                         exceptions.append(e)
-            if exceptions:
-                raise Child_exception(*exceptions)
+            
+        while self.contexts:
+            try:
+                self.contexts.pop(-1).__exit__(None,None,None)
+            except Exception as e:
+                if isinstance(e, Stage_exception):
+                    exceptions.extend(e.args)
+                else:
+                    exceptions.append(e)
+        
+        if exceptions:
+            raise Stage_exception(*exceptions)
 
 
 
@@ -904,7 +952,7 @@ class Execute(config.Action_filter):
 @config.Bool_flag('make_done', 
     'Do nothing, but mark all actions as done. '
     'This might be useful if there is a trivial parameter change you don\'t want to re-run. '
-    'To re-run from a particular point, use this option then delete files from .state/ as needed.')
+    'To re-run from a particular point, use this option then delete .state files as needed.')
 @config.String_flag('make_address', 'IP address of the network interface you want the job manager to listen to.')
 @config.String_flag('make_job', 
     'Command to launch a new python. Should either contain __command__, which will be subtituted '
@@ -1012,7 +1060,9 @@ def run_toolbox(action_classes, script_name='', show_make_flags=True):
     args = configure_making(sys.argv[1:])
     
     commands = { }
+
     help = [ '\n' ]
+
     for item in action_classes:
         if isinstance(item, str):
             help.append(config.wrap(item, 70) + '\n\n')
@@ -1023,7 +1073,7 @@ def run_toolbox(action_classes, script_name='', show_make_flags=True):
         help.append(config.wrap(item.help_short, 70, '        ') + '\n\n')
 
     if show_make_flags:
-        help.append('\nMake options:\n'+Make().describe('', show_help=True)+'\n')
+        help.append('\nMake options:\n'+Make().describe('', show_help=True, escape_newlines=False)+'\n')
 
     if not args:
         config.write_colored_text(sys.stdout, ''.join(help)+'\n\n')

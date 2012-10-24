@@ -9,6 +9,9 @@ import sys, os, subprocess
 
 from nesoni.config import Error, filesystem_friendly_name
 
+# exec grace.DEBUG
+DEBUG = 'import code; code.interact(local=locals())'
+
 class Help_shown(Exception):
     pass
 

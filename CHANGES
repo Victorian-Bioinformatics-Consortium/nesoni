@@ -1,6 +1,9 @@
 
 0.90 - Sensible error if prefix or output dir not given.
+       legion is greedier about using cores.
+       Stage objects can now also manage "with"-style contexts.
        "shred:" can now output fastq.
+       "bowtie:" now uses flags --all, --no-discordant, --threads.
 
 0.89 - Change "--infidelity-snps" back to "--infidelity"
        Added Dirichlet-based quality calculation to "vcf-filter:"

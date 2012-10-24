@@ -1,5 +1,5 @@
 
-from nesoni import io, bio, grace, sam, config, working_directory
+from nesoni import io, bio, grace, sam, config, legion, working_directory
 
 import os, sys, subprocess
 
@@ -56,6 +56,10 @@ class Shrimp(config.Action_with_output_dir):
     shrimp_options = []
     
     _workspace_class = working_directory.Working
+    
+    def cores_required(self):
+        # All of them, please.
+        return legion.coordinator().get_cores()
 
     def run(self):
         grace.require_shrimp_2()
@@ -88,7 +92,7 @@ class Shrimp(config.Action_with_output_dir):
         default_options = { 
             '-E' : None, 
             '-T' : None, 
-            '-N' : str(grace.how_many_cpus()), 
+            '-N' : str(self.cores_required()), 
             '-n':'2', 
             '-w':'200%',
             '-p': 'opp-in', 

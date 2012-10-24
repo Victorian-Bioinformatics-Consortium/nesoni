@@ -94,6 +94,7 @@ class Stats(config.Action_with_optional_output):
                     total += 1
                     total_length += len(seq[1])
                 print >> f, grace.datum(name, 'sequences', total)
+                print >> f, grace.datum(name, 'total bases', total_length)
                 print >> f, grace.datum(name, 'average length', float(total_length)/total)
                 print >> f
                 any = True

@@ -26,7 +26,15 @@ def find_jar(jarname):
             return filename
     raise Error('Couldn\'t find "%s". Directories listed in JARPATH and PATH were searched.' % jarname)
 
-def run(args, stdin=None, stdout=PIPE, stderr=None):
+def _interpret_args(args, kwargs):
+    if isinstance(args,str):
+        args = args.strip().split()
+    return [ kwargs.get(item,item) for item in args ]
+
+def _describe_args(args, kwargs):
+    return ' '.join(_interpret_args(args,kwargs))
+
+def run(args, stdin=None, stdout=PIPE, stderr=None, **kwargs):
     """ Start a process using subprocess.Popen    
         
         Set close_fds=True so process doesn't inherit any other pipes we might be using.
@@ -39,6 +47,7 @@ def run(args, stdin=None, stdout=PIPE, stderr=None):
         
         stderr may also be nesoni.io.STDOUT
     """
+    args = _interpret_args(args, kwargs)    
     return subprocess.Popen(
         args,
         bufsize=1<<24,
@@ -47,47 +56,48 @@ def run(args, stdin=None, stdout=PIPE, stderr=None):
         stderr=stderr,
         close_fds=True,
     )
+    
 
 @contextlib.contextmanager
-def pipe_to(args, stdout=None, stderr=None):
+def pipe_to(args, stdout=None, stderr=None, **kwargs):
     """ Context to pipe to a process, eg
     
         with io.pipe_to(['less']) as f:
             print >> f, 'Hello, world.'
     
     """
-    process = run(args, stdin=PIPE, stdout=stdout, stderr=stderr)
+    process = run(args, stdin=PIPE, stdout=stdout, stderr=stderr, **kwargs)
     try:
         yield process.stdin
     finally:
         process.stdin.close()
         exit_code = process.wait()
-    assert exit_code == 0, 'Failed: "%s"' % ' '.join(args)
+    assert exit_code == 0, 'Failed: "%s"' % _describe_args(args,kwargs)
 
 @contextlib.contextmanager
-def pipe_from(args, stdin=None, stderr=None):
+def pipe_from(args, stdin=None, stderr=None, **kwargs):
     """ Context to pipe from a process, eg
     
         with io.pipe_from(['ls']) as f:
             print f.read().rstrip('\n').split('\n')
     
     """
-    process = run(args, stdin=stdin, stdout=PIPE, stderr=stderr)
+    process = run(args, stdin=stdin, stdout=PIPE, stderr=stderr, **kwargs)
     try:
         yield process.stdout
     finally:
         process.stdout.close()
         exit_code = process.wait()
-    assert exit_code == 0, 'Failed: "%s"' % ' '.join(args)
+    assert exit_code == 0, 'Failed: "%s"' % _describe_args(args,kwargs)
 
 
-def execute(args, stdin=None, stdout=None, stderr=None):
+def execute(args, stdin=None, stdout=None, stderr=None, **kwargs):
     """ Run a program.
     
         Raise an error if it has an exit code other than 0.
     """
-    p = run(args, stdin=stdin, stdout=stdout, stderr=stderr)
-    assert p.wait() == 0, 'Failed to execute "%s"' % ' '.join(args)
+    p = run(args, stdin=stdin, stdout=stdout, stderr=stderr, **kwargs)
+    assert p.wait() == 0, 'Failed to execute "%s"' % _describe_args(args,kwargs)
 
 
 def get_compression_type(filename):

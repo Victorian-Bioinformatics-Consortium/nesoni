@@ -45,7 +45,6 @@ class Reference(io.Workspace):
         io.execute([
             'samtools', 'faidx', reference_filename
         ])
-
     
     def get_lengths(self):
         #Legacy working directory
@@ -60,6 +59,23 @@ class Reference(io.Workspace):
     
     def reference_fasta_filename(self):
         return self.object_filename('reference.fa')
+        
+    def set_annotations(self, filenames):
+        f = self.open('reference.gff','wb')
+        print >> f, '##gff-version 3'
+        for filename in filenames:
+            for feature in annotation.read_annotations(filename):
+                print >> f, feature.as_gff()
+        f.close()
+    
+    def annotations_filename(self):
+        name1 = self.object_filename('reference.gff')
+        if os.path.exists(name1):
+            return name1
+        name2 = self.object_filename('reference.gbk')
+        if os.path.exists(name2):
+            return name2
+        return None
 
     def build_shrimp_mmap(self, cs=False, log_to=sys.stdout):
         suffix = '-cs' if cs else '-ls'
@@ -112,27 +128,37 @@ class Reference(io.Workspace):
         else:
             result.append( self.reference_fasta_filename() )
         return result
+
+    def build_snpeff(self):
+        jar = io.find_jar('snpEff.jar')
         
-    def set_annotations(self, filenames):
-        f = self.open('reference.gff','wb')
-        print >> f, '##gff-version 3'
-        for filename in filenames:
-            for feature in annotation.read_annotations(filename):
-                print >> f, feature.as_gff()
-        f.close()
-    
-    def annotations_filename(self):
-        name1 = self.object_filename('reference.gff')
-        if os.path.exists(name1):
-            return name1
-        name2 = self.object_filename('reference.gbk')
-        if os.path.exists(name2):
-            return name2
-        return None
+        with open(self/'snpeff.config','wb') as f:
+            print >> f, 'data_dir = snpeff'
+            print >> f, 'genomes : ' + self.name
+            print >> f, self.name + '.genome : ' + self.name 
+        
+        snpwork = io.Workspace(self/'snpeff',must_exist=False)
+        snpwork_genome = io.Workspace(snpwork/self.name,must_exist=False)
+        
+        annotations = self.annotations_filename()
+        assert annotations
+        with open(snpwork_genome/'genes.gff','wb') as f:
+            for record in annotation.read_annotations(annotations):
+                if record.end <= record.start: continue
+                if not record.attr:
+                    record.attr['attributes'] = 'none'
+                print >> f, record.as_gff()
+        
+        with open(snpwork_genome/'sequences.fa','wb') as f:
+            for name, seq in io.read_sequences(self.reference_fasta_filename()):
+                io.write_fasta(f, name, seq)
+                
+        io.execute('java -jar JAR build NAME -gff3 -c CONFIG',
+            JAR=jar, NAME=self.name, CONFIG=self/'snpeff.config')
 
 
 @config.help("""\
-Create a directory with a reference sequence, 
+Create a directory with a reference sequence, \
 and optionally reference annotations, \
 SHRiMP mmap files, Bowtie2 index files, \
 and IGV .genome file.
@@ -146,12 +172,14 @@ using existing sequences and annotations.
 @config.Bool_flag('cs', 'Generate gmapper-cs mmap (faster SHRiMP startup for color-space reads).')
 @config.Bool_flag('bowtie', 'Generate bowtie2 index (necessary in order to use "nesoni bowtie:").')
 @config.Bool_flag('genome', 'Create .genome file and directory for use with IGV.')
+@config.Bool_flag('snpeff', 'Create snpEff files.')
 @config.Main_section('filenames', 'Sequence and annotation files.')
 class Make_reference(config.Action_with_output_dir):
     ls = False
     cs = False
     bowtie = False
-    genome = True
+    genome = False
+    snpeff = False
     filenames = [ ]
 
     def run(self):
@@ -185,6 +213,8 @@ class Make_reference(config.Action_with_output_dir):
                 reference.build_bowtie_index(f)
             if self.genome:
                 reference.build_genome()
+            if self.snpeff:
+                reference.build_snpeff()
             
         
         
