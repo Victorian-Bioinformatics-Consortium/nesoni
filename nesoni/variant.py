@@ -299,36 +299,90 @@ class Snpeff(config.Action_with_prefix):
                 stdout=f)
 
 
+
+
+_Nway_record = collections.namedtuple('_Nway_record', 'genotypes variants record')
+
+
 @config.help("""\
 Summarize a VCF file in various ways.
+
+The reference sequence is included in the output, with name "reference". \
+To exclude it use "--select -reference".
 """)
-@config.Bool_flag('reference', 'Include reference in comparison.')
+@config.String_flag('as_', 'Output format.')
+@config.String_flag('select', 'A selection expression to select samples (see main help text).')
+@config.String_flag('sort', 'A sort expression to sort samples (see main help text).')
 @config.Positional('vcf', 'VCF file')
+@config.Section('contrast', 
+    'Two or more selection expressions defining sub-groups. '
+    'Only output variants that can be used to distinguish between some pair of sub-groups in this list.',
+    allow_flags=True)
 class Vcf_nway(config.Action_with_prefix):
-    reference = True
+    as_ = 'table'
+    select = 'all'
+    sort = ''
+    contrast = [ ]
 
     vcf = None
     
     def run(self):
         reader_f = open(self.vcf,'rU')
         reader = vcf.Reader(reader_f)
-        
-        if self.reference:
-            samples = [ 'reference'] + reader.samples
-        else:
-            samples = reader.samples
-        
-        for record in reader:
-            variants = get_variants(record)
-            genotypes = [ get_genotype(call) for call in record.samples ]
-            if self.reference:
-                genotypes = [ [0] ]+genotypes
-            
-            print ' '.join( describe_genotype(gt, variants) for gt in genotypes )
-            
-            exec grace.DEBUG in locals()
-            goo
 
+        tags = { }
+        for item in reader.metadata.get('sampleTags',[]):
+            parts = item.split(',')
+            tags[parts[0]] = parts
+        
+        assert 'reference' not in reader.samples, 'Can\'t have a sample called reference, sorry.'
+
+        samples = [ 'reference'] + reader.samples
+        
+        for sample in samples:
+            if sample not in tags:
+                tags[sample] = [ sample, 'all' ]
+
+        samples = working_directory.select_and_sort(
+            self.select, self.sort, samples, lambda sample: tags[sample])
+        
+        sample_number = dict((b,a) for a,b in enumerate(reader.samples))
+        
+        items = [ ]
+        for record in reader:
+            variants = get_variants(record)                
+            genotypes = [ ]
+            for sample in samples:
+                if sample == 'reference':
+                    genotypes.append([0])
+                else:
+                    genotypes.append(get_genotype(record.samples[sample_number[sample]]))                
+            items.append(_Nway_record(genotypes, variants, record))
+        
+        if self.as_ == 'table':
+            self._write_table(samples, items)
+        else:
+            raise grace.Error('Unknown output format: '+self.as_)
+        
+    def _write_table(self, samples, items):
+        names = [ '%s:%d' % (item.record.CHROM, item.record.POS) for item in items ]
+        sample_list = io.named_list_type(samples)
+        
+        locations_list = io.named_list_type(['CHROM','POS'])
+        locations = io.named_list_type(names, locations_list)([
+            locations_list([ item.record.CHROM, item.record.POS ])
+            for item in items
+        ])
+                
+        genotypes = io.named_list_type(names,sample_list)([
+            sample_list([ describe_genotype(item2,item.variants) for item2 in item.genotypes ])
+            for item in items
+        ])
+        
+        groups = [ ('Location', locations), ('Genotype', genotypes) ]
+        
+        io.write_grouped_csv(self.prefix + '.csv', groups)
+    
 
 @config.help("""\
 Patch variants in a VCF file into the reference sequence, \

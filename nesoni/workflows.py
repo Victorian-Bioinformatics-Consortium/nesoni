@@ -72,5 +72,16 @@ class Analyse_sample(config.Action_with_output_dir):
             ).make()
 
 
+@config.Positional('reference', 'Reference directory created by "make-reference:".')
+@config.Configurable_section('analysis', 'Common options for analyse-sample:')
+@config.Grouped_configurable_section('sample', 'Samples for analysis.')
+class Analyse_samples(config.Action_with_output_dir):
+    reference = None
+    analysis = Analyse_sample()
+    
+    sample = [ ]
+
+
+
 
 

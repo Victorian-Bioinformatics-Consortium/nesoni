@@ -273,7 +273,7 @@ def bam_iter_fragments(filename, status_text='Processing'):
 class Bam_writer(object):
     def __init__(self, filename, headers=''):
         self.writer = io.Pipe_writer(filename, ['samtools', 'view', '-S', '-b', '-'])
-        self.writer.write(headers) 
+        self.writer.write(headers)
 
     def write(self, al):
         line = '\t'.join([

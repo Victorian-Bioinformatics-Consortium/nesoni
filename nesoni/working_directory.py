@@ -6,35 +6,68 @@ from nesoni import grace, io, config, reference_directory
 def _is_bool(item):
     return type(item) is bool
 
+
 def matches(expression, tags):
-    priority = { '[':3, ']':0, ':':2, '+':1, '-':1 }
-    exp = re.split('(['+''.join('\\'+item for item in priority)+'])',expression)
+    tokens = list('[]-:/^')
+    exp = re.split('(['+''.join('\\'+item for item in tokens)+'])',expression)
     exp = [ item for item in exp if item ]
-    exp = [ item in tags if item not in priority else item for item in exp ]
-    i = 0
-    while i < len(exp)-2:
-        print exp
-        if i == len(exp)-3:
-           p = 0
+    
+    def parse2(exp):
+        assert exp
+        if exp[0] == '[':
+           value, exp = parse(exp[1:])
+           assert exp and exp[0] == ']', 'expected a closing ]'
+           return value, exp[1:]
+        assert exp[0] not in tokens, 'didn\'t expect '+exp[0]
+        return exp[0] in tags, exp[1:]
+    
+    def parse1(exp):
+        assert exp, 'unexpected end of expression'
+        if exp[0] == '-':
+            value, exp = parse2(exp[1:])
+            return not value, exp
         else:
-           p = priority.get(exp[i+3],0)
-           
-        if exp[i] == '[' and _is_bool(exp[i+1]) and exp[i+2] == ']':
-            exp[i:i+3] = [ exp[i+1] ]
-            i = 0
-        elif p <= 2 and _is_bool(exp[i]) and exp[i+1] == ':' and _is_bool(exp[i+2]):
-            exp[i:i+3] = [ exp[i] and exp[i+2] ]
-            i = 0
-        elif p <= 1 and _is_bool(exp[i]) and exp[i+1] == '+' and _is_bool(exp[i+2]):
-            exp[i:i+3] = [ exp[i] or exp[i+2] ]
-            i = 0
-        elif p <= 1 and _is_bool(exp[i]) and exp[i+1] == '-' and _is_bool(exp[i+2]):
-            exp[i:i+3] = [ exp[i] and not exp[i+2] ]
-            i = 0
-        else:
-            i += 1
-    assert len(exp) == 1, 'Could not parse "%s"' % expression
-    return exp[0]
+            value, exp = parse2(exp)
+            return value, exp
+    
+    def parse(exp):
+        value, exp = parse1(exp)
+        while exp and exp[0] in [':','/','^']:
+            operator, exp = exp[0], exp[1:]
+            value2, exp = parse1(exp)
+            if operator == ':':
+                value = value and value2
+            elif operator == '/':
+                value = value or value2
+            else:
+                value = (not value2 and value) or (not value and value2)
+        return value, exp
+    
+    try:
+        value, exp = parse(exp)
+        assert not exp, 'don\'t know what to do with: '+''.join(exp)
+    except AssertionError, e:
+        raise grace.Error('Could not parse: '+expression+', '+e.args[0])
+    return value
+
+
+def select_and_sort(select_expression, sort_expression, items, get_tags=lambda item: item.get_tags()):
+    """ Select items based on select_expression then sort by sort_expression. """
+    items = [ item for item in items
+              if matches(select_expression, get_tags(item)) ]
+
+    if not sort_expression:
+        parts = []
+    else:
+        parts = sort_expression.split(',')
+    
+    def key(item):
+        tags = get_tags(item)
+        return [ 0 if matches(part, tags) else 1
+                 for part in parts ]
+
+    items.sort(key=key)
+    return items
 
 
 class Working(io.Workspace):
@@ -83,7 +116,7 @@ class Tag(config.Action_with_working_dir):
     _workspace_class = Working
     
     def run(self):
-        for tag in tags:
+        for tag in self.tags:
             for char in '+-:, \t\'\"':
                 assert char not in tag, 'Tags shouldn\'t contain "'+char+'".'
         

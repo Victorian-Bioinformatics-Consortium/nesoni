@@ -24,7 +24,7 @@ from variant import Freebayes, Vcf_filter, Snpeff, Vcf_nway, Vcf_patch, Test_var
 from legion import *
 
 
-VERSION='0.90'
+VERSION='0.91'
 
 BOLD = '\x1b[1m'
 END = '\x1b[m'
@@ -71,7 +71,7 @@ These provide an alternative to consensus calling using "nesoni consensus:"
     
     snpeff:       - Run snpEff to annotate variants with their effects.
     
-    vcf-nway:     - Summarize a VCF file in a variety of possible ways (under development!).
+    vcf-nway:     - Summarize a VCF file in a variety of possible ways.
     
     vcf-patch:    - Patch in variants to produce genome of samples.
                     (similar to consensus_masked.fa produced by "nesoni consensus:")
@@ -189,6 +189,39 @@ behaviour:
 - annotation files can be in GENBANK or GFF format 
   (GFF is not yet supported by all tools).
 - nesoni is able to read files compressed with gzip or bzip2.
+
+
+%(BOLD)sSelections and sorts:%(END)s
+Working directories can be given a set of tags using "tag:". They also 
+implicitly have a tag for the name of the directory, and a tag "all".
+
+A %(BOLD)sselection expression%(END)s is a logical expression used to select a subset 
+of working directories. It may consist of (grouped by precedence):
+
+  tag        - Working directories with tag
+
+  [exp]      - exp
+
+  -exp       - not exp
+
+  exp1:exp2  - exp1 and exp2
+  exp1/exp2  - exp1 or exp2
+  exp1^expr2 - exp1 xor exp2
+
+Example:
+
+  [strain1:time1]/[-strain1:-time1]   
+             - Samples either from strain1 at time1, 
+               or not from strain1 and not from time1.
+               Equivalently: strain1^-time1
+
+A %(BOLD)ssort expression%(END)s is a comma separated list of selection expressions,
+used to sort a list of working directories.
+
+Example:
+
+  strain1,strain2,time1,time2,time3,replicate1,replicate2
+             - Sort, grouping by strain, then by time, then by replicate
 
 """ % { 'BOLD' : '\x1b[1m', 'END' : '\x1b[m', 'VERSION' : VERSION, 'MAKE' : Make().describe('', show_help=True) }
 

@@ -11,7 +11,7 @@ Metainformation about tools will hopefully allow
 """
 
 
-import sys, os, pickle, traceback, textwrap, re, copy, functools, types, datetime
+import sys, os, pickle, traceback, textwrap, re, copy, functools, types, datetime, pipes
 
 from nesoni import workspace
 
@@ -31,6 +31,11 @@ def filesystem_friendly_name(name):
 
 def colored(color, text):
     return '\x1b[%dm%s\x1b[m' % (color, text)
+
+def color_as_flag(text): return colored(1, text)
+def color_as_template(text): return colored(32, text)
+def color_as_value(text): return colored(35, text)
+def color_as_comment(text): return colored(36, text)
 
 def strip_color(text):
     return re.sub(r'\x1b\[\d*m','',text)
@@ -121,6 +126,9 @@ class Parameter(object):
     
     def describe(self, value):
         return str(value)
+    
+    def describe_quoted(self, value):
+        return pipes.quote(self.describe(value))
 
     def __call__(self, item):
         # Put the parameter after any parameters from base classes
@@ -147,7 +155,8 @@ class Parameter(object):
     def describe_shell(self, value, verbose=True):
         if value is None and not verbose: 
             return ''
-        return colored(1, self.shell_name()) + ' ' + colored(35 if value is not None else 34, self.describe(value))
+        return color_as_flag(self.shell_name()) + ' ' + \
+               (color_as_value if value is not None else color_as_template)(self.describe_quoted(value))
 
 
 class Hidden(Parameter):
@@ -159,7 +168,7 @@ class Positional(Parameter):
     sort_order = 1
 
     def shell_name(self):
-        return '%s' % self.name.replace('_','-').lower()
+        return '<%s>' % self.name.replace('_','-').lower()
     
     def parse(self, obj, string):
         expect_no_further_flags([string])
@@ -167,9 +176,9 @@ class Positional(Parameter):
     
     def describe_shell(self, value, verbose=True):
         if value is None:
-            return colored(34, self.shell_name()) if verbose else ''
+            return color_as_template(self.shell_name()) if verbose else ''
         else:
-            return colored(35, self.describe(value))
+            return color_as_value(self.describe(value))
 
 
 class Flag(Parameter):
@@ -233,8 +242,14 @@ class Section(Parameter):
     def shell_name(self):
         return self.name.replace('_','-').rstrip('-').lower()+':'
 
+    def describe_each(self, value):
+        return [ str(item) for item in value ]
+
     def describe(self, value):
-        return ' '.join(str(item) for item in value)
+        return ' '.join(self.describe_each(value))
+    
+    def describe_quoted(self, value):
+        return ' '.join([ pipes.quote(item) for item in self.describe_each(value) ])
 
     def describe_shell(self, value, verbose=True):
         if not verbose and not value: return ''
@@ -247,14 +262,24 @@ class Grouped_section(Section):
             expect_no_further_flags(args)
         return self.get(obj) + [ args ]
 
-    def describe(self, value):
-        return ' '.join(self.shell_name() + ' ' + ' '.join(item) for item in value)
-        
+    def describe_each(self, value):
+        return [ self.shell_name() + ' ' + ' '.join(item) for item in value ]
+    
+    def describe_quoted(self, value):
+        return ' '.join([ 
+            self.shell_name() + 
+            ' ' + 
+            ' '.join([ pipes.quote(item2) for item2 in item]) 
+            for item in value
+        ])
+    
     def describe_shell(self, value, verbose=True):
         if verbose and not value:
-            return colored(1, self.shell_name())
+            return color_as_flag(self.shell_name()) + ' ' + color_as_template('...')
         return '\n'.join(
-            colored(1, self.shell_name()) + ' ' + colored(35, ' '.join(item))
+            color_as_flag(self.shell_name()) + 
+            ' ' + 
+            color_as_value(' '.join(pipes.quote(item2) for item2 in item))
             for item in value
         )
             
@@ -263,24 +288,24 @@ class Float_section(Section):
     def parse(self, obj, args):
         return self.get(obj) + [ float(item) for item in args ]
 
-    def describe(self, value):
-        return ' '.join( '%f' % item for item in value )        
+    def describe_each(self, value):
+        return [ '%f' % item for item in value ]
 
 
 class Main_section(Section):
     sort_order = 2
 
     def shell_name(self):
-        return self.name.replace('_','-').rstrip('-').lower()+' ...'
+        return '<' + self.name.replace('_','-').rstrip('-').lower()+' ...>'
 
     def describe_shell(self, value, verbose=True):
         if not value:
             if verbose:
-                return colored(34, self.shell_name())
+                return color_as_template(self.shell_name())
             else:
                 return ''
         else:
-            return colored(35, self.describe(value))
+            return color_as_value(self.describe(value))
 
 
 class Configurable_section(Section):
@@ -300,20 +325,23 @@ class Configurable_section(Section):
         )
         self.presets = presets
         
-        if self.presets:
+        if len(self.presets) > 1:
             self.help += '\n\nChoose from the following, then supply extra flags as needed:\n'
             for item in presets:
                 self.help += ' ' + item[0] + ' - ' + item[2] + '\n'
         
 
     def parse(self, obj, args):
-        for item in self.presets:
-            if args and args[0].lower() == item[0].lower():
-                base = item[1]
-                args = args[1:]
-                break
+        if len(self.presets) == 1:
+            base = self.presets[0][1]
         else:
-            base = self.get(obj)
+            for item in self.presets:
+                if args and args[0].lower() == item[0].lower():
+                    base = item[1]
+                    args = args[1:]
+                    break
+            else:
+                base = self.get(obj)
         
         if base is None:
             assert not args, 'Can\'t modify empty section'        
@@ -335,12 +363,28 @@ class Configurable_section(Section):
                     preset_guess = item
                     break
         
-        result = colored(34, self.shell_name()) 
+        result = color_as_flag(self.shell_name()) 
         if preset_guess:
-            result += ' ' + colored(35,preset_guess[0])
+            result += ' ' + color_as_value(preset_guess[0])
         if value is not None and (not verbose or not preset_guess or (value != preset_guess[1])):
             result += value.describe(invocation='',show_help=False,escape_newlines=False)
         return result
+
+
+class Grouped_configurable_section(Configurable_section):
+    def parse(self, obj, args):
+        assert len(self.presets) >= 1
+        item = Configurable_section.parse(self, obj, args)
+        return self.get(obj) + [ args ]
+
+    def describe_shell(self, value, verbose=True):
+        if verbose and not value:
+            return color_as_flag(self.shell_name()) + ' ' + color_as_template('...')
+        return '\n'.join(
+            Configurable_section.describe_shell(self, item, verbose)
+            for item in value
+        )
+        
 
 
 def help(short, extra=''):
@@ -547,7 +591,7 @@ class Configurable(object):
             if line:
                 desc.append(wrap(line,67,'    ',suffix))
                 if show_help and parameter.help:
-                    desc.append(colored(30,wrap(parameter.help,65,'      # ')))
+                    desc.append(colored(36,wrap(parameter.help,65,'      # ')))
        
         return (colored(2,suffix)+'\n').join( desc ) + '\n'
     

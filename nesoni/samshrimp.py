@@ -37,7 +37,7 @@ Useful shrimp options:
 """)
 @config.Main_section('references', 
     'Reference sequence filenames, '
-    'or a directory created using "nesoni make-reference: --bowtie yes" (recommended).')
+    'or a directory created using "nesoni make-reference:" (recommended).')
 @config.Bool_flag('cs', 'Are reads in colorspace?')
 @config.Bool_flag('sam_unaligned', 'Pass --sam-unaligned to gmapper?')
 @config.Bool_flag('half_paired', 'Pass --half-paired to gmapper?')

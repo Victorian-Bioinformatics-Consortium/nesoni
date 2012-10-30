@@ -1,4 +1,6 @@
 
+0.91 - 
+
 0.90 - Sensible error if prefix or output dir not given.
        legion is greedier about using cores.
        Stage objects can now also manage "with"-style contexts.
