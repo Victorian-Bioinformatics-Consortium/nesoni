@@ -17,9 +17,9 @@ if __name__ == '__main__':
         
         if main_file is not None: # so unpickling functions in __main__ works
             module = imp.new_module('__job__')
-            execfile(main_file, module.__dict__)
-            module.__name__ = '__main__'
+            sys.modules['__job__'] = module
             sys.modules['__main__'] = module
+            execfile(main_file, module.__dict__)
         
         # Retrieve function and execute
         func, args, kwargs = legion.coordinator().get_mail(mail_number)
@@ -28,7 +28,11 @@ if __name__ == '__main__':
 
     run_job()
 
-
+else:
+    # Make classes pickled in jobs unpicklable in main
+    import sys
+    if '__job__' not in sys.modules and '__main__' in sys.modules:
+        sys.modules['__job__'] = sys.modules['__main__']
 
 
 
@@ -70,7 +74,7 @@ copy_reg.pickle(types.MethodType, _pickle_method, _unpickle_method)
 
 __all__ = """
    coordinator
-   remake_needed remake_clear do_nothing
+   remake_needed remake_clear set_abort_make set_do_selection set_done_selection
    future 
    parallel_imap parallel_map parallel_for 
    thread_future thread_for
@@ -85,7 +89,7 @@ from multiprocessing import managers
 import threading, sys, os, signal, atexit, time, base64, socket, warnings, re
 import cPickle as pickle
 
-from nesoni import grace, config
+from nesoni import grace, config, selection
 
 class Stage_exception(grace.Error): pass
 
@@ -488,7 +492,8 @@ class Stage(object):
 LOCAL = threading.local()
 def set_locals():
     LOCAL.abort_make = False
-    LOCAL.do_nothing = False 
+    LOCAL.do_selection = ''
+    LOCAL.done_selection = ''
     LOCAL.time = 0 #Note: do not run this code before the year 1970
     LOCAL.stages = set() #Stages with processes in them, so we can warn if they don't have .barrier() called on them
     LOCAL.stage = Stage() #Default stage. Deprecated.
@@ -501,33 +506,35 @@ atexit.register(_check_stages)
 
 
 def remake_needed():
-    """ Force all tools to be re-run.     
-    """
+    """ Force all tools to be re-run. """
     LOCAL.time = coordinator().time()
 
 def remake_clear():
-    """ Indicate that any following tool invocation do not depend
-        on previous tool invocations. """
-    LOCAL.remake = 0
+    """ Subsequent tools don't depend on previous tools. """
+    LOCAL.time = 0
 
-def abort_makes():
-    """ Immediately abort if any tool needs to be run.
+def set_abort_make(value):
+    """ If set to true, immediately abort if any tool needs to be run.
     
         Allows checking of what would be run without actually running it.    
     """
-    LOCAL.abort_make = True
+    LOCAL.abort_make = value
 
-def do_nothing():
-    LOCAL.do_nothing = True
+def set_do_selection(selection):
+    LOCAL.do_selection = selection
+
+def set_done_selection(selection):
+    LOCAL.done_selection = selection
 
 
 
 
-def _run_future(time,abort_make,do_nothing, func, args, kwargs, future_number):
+def _run_future(time,abort_make,do_selection,done_selection, func, args, kwargs, future_number):
     set_locals()
     LOCAL.time = time
     LOCAL.abort_make = abort_make
-    LOCAL.do_nothing = do_nothing
+    LOCAL.do_selection = do_selection
+    LOCAL.done_selection = done_selection
     result = None
     exception = None
     try:
@@ -612,7 +619,7 @@ def future(func, *args, **kwargs):
     future_number = coordinator().new_future()
 
     #Give core to process we start
-    p = coordinator().job(_run_future,LOCAL.time,LOCAL.abort_make,LOCAL.do_nothing,func,args,kwargs,future_number)
+    p = coordinator().job(_run_future,LOCAL.time,LOCAL.abort_make,LOCAL.do_selection,LOCAL.done_selection,func,args,kwargs,future_number)
     
     #Get another for ourselves
     coordinator().acquire_core()
@@ -628,11 +635,12 @@ def thread_future(func, *args, **kwargs):
     """
     storage = [ ]
     
-    def run_future(time,abort_make,do_nothing):
+    def run_future(time,abort_make,do_selection,done_selection):
         set_locals()
         LOCAL.time = time
         LOCAL.abort_make = abort_make
-        LOCAL.do_nothing = do_nothing
+        LOCAL.do_selection = do_selection
+        LOCAL.done_selection = done_selection
         result = None
         exception = None
         try:
@@ -645,7 +653,7 @@ def thread_future(func, *args, **kwargs):
 
         storage.extend([ LOCAL.time, exception, result ])
 
-    thread = threading.Thread(target=run_future,args=(LOCAL.time,LOCAL.abort_make,LOCAL.do_nothing))  
+    thread = threading.Thread(target=run_future,args=(LOCAL.time,LOCAL.abort_make,LOCAL.do_selection,LOCAL.done_selection))
     thread.start()  
     def get_thread_future():
         thread.join()
@@ -742,6 +750,9 @@ def _get_timestamp(action):
     """ Look for ident() in .state subdirectory of current directory.
         If pickled value matches return the timestamp.
     """
+    if selection.matches(LOCAL.do_selection, [action.shell_name()]):
+        return None
+    
     try:
         for filename in [
             action.state_filename(),
@@ -781,7 +792,7 @@ def _run_and_save_state(action, timestamp):
     if os.path.exists(filename):
         os.unlink(filename)
     
-    if LOCAL.do_nothing:
+    if selection.matches(LOCAL.done_selection, [action.shell_name()]):
         result = None
     else:
         result = action.run()
@@ -812,7 +823,7 @@ def _make_inner(action):
     try:        
         config.write_colored_text(sys.stderr, '\n'+action.describe()+'\n')
         
-        if LOCAL.abort_make:
+        if LOCAL.abort_make and not selection.matches(LOCAL.do_selection, [action.shell_name()]):
             raise grace.Error('%s would be run. Stopping here.' % action.ident())
         
         grace.status(action.ident())
@@ -947,12 +958,13 @@ class Execute(config.Action_filter):
 
 
 @config.Int_flag('make_cores', 'Approximate number of cores to use.')
-@config.Bool_flag('make_force', 'Force everything to be recomputed.')
-@config.Bool_flag('make_show', 'Show the first actions that would be made, then abort.')
-@config.Bool_flag('make_done', 
-    'Do nothing, but mark all actions as done. '
-    'This might be useful if there is a trivial parameter change you don\'t want to re-run. '
-    'To re-run from a particular point, use this option then delete .state files as needed.')
+@config.String_flag('make_do', 
+    'Force this selection of tool names to be recomputed.\n'
+    'Examples: --make-do all  --make-do analyse-samples/analyse-sample')
+@config.String_flag('make_done', 
+    'Mark this selection of tool names as done without recomputing them, '
+    'if they would be recomputed.')
+@config.Bool_flag('make_show', 'Show the first actions that would be made (other than those specified by "--make-do"), then abort.')
 @config.String_flag('make_address', 'IP address of the network interface you want the job manager to listen to.')
 @config.String_flag('make_job', 
     'Command to launch a new python. Should either contain __command__, which will be subtituted '
@@ -964,9 +976,9 @@ class Execute(config.Action_filter):
 )
 class Make(config.Action):
     make_cores = int(os.environ.get('NESONI_CORES','0')) or multiprocessing.cpu_count()
-    make_force = False
     make_show = False
-    make_done = False
+    make_do = ''
+    make_done = ''
     
     make_address = os.environ.get('NESONI_ADDRESS') or socket.gethostbyname(socket.gethostname())
     make_job = os.environ.get('NESONI_JOB') or '__command__ &'
@@ -979,12 +991,9 @@ class Make(config.Action):
             kill_command = self.make_kill,
             cores = self.make_cores,
         )
-        if self.make_force:
-            remake_needed()
-        if self.make_show:
-            abort_makes()
-        if self.make_done:
-            do_nothing()
+        set_abort_make(self.make_show)
+        set_do_selection(self.make_do)
+        set_done_selection(self.make_done)
 
     def run(self):
         pass

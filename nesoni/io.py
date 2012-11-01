@@ -4,7 +4,7 @@ Read and write various types of file / directory
 
 """
 
-from nesoni import grace, legion
+from nesoni import grace, legion, selection
 
 import os, sys, re, collections, csv, subprocess, gzip, bz2, itertools, contextlib
 
@@ -13,7 +13,7 @@ from nesoni.workspace import Workspace
 from subprocess import PIPE, STDOUT
 from os.path import join
 
-def find_jar(jarname):    
+def find_jar(jarname, extra_help=''):    
     search = [ ]    
     if 'JARPATH' in os.environ: # I just made this up
         search.extend(os.environ['JARPATH'].split(':'))
@@ -24,7 +24,7 @@ def find_jar(jarname):
         filename = os.path.join(dirname, jarname)
         if os.path.isabs(dirname) and os.path.exists(filename):
             return filename
-    raise Error('Couldn\'t find "%s". Directories listed in JARPATH and PATH were searched.' % jarname)
+    raise Error('Couldn\'t find "%s". Directories listed in JARPATH and PATH were searched. %s' % (jarname, extra_help))
 
 def _interpret_args(args, kwargs):
     if isinstance(args,str):
@@ -34,7 +34,7 @@ def _interpret_args(args, kwargs):
 def _describe_args(args, kwargs):
     return ' '.join(_interpret_args(args,kwargs))
 
-def run(args, stdin=None, stdout=PIPE, stderr=None, **kwargs):
+def run(args, stdin=None, stdout=PIPE, stderr=None, cwd=None, **kwargs):
     """ Start a process using subprocess.Popen    
         
         Set close_fds=True so process doesn't inherit any other pipes we might be using.
@@ -54,6 +54,7 @@ def run(args, stdin=None, stdout=PIPE, stderr=None, **kwargs):
         stdin=stdin,        
         stdout=stdout,
         stderr=stderr,
+        cwd=cwd,
         close_fds=True,
     )
     
@@ -139,7 +140,7 @@ def open_possibly_compressed_file(filename, compression_type=None):
     elif compression_type == 'gzip':
         return gzip.open(filename, 'rb')
     elif compression_type == 'bzip2':
-        return bz2.BZFile(filename, 'rb')
+        return bz2.BZ2File(filename, 'rb')
     elif compression_type == 'bam':
         from nesoni import sam        
         return sam.open_bam(filename)
@@ -149,15 +150,15 @@ def open_possibly_compressed_file(filename, compression_type=None):
 
 def get_file_info(filename):
     info = set()    
-    info.add( 'compression '+get_compression_type(filename) )
+    info.add( 'compression-'+get_compression_type(filename) )
 
     if os.path.isdir(filename):
         any = False
         if os.path.exists(join(filename,'alignments.bam')):
-            info.add('type working')
+            info.add('type-working')
             any = True
         if os.path.exists(join(filename,'reference.fa')):
-            info.add('type reference')
+            info.add('type-reference')
             any = True
         if not any:
             raise grace.Error('Unrecognized directory type '+filename)
@@ -167,43 +168,51 @@ def get_file_info(filename):
         peek = f.read(16)
         f.close()
         
-        if not peek:
-            info.add('type empty')
+        if 'compression-bam' in info or peek.startswith('@HD\t'):
+            #TODO: sam file might be headerless
+            info.add('type-sam')
+
+        elif not peek:
+            info.add('type-empty')
+            # It's a valid sequence file
+            info.add('sequences')
+            info.add('qualities')            
+
         elif peek.startswith('>'):
-            info.add('type fasta')
+            info.add('type-fasta')
             info.add('sequences')
         elif peek.startswith('LOCUS'):
-            info.add('type genbank')
+            info.add('type-genbank')
             info.add('sequences')
         elif peek.startswith('@'):
-            info.add('type fastq')
+            info.add('type-fastq')
             info.add('sequences')
             info.add('qualities')            
         elif peek.startswith('##gff'):
-            info.add('type gff')
+            info.add('type-gff')
             info.add('sequences')
             info.add('annotations')
         elif peek.startswith('.sff'):
-            info.add('type sff')
+            info.add('type-sff')
             info.add('sequences')
             info.add('qualities')
         elif peek.startswith('##fileformat=VCF'):
-            info.add('type vcf')
+            info.add('type-vcf')
         else:
             raise grace.Error('Unrecognized file format for '+filename)
     
     return info
 
 
-def classify_files(filenames, categories):
+def classify_files(filenames, selectors):
     """ Put each of a set of files into one or more categories.    
     """
     results = [ [] for item in categories ]
     for filename in filenames:
         info = get_file_info(filename)
         any = False
-        for i, category in enumerate(categories):
-            if category in info:
+        for i, selector in enumerate(selectors):
+            if selection.matches(selector, info):
                 results[i].append(filename)
                 any = True
         if not any:
@@ -469,18 +478,18 @@ def read_sequences(filename, qualities=False, genbank_callback=None):
     
     have_qualities = False
     
-    if 'type empty' in info:
+    if 'type-empty' in info:
         result = read_empty(parts[0])
-    elif 'type fasta' in info:
+    elif 'type-fasta' in info:
         result = read_fasta(parts[0])
-    elif 'type genbank' in info:
+    elif 'type-genbank' in info:
         result = read_genbank_sequence(parts[0], genbank_callback)
-    elif 'type fastq' in info:
+    elif 'type-fastq' in info:
         have_qualities = True
         result = read_illumina_with_quality(parts[0])    
-    elif 'type gff' in info:
+    elif 'type-gff' in info:
         result = read_gff3_sequence(parts[0])
-    elif 'type sff' in info:
+    elif 'type-sff' in info:
         f.close()
         grace.require_sff2fastq()
         have_qualities = True

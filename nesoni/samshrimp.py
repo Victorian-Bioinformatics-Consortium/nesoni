@@ -257,9 +257,8 @@ class Shrimp(config.Action_with_output_dir):
             else:
                 reads_parameters = [ '-1', filenames[0], '-2', filenames[1] ]
             
-            default_options['--read-group'] = '%s-%d,%s' % (
+            default_options['--read-group'] = '%s,%s' % (
                 workspace.name.replace(',','_'),
-                i+1,
                 workspace.name.replace(',','_')
             )
             for flag in default_options:

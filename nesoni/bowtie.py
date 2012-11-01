@@ -1,5 +1,5 @@
 
-from nesoni import config, legion, workspace, working_directory, reference_directory, io, grace
+from nesoni import config, legion, workspace, working_directory, reference_directory, io, grace, selection
 
 
 @config.help("""\
@@ -52,10 +52,7 @@ class Bowtie(config.Action_with_output_dir):
                 return temp/('%d.fq'%n[0])
             def convert(filename):
                 info = io.get_file_info(filename)
-                ok = ( ( 'compression none' in info or
-                         'compression gzip' in info or
-                         'compression bzip2' in info
-                       ) and 'type fastq' in info )
+                ok = selection.matches('type-fastq:[compression-none/compression-gzip/compression-bzip2]', info)
                 if ok:
                     return filename            
                 result_name = tempname()

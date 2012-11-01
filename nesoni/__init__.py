@@ -18,7 +18,7 @@ from runr import Test_counts, Plot_counts, Heatmap, Compare_tests, Norm_from_cou
 from trivia import Test, As_fasta, As_gff, Sample, Stats
 from shred import Shred
 from igv import Make_genome, IGV_plots, As_userplots, Run_igv
-from workflows import Analyse_sample
+from workflows import Analyse_sample, Analyse_samples
 from variant import Freebayes, Vcf_filter, Snpeff, Vcf_nway, Vcf_patch, Test_variant_call, Power_variant_call
 
 from legion import *
@@ -176,7 +176,15 @@ samcount, for analysis with BioConductor packages.
 %(BOLD)sPipeline tools:%(END)s
     
     analyse-sample:
-                  - clip, align, and call consensus on a set of reads
+                  - Clip, align, and call consensus on a set of reads.
+                  
+    analyse-variants:
+                  - Produce a VCF file listing SNPs and other variants in
+                    a set of samples.
+
+    analyse-samples:
+                  - Run "analyse-sample:" on a set of different samples,
+                    then run "analyse-variants:".
 
 If a pipeline tools is run again, it restarts only from the point affected 
 by the changed parameters. The following global flags control pipeline tool 
@@ -223,7 +231,7 @@ Example:
   strain1,strain2,time1,time2,time3,replicate1,replicate2
              - Sort, grouping by strain, then by time, then by replicate
 
-""" % { 'BOLD' : '\x1b[1m', 'END' : '\x1b[m', 'VERSION' : VERSION, 'MAKE' : Make().describe('', show_help=True) }
+""" % { 'BOLD' : '\x1b[1m', 'END' : '\x1b[m', 'VERSION' : VERSION, 'MAKE' : Make().describe('', show_help=True, escape_newlines=False) }
 
 def get_actions():
     for item in globals().values():

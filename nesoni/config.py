@@ -325,23 +325,19 @@ class Configurable_section(Section):
         )
         self.presets = presets
         
-        if len(self.presets) > 1:
-            self.help += '\n\nChoose from the following, then supply extra flags as needed:\n'
-            for item in presets:
-                self.help += ' ' + item[0] + ' - ' + item[2] + '\n'
+        self.help += '\n\nChoose from the following, then supply extra flags as needed:\n'
+        for item in presets:
+            self.help += ' ' + item[0] + ' - ' + item[2] + '\n'
         
 
     def parse(self, obj, args):
-        if len(self.presets) == 1:
-            base = self.presets[0][1]
+        for item in self.presets:
+            if args and args[0].lower() == item[0].lower():
+                base = item[1]
+                args = args[1:]
+                break
         else:
-            for item in self.presets:
-                if args and args[0].lower() == item[0].lower():
-                    base = item[1]
-                    args = args[1:]
-                    break
-            else:
-                base = self.get(obj)
+            base = self.get(obj)
         
         if base is None:
             assert not args, 'Can\'t modify empty section'        
@@ -367,21 +363,32 @@ class Configurable_section(Section):
         if preset_guess:
             result += ' ' + color_as_value(preset_guess[0])
         if value is not None and (not verbose or not preset_guess or (value != preset_guess[1])):
-            result += value.describe(invocation='',show_help=False,escape_newlines=False)
+            result += value.describe(invocation='',show_help=False,escape_newlines=False,brief=True)
         return result
 
 
-class Grouped_configurable_section(Configurable_section):
+class Grouped_configurable_section(Section):
+    def __init__(self, name, help='', affects_output=True, empty_is_ok=True, template_getter=None):
+        super(Grouped_configurable_section,self).__init__(
+            name=name,
+            help=help,
+            affects_output=affects_output,
+            allow_flags=True,
+            empty_is_ok=empty_is_ok
+        )
+        self.template_getter = template_getter
+
     def parse(self, obj, args):
-        assert len(self.presets) >= 1
-        item = Configurable_section.parse(self, obj, args)
-        return self.get(obj) + [ args ]
+        new = self.template_getter(obj)
+        new.parse( args )
+        return self.get(obj) + [ new ]
 
     def describe_shell(self, value, verbose=True):
         if verbose and not value:
             return color_as_flag(self.shell_name()) + ' ' + color_as_template('...')
         return '\n'.join(
-            Configurable_section.describe_shell(self, item, verbose)
+            color_as_flag(self.shell_name()) + 
+            item.describe(invocation='',show_help=False,escape_newlines=False,brief=True).rstrip('\n')
             for item in value
         )
         
@@ -569,9 +576,9 @@ class Configurable(object):
             if c: return c
         return 0
     
-    def describe(self, invocation=None, show_help=False, escape_newlines=True):
+    def describe(self, invocation=None, show_help=False, escape_newlines=True, brief=False):
         if invocation is None:
-            invocation = self.shell_name() + ':'
+            invocation = self.shell_name() + ':'            
     
         desc = [ colored(1, invocation) ]
         
@@ -587,6 +594,8 @@ class Configurable(object):
         
         for i in order:
             parameter = self.parameters[i]
+            if brief and parameter.get(self) == parameter.get(type(self)()):
+                continue
             line = parameter.describe_shell(parameter.get(self), show_help)
             if line:
                 desc.append(wrap(line,67,'    ',suffix))
@@ -770,9 +779,15 @@ def report_exception():
     exception = sys.exc_info()[1]
     
     brief = False
-    for item in (Error, EnvironmentError):
-        if isinstance(exception, item) and len(exception.args) > 0:
-            brief = True
+    
+    if isinstance(exception, EnvironmentError) and \
+       exception.strerror in [ 
+           'No such file or directory' 
+           ]:
+       brief = True
+    
+    if isinstance(exception, Error) and len(exception.args) > 0:
+        brief = True
     
     if not brief:
         write_colored_text(sys.stderr, 

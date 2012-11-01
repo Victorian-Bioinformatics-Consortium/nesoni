@@ -8,7 +8,7 @@ SAM-based reboot
 import sys, os, subprocess, itertools, array, datetime, socket
 
 
-from nesoni import grace, bio, io, consensus, legion
+from nesoni import grace, bio, io, consensus, legion, config
 
 FLAG_PAIRED = 1
 FLAG_PROPER = 2
@@ -298,8 +298,6 @@ class Bam_writer(object):
         self.writer.close()
 
 
-
-
 def sort_and_index(in_filename, out_prefix):
     io.execute([
         'samtools', 'sort', in_filename, out_prefix
@@ -308,6 +306,18 @@ def sort_and_index(in_filename, out_prefix):
     io.execute([
         'samtools', 'index', out_prefix + '.bam'
     ])
+
+
+@config.Main_section('bams')
+class Bam_merge(config.Action_with_prefix):
+    bams = [ ]
+    def run(self):
+        jar = io.find_jar('MergeSamFiles.jar', 'MergeSamFiles is part of the Picard package.')
+        io.execute([
+            'java','-jar',jar,'OUTPUT='+self.prefix+'.bam'
+            ] + [ 'INPUT='+item for item in self.bams ])
+
+
 
 
 

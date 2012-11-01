@@ -139,6 +139,7 @@ class Reference(io.Workspace):
         
         snpwork = io.Workspace(self/'snpeff',must_exist=False)
         snpwork_genome = io.Workspace(snpwork/self.name,must_exist=False)
+        snpwork_genomes = io.Workspace(snpwork/'genomes',must_exist=False)
         
         annotations = self.annotations_filename()
         assert annotations
@@ -149,7 +150,7 @@ class Reference(io.Workspace):
                     record.attr['attributes'] = 'none'
                 print >> f, record.as_gff()
         
-        with open(snpwork_genome/'sequences.fa','wb') as f:
+        with open(snpwork_genomes/(self.name+'.fa'),'wb') as f:
             for name, seq in io.read_sequences(self.reference_fasta_filename()):
                 io.write_fasta(f, name, seq)
                 

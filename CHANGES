@@ -1,5 +1,5 @@
 
-0.91 - 
+0.91 - Workflow to analyse a set of samples
 
 0.90 - Sensible error if prefix or output dir not given.
        legion is greedier about using cores.

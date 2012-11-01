@@ -296,7 +296,10 @@ class Clip(config.Action_with_prefix):
 
     def reads_output_filenames(self):
         return [ self.prefix + '_single' + self.output_suffix() ]
-        
+    
+    def pairs_output_filenames(self):
+        return [ ]
+            
     def interleaved_output_filenames(self):
         if not self.pairs and not self.interleaved:
             return [ ]

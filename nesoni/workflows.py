@@ -1,10 +1,13 @@
 
+import os
+
 import nesoni
 
-from nesoni import config, clip, samshrimp, bowtie, samconsensus, working_directory
+from nesoni import config, clip, samshrimp, bowtie, samconsensus, working_directory, workspace
 
 @config.help('Analyse reads from a single sample.')
 @config.Positional('reference', 'Reference directory created by "make-reference:".')
+@config.Section('tags', 'Tags for this sample. (See "nesoni tag:".)')
 @config.Section('reads', 'Files containing unpaired reads.')
 @config.Section('interleaved', 'Files containing interleaved read pairs.')
 @config.Grouped_section('pairs', 'Pair of files containing read pairs.')
@@ -23,6 +26,7 @@ from nesoni import config, clip, samshrimp, bowtie, samconsensus, working_direct
 ])
 class Analyse_sample(config.Action_with_output_dir):
     reference = None
+    tags = [ ]
     reads = [ ]
     interleaved = [ ]
     pairs = [ ]
@@ -43,15 +47,15 @@ class Analyse_sample(config.Action_with_output_dir):
         
         if self.clip:
             act = self.clip(
-                workspace/'clipped',
+                workspace/workspace.name,
                 reads = reads,
                 interleaved = interleaved,
                 pairs = pairs,
             )
             act.make()
             reads = act.reads_output_filenames()
+            pairs = act.pairs_output_filenames()
             interleaved = act.interleaved_output_filenames()
-            pairs = [ ]
         
         self.align(
             self.output_dir,
@@ -70,17 +74,111 @@ class Analyse_sample(config.Action_with_output_dir):
             self.reconsensus(
                 self.output_dir
             ).make()
+        
+        nesoni.Tag(
+            self.output_dir, 
+            tags=self.tags
+            ).make()
 
 
+@config.Positional('reference',
+    'Reference directory created with "make-reference:".'
+    )
+@config.Main_section('samples', 
+    'Working directories.'
+    )
+class Analyse_variants(config.Action_with_output_dir):
+    reference = None
+    samples = [ ]
+
+    def run(self):
+        assert self.reference is not None, 'No reference directory given.'
+        space = self.get_workspace()
+        
+        nesoni.Freebayes(
+            space / 'variants-raw',
+            samples=self.samples,
+            ).make()
+        
+        nesoni.Vcf_filter(
+            space / 'variants-filtered',
+            space / 'variants-raw.vcf',
+            ).make()
+        
+        nesoni.Snpeff(
+            space / 'variants-filtered-annotated',
+            self.reference,
+            space / 'variants-filtered.vcf'
+            ).make()
+
+
+@config.help("""\
+Analyse multiple samples. \
+"analyse-sample:" is performed on a set of different samples, \
+then "analyse-variants:".
+
+For your sanity \
+I recommend invoking this from a Python script \
+rather than the command line. \
+However, if you insist, it can be done. \
+Example:
+
+  nesoni analyse-samples: my_analysis my_reference_dir \\
+      template: align: bowtie \\
+      sample: sam1 tags: wildtype reads: sam1reads.fq \\
+      sample: sam2 tags: mutant   reads: sam2reads.fq
+      
+""")
 @config.Positional('reference', 'Reference directory created by "make-reference:".')
-@config.Configurable_section('analysis', 'Common options for analyse-sample:')
-@config.Grouped_configurable_section('sample', 'Samples for analysis.')
+@config.Configurable_section('template', 
+    'Common options for each "sample:". '
+    'Put this section before the actual "sample:" sections.',
+    presets = [ ('default', Analyse_sample(), 'default "analyse-sample:" options') ],
+    )
+@config.Grouped_configurable_section('sample', 
+    'Sample for analysis. Give one "sample:" section for each sample. '
+    'Give a name for the sample and reads or read pairs as in "analyse-sample:". '
+    'Also, any options in "analyse-sample:" may be overridden. See example below.',
+    template_getter=lambda obj: obj.template
+    )
 class Analyse_samples(config.Action_with_output_dir):
     reference = None
-    analysis = Analyse_sample()
-    
+    template = Analyse_sample()
     sample = [ ]
 
+    def get_sample_space(self):
+       work = self.get_workspace()
+       return workspace.Workspace(work/'samples',must_exist=False)
+
+    def get_samples(self):
+        """ Fill in given samples with reference. """
+        assert self.reference is not None, 'reference not given.'
+        for sample in self.sample:
+            assert sample.reference is None, 'reference should not be specified within sample.'
+            assert sample.output_dir, 'sample given without name.'
+            assert os.path.sep not in sample.output_dir, 'sample name contains '+os.path.sep
+        sample_space = self.get_sample_space()
+        return [
+            sample(
+                output_dir = sample_space / sample.output_dir,
+                reference = self.reference,                
+            )
+            for sample in self.sample
+        ]
+
+    def run(self):
+        samples = self.get_samples()
+        work = self.get_workspace()
+
+        with nesoni.Stage() as stage:
+            for sample in samples:
+                sample.process_make(stage)
+
+        Analyse_variants(
+            work/'variants',
+            self.reference,
+            samples=[ sample.output_dir for sample in samples ]
+            ).make()
 
 
 
