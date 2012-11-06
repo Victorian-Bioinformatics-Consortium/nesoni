@@ -110,6 +110,12 @@ class Analyse_variants(config.Action_with_output_dir):
             self.reference,
             space / 'variants-filtered.vcf'
             ).make()
+        
+        nesoni.Vcf_patch(
+            space / 'patched',
+            self.reference,
+            space / 'variants-filtered.vcf'
+            ).make()
 
 
 @config.help("""\

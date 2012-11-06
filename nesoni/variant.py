@@ -10,12 +10,12 @@ test-variant-call should use vcf-patch-in
 """
 
 
-import random, os, re, sys, collections, math, fractions
+import random, os, re, sys, collections, math, fractions, urllib
 
 import nesoni
 from nesoni import config, legion, io, bio, workspace, working_directory, \
                    reference_directory, workflows, bowtie, sam, reporting, \
-                   statistics, grace
+                   statistics, grace, selection
 from nesoni.third_party import vcf
 
 def get_variants(record):
@@ -26,8 +26,14 @@ def get_variants(record):
         variants.append(str(record.ALT))
     return variants
 
+def get_variant_counts(sample):
+    AO = sample.data.AO
+    if not isinstance(AO,list):
+        AO = [AO]
+    return [ sample.data.RO ] + AO
+
 def get_genotype(call):
-    if '.' in call.data.GT:
+    if call.data.GT is None or '.' in call.data.GT:
         return None
     assert re.match('[0-9]+(/[0-9]+)*$', call.data.GT), 'Unsupported genotype format: '%call.data.GT        
     return sorted(int(item) for item in call.data.GT.split('/'))
@@ -47,6 +53,45 @@ def describe_genotype(gt, variants):
         return '?'
     return '/'.join(variants[item] for item in gt)
 
+def describe_counts(counts, variants):
+    if any(item is None for item in counts):
+        return ''
+
+    result = [ ]
+    for i in sorted(xrange(len(counts)), key=lambda i: (-counts[i],i)):
+        if counts[i]:
+            result.append( '%dx%s' % (counts[i],variants[i]) )
+    return ' '.join(result)
+
+
+SNPEFF_FIELDS = ['Effect_Impact','Functional_Class','Codon_Change','Amino_Acid_change','Amino_Acid_length',
+                 'Gene_Name','Gene_BioType','Coding','Transcript','Exon','ERRORS','WARNINGS']
+SNPEFF_PRIORITIES = ['HIGH','MODERATE','LOW','MODIFIER']
+
+def snpeff_describe(text):
+    if not text: return []
+    
+    items = text.split(',')
+    result = [ ]
+    for item in items:
+        head, tail = item.split('(')
+        assert tail.endswith(')')
+        tail = tail[:-1]
+        parts = tail.split('|')
+        parts = map(urllib.unquote, parts)
+        priority = SNPEFF_PRIORITIES.index(parts[0])
+        
+        desc = head
+        for part, name in zip(parts, SNPEFF_FIELDS):
+            if part:
+                desc += ' '+name+'='+part
+        
+        tags = [ head, parts[0] ]
+        if parts[1]: tags.append(parts[1])
+        
+        result.append((priority, desc, tags))
+    result.sort(key=lambda item: item[0])
+    return [ item[1:] for item in result ]
     
 
 @config.help("""
@@ -62,9 +107,11 @@ then reducing the ploidy to 1 using "nesoni vcf-filter".
     '(nesoni\'s wrappers of read aligners do this as of version 0.87).'
     )
 @config.Int_flag('ploidy', 'Ploidy of genotype calls.')
+@config.Int_flag('pvar', 'Probability of polymorphism.')
 @config.Section('freebayes_options', 'Flags to pass to FreeBayes.', allow_flags=True)
 class Freebayes(config.Action_with_prefix):
     ploidy = 4
+    pvar = 0.9
     samples = [ ]
     freebayes_options = [ ]
 
@@ -93,16 +140,22 @@ class Freebayes(config.Action_with_prefix):
         if reference is None:
             raise grace.Error('No reference FASTA file given.')
         
-        command = [ 
-            'freebayes',
-            '-f', reference,
-            '--ploidy',str(self.ploidy),
-            '--pvar','0.0',
-            ] + self.freebayes_options + bams
-        
-        self.log.log('Running: '+' '.join(command)+'\n')
-        
         with nesoni.Stage() as stage:
+            # FreeBayes claims to handle multiple bams, but it doesn't actually work
+            if len(bams) > 1:
+                tempspace = stage.enter( workspace.tempspace() )
+                sam.Bam_merge(tempspace/'merged', bams=bams).run()
+                bams = [ tempspace/'merged.bam' ]
+        
+            command = [ 
+                'freebayes',
+                '-f', reference,
+                '--ploidy',str(self.ploidy),
+                '--pvar',str(self.pvar),
+                ] + self.freebayes_options + bams
+            
+            self.log.log('Running: '+' '.join(command)+'\n')
+        
             f_out = stage.enter( open(self.prefix+'.vcf','wb') )
             f_in  = stage.enter( io.pipe_from(command) )
             done_extra = False
@@ -170,7 +223,7 @@ Note:
 class Vcf_filter(config.Action_with_prefix):
     vcf = None
     
-    dirichlet = False
+    dirichlet = True
     dirichlet_prior = 0.2
     dirichlet_total_prior = 1.0
     dirichlet_majority = 0.5
@@ -183,21 +236,27 @@ class Vcf_filter(config.Action_with_prefix):
     
 
     def _make_sample_dirichlet(self, variants, sample):
-        AO = sample.data.AO
-        if not isinstance(AO,list):
-            AO = [AO]
-        counts = [ sample.data.RO ] + AO
+        counts = get_variant_counts(sample)
         
-        GT = max(xrange(len(counts)), key=lambda i:counts[i])
-        
-        p = statistics.probability_of_proportion_at_least(
-            counts[GT]+self.dirichlet_prior,
-            sum(counts)+max(self.dirichlet_total_prior, self.dirichlet_prior*len(counts)),
-            self.dirichlet_majority)
+        if any(item is None for item in counts):
+            GT = '.'
+            p = 0.0
+        else:
+            GT = max(xrange(len(counts)), key=lambda i:counts[i])
+            p = statistics.probability_of_proportion_at_least(
+                counts[GT]+self.dirichlet_prior,
+                sum(counts)+max(self.dirichlet_total_prior, self.dirichlet_prior*len(counts)),
+                self.dirichlet_majority)
 
+        if p >= 1.0:
+           GQ = float('inf')
+        elif p <= 0.0:
+           GQ = 0.0
+        else:
+           GQ = math.log10(1-p) * -10.0 
         sample.data = sample.data._replace(
             GT=str(GT),
-            GQ=math.log10(1-p) * -10.0,
+            GQ=GQ,
             )
 
             
@@ -206,9 +265,10 @@ class Vcf_filter(config.Action_with_prefix):
             self._make_sample_dirichlet(variants, sample)
         
         try:
-            if '.' in sample.data.GT: 
+            if sample.data.GT is None or '.' in sample.data.GT: 
                 raise _Filter()
-            if self.min_gq is not None and sample.data.GQ < self.min_gq:
+
+            if self.min_gq is not None and (math.isnan(sample.data.GQ) or sample.data.GQ < self.min_gq):
                 raise _Filter()
         
             gt = get_genotype(sample)            
@@ -301,28 +361,51 @@ class Snpeff(config.Action_with_prefix):
 
 
 
-_Nway_record = collections.namedtuple('_Nway_record', 'genotypes variants record')
+_Nway_record = collections.namedtuple('_Nway_record', 'variants genotypes counts qualities snpeff record')
 
 
 @config.help("""\
-Summarize a VCF file in various ways.
+Summarize a VCF file in various ways. The VCF file is presumed to have been \
+filtered with "vcf-filter:" or similar such that samples only have a value for
+GT when a genotype can be called with confidence.
 
 The reference sequence is included in the output, with name "reference". \
 To exclude it use "--select -reference".
+
+Variants are only output if there are at least two genotypes within the \
+selected samples. Various other filters may be applied in addition to this, \
+see list of flags.
 """)
 @config.String_flag('as_', 'Output format.')
+@config.Bool_flag('qualities', 'Output qualities in table format.')
+@config.Bool_flag('counts', 'Output observed variant counts in table format.')
 @config.String_flag('select', 'A selection expression to select samples (see main help text).')
 @config.String_flag('sort', 'A sort expression to sort samples (see main help text).')
+@config.String_flag('require', 'A selection expression. '
+                               'Only output variants where these samples have a called genotype. '
+                               'For example "--require all" will require all selected samples to have a called genotype.')
+@config.String_flag('snpeff_show', 'A selection expression. '
+                                   'Show effects based on Effect, Effect_Impact or Functional_Class.')
+@config.String_flag('snpeff_filter', 'A selection expression. '
+                                     'Only output variants with a matching effect, using Effect, Effect_Impact or Functional_Class. '
+                                     'For example "--snpeff-filter NON_SYNONYMOUS_CODING" will output only changes that modify an amino acid.')                                   
+@config.Bool_flag('only_snps', 'Only output SNPs.')
 @config.Positional('vcf', 'VCF file')
-@config.Section('contrast', 
-    'Two or more selection expressions defining sub-groups. '
-    'Only output variants that can be used to distinguish between some pair of sub-groups in this list.',
-    allow_flags=True)
+#@config.Section('contrast', 
+#    'Two or more selection expressions defining sub-groups. '
+#    'Only output variants that can be used to distinguish between some pair of sub-groups in this list.',
+#    allow_flags=True)
 class Vcf_nway(config.Action_with_prefix):
     as_ = 'table'
+    qualities = False
+    counts = False
     select = 'all'
     sort = ''
-    contrast = [ ]
+    require = ''
+    only_snps = False
+    snpeff_show = 'HIGH/MODERATE/LOW'
+    snpeff_filter = 'all'
+    #contrast = [ ]
 
     vcf = None
     
@@ -343,21 +426,55 @@ class Vcf_nway(config.Action_with_prefix):
             if sample not in tags:
                 tags[sample] = [ sample, 'all' ]
 
-        samples = working_directory.select_and_sort(
+        samples = selection.select_and_sort(
             self.select, self.sort, samples, lambda sample: tags[sample])
+        
+        required = [ i for i, sample in enumerate(samples)
+                     if selection.matches(self.require, tags[sample]) ]
         
         sample_number = dict((b,a) for a,b in enumerate(reader.samples))
         
         items = [ ]
         for record in reader:
-            variants = get_variants(record)                
+            variants = get_variants(record)
             genotypes = [ ]
+            counts = [ ]
+            qualities = [ ]
             for sample in samples:
                 if sample == 'reference':
                     genotypes.append([0])
+                    counts.append([1])
+                    qualities.append(float('inf'))
                 else:
-                    genotypes.append(get_genotype(record.samples[sample_number[sample]]))                
-            items.append(_Nway_record(genotypes, variants, record))
+                    genotypes.append(get_genotype(record.samples[sample_number[sample]]))
+                    counts.append(get_variant_counts(record.samples[sample_number[sample]]))
+                    qualities.append(record.samples[sample_number[sample]].data.GQ)
+
+            # Only output when there are at least two genotypes            
+            any_interesting = False
+            for i in xrange(len(genotypes)):
+                for j in xrange(i):
+                    if (genotypes[i] is not None and genotypes[j] is not None and
+                        not genotypes_equal(genotypes[i], genotypes[j])):
+                        any_interesting = True
+                        break
+                if any_interesting: break
+            if not any_interesting:
+                continue
+
+            if any(genotypes[i] is None for i in required):
+                continue
+                
+            if self.only_snps and any(
+                genotype is not None and any(len(variants[i]) != 1 for i in genotype)
+                for genotype in genotypes):
+                continue
+                
+            snpeff = snpeff_describe(record.INFO.get('EFF',''))
+            if not any( selection.matches(self.snpeff_filter, item[1]) for item in snpeff ):
+                continue
+
+            items.append(_Nway_record(variants=variants, genotypes=genotypes, counts=counts, qualities=qualities, snpeff=snpeff, record=record))
         
         if self.as_ == 'table':
             self._write_table(samples, items)
@@ -368,18 +485,43 @@ class Vcf_nway(config.Action_with_prefix):
         names = [ '%s:%d' % (item.record.CHROM, item.record.POS) for item in items ]
         sample_list = io.named_list_type(samples)
         
+        groups = [ ]
+        
         locations_list = io.named_list_type(['CHROM','POS'])
         locations = io.named_list_type(names, locations_list)([
             locations_list([ item.record.CHROM, item.record.POS ])
             for item in items
-        ])
+            ])
+        groups.append(('Location',locations))
                 
         genotypes = io.named_list_type(names,sample_list)([
             sample_list([ describe_genotype(item2,item.variants) for item2 in item.genotypes ])
             for item in items
-        ])
+            ])
+        groups.append(('Genotype',genotypes))
+
+        if self.qualities:
+            qualities = io.named_list_type(names,sample_list)([
+                sample_list(item.qualities)
+                for item in items
+                ])
+            groups.append(('Quality',qualities))
+
+        if self.counts:        
+            counts = io.named_list_type(names,sample_list)([
+                sample_list([ describe_counts(item2,item.variants) for item2 in item.counts ])
+                for item in items
+                ])
+            groups.append(('Count',counts))
         
-        groups = [ ('Location', locations), ('Genotype', genotypes) ]
+        annotation_list = io.named_list_type(['snpeff'])
+        annotations = io.named_list_type(names, annotation_list)([
+            annotation_list([
+                ' /// '.join(item2[0] for item2 in item.snpeff if selection.matches(self.snpeff_show, item2[1]))
+                ])
+            for item in items
+            ])
+        groups.append(('Annotation',annotations))
         
         io.write_grouped_csv(self.prefix + '.csv', groups)
     

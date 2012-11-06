@@ -308,15 +308,32 @@ def sort_and_index(in_filename, out_prefix):
     ])
 
 
+@config.help("""\
+Merge and sort one or more bam files using Picard.
+""")
 @config.Main_section('bams')
+@config.String_flag('sort', 'Sort order. Can be "queryname" or "coordinate".')
 class Bam_merge(config.Action_with_prefix):
     bams = [ ]
+    sort = 'coordinate'
+    
     def run(self):
+        assert self.sort in ('queryname', 'coordinate')
+        
         jar = io.find_jar('MergeSamFiles.jar', 'MergeSamFiles is part of the Picard package.')
         io.execute([
-            'java','-jar',jar,'OUTPUT='+self.prefix+'.bam'
+            'java','-jar',jar,
+            'USE_THREADING=true',
+            'SORT_ORDER='+self.sort,
+            'OUTPUT='+self.prefix+'.bam'
             ] + [ 'INPUT='+item for item in self.bams ])
-
+        
+        if sort == 'coordinate':
+            jar = io.find_jar('BuildBamIndex.jar', 'BuildBamIndex is part of the Picard package.')
+            io.execute([
+                'java','-jar',jar,
+                'INPUT='+self.prefix+'.bam'
+                ])
 
 
 

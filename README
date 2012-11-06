@@ -28,26 +28,37 @@ suitable for phylogenetic analysis in SplitsTree4.
 Python 2.6 or higher. Use of PyPy where possible is highly recommended 
 for performance.
 
-Recommended Python libraries:
-* BioPython 
-  - for reading GenBank files 
-  - compiled modules may need to be disabled when installing in PyPy
-
-Optional Python libraries (used by non-core nesoni tools)
-* matplotlib
-* numpy
+Python libraries
+* Recommended:
+  * BioPython [1]
+* Optional (used by non-core nesoni tools):
+  * matplotlib
+  * numpy
 
 External programs:
-* SHRiMP
-* samtools
+* Required:
+  * SHRiMP or Bowtie2
+  * samtools
+* For VCF based variant calling:
+  * Picard [2]
+  * Freebayes
 
-R+ libraries required by R+ nesoni library and "test-counts:":
-* edgeR from BioConductor
-* limma from BioConductor
+R libraries required by R-based tools (mostly for RNA-seq):
+* Required:
+  * edgeR from BioConductor
+  * limma from BioConductor
+* Optional:
+  * seriation
+  * NMF
 
-Optional R+ libraries:
-* seriation
-* NMF
+
+[1] BioPython is used for reading GenBank files.
+    Compiled modules may need to be disabled when installing in PyPy.
+
+[2] There does not seem to be a standard way to install .jar files. 
+    Nesoni will search for .jar files in directories listed in 
+    environment variables $PATH and $JARPATH.
+
 
 ~ Installation
 ==============

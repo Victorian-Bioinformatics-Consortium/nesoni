@@ -1,5 +1,8 @@
 
-0.91 - Workflow to analyse a set of samples
+0.91 - Make system adds "--make-do" and "--make-done" selections
+       Workflow for VCF variant calling
+       Workflow to analyse a set of samples
+       "vcf-nway" reaches basic usability
 
 0.90 - Sensible error if prefix or output dir not given.
        legion is greedier about using cores.
