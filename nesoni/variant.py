@@ -107,7 +107,7 @@ then reducing the ploidy to 1 using "nesoni vcf-filter".
     '(nesoni\'s wrappers of read aligners do this as of version 0.87).'
     )
 @config.Int_flag('ploidy', 'Ploidy of genotype calls.')
-@config.Int_flag('pvar', 'Probability of polymorphism.')
+@config.Float_flag('pvar', 'Probability of polymorphism.')
 @config.Section('freebayes_options', 'Flags to pass to FreeBayes.', allow_flags=True)
 class Freebayes(config.Action_with_prefix):
     ploidy = 4
