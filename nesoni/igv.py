@@ -16,8 +16,6 @@ def iter_add(a,b):
         yield a+b
 
 
-
-
 @config.help("""\
 Create an IGV .genome file from sequences and annotations, \
 or from a nesoni reference directory created with "nesoni make-reference:".

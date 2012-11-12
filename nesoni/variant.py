@@ -18,6 +18,9 @@ from nesoni import config, legion, io, bio, workspace, working_directory, \
                    statistics, grace, selection
 from nesoni.third_party import vcf
 
+MAX_QUALITY = 100.0 #One in ten billion. IGV doesn't like inf
+
+
 def get_variants(record):
     variants = [ record.REF ]
     if isinstance(record.ALT,list):
@@ -92,6 +95,17 @@ def snpeff_describe(text):
         result.append((priority, desc, tags))
     result.sort(key=lambda item: item[0])
     return [ item[1:] for item in result ]
+
+
+def index_vcf(filename):
+    """ IGV index a VCF file. 
+        Don't fail if igvtools fails (eg not installed).
+    """
+    try:
+        io.execute('igvtools index FILENAME',FILENAME=filename)
+    except OSError:
+        print >> sys.stderr, 'Failed to index VCF file with igvtools. Continuing.'
+
     
 
 @config.help("""
@@ -165,6 +179,8 @@ class Freebayes(config.Action_with_prefix):
                         f_out.write(extra_line+'\n')
                     done_extra = True
                 f_out.write(line)
+
+        index_vcf(self.prefix+'.vcf')
 
 
 class _Filter(Exception): pass
@@ -256,7 +272,7 @@ class Vcf_filter(config.Action_with_prefix):
            GQ = math.log10(1-p) * -10.0 
         sample.data = sample.data._replace(
             GT=str(GT),
-            GQ=GQ,
+            GQ=min(MAX_QUALITY, GQ),
             )
 
             
@@ -291,7 +307,7 @@ class Vcf_filter(config.Action_with_prefix):
         if self.dirichlet:
             assert self.ploidy == 1, 'Dirichlet mode is not available for ploidy > 1'
         
-        reader_f = open(self.vcf,'rU')
+        reader_f = io.open_possibly_compressed_file(self.vcf)
         reader = vcf.Reader(reader_f)
         
         writer = vcf.Writer(open(self.prefix + '.vcf','wb'), reader)
@@ -330,13 +346,14 @@ class Vcf_filter(config.Action_with_prefix):
                 #    any = True
             
             if self.dirichlet:
-                record.QUAL = sum(sample.data.GQ for sample in record.samples)
+                record.QUAL = min(MAX_QUALITY, sum(sample.data.GQ for sample in record.samples))
             
             if any:
                 writer.write_record(record)
                 
         writer.close()
         reader_f.close()
+        index_vcf(self.prefix+'.vcf')
 
 
 @config.help("""\
@@ -366,7 +383,7 @@ _Nway_record = collections.namedtuple('_Nway_record', 'variants genotypes counts
 
 @config.help("""\
 Summarize a VCF file in various ways. The VCF file is presumed to have been \
-filtered with "vcf-filter:" or similar such that samples only have a value for
+filtered with "vcf-filter:" or similar such that samples only have a value for \
 GT when a genotype can be called with confidence.
 
 The reference sequence is included in the output, with name "reference". \
@@ -376,7 +393,15 @@ Variants are only output if there are at least two genotypes within the \
 selected samples. Various other filters may be applied in addition to this, \
 see list of flags.
 """)
-@config.String_flag('as_', 'Output format.')
+@config.String_flag('as_',
+    'Output format.\n'
+    'Options are:\n'
+    '  vcf - filtered VCF\n'
+    '  table - tabular CSV output\n'
+    '  nexus - nexus file suitable for SplitsTree, etc\n'
+    '  splitstree - output nexus file and then run SplitsTree to produce a phylogenetic net\n'
+    'Note: nexus output will output missing sites unless you specify "--require all". '
+    'Your phylogenetic software may or may not do something sane with this.')
 @config.Bool_flag('qualities', 'Output qualities in table format.')
 @config.Bool_flag('counts', 'Output observed variant counts in table format.')
 @config.String_flag('select', 'A selection expression to select samples (see main help text).')
@@ -410,7 +435,7 @@ class Vcf_nway(config.Action_with_prefix):
     vcf = None
     
     def run(self):
-        reader_f = open(self.vcf,'rU')
+        reader_f = io.open_possibly_compressed_file(self.vcf)
         reader = vcf.Reader(reader_f)
 
         tags = { }
@@ -471,13 +496,32 @@ class Vcf_nway(config.Action_with_prefix):
                 continue
                 
             snpeff = snpeff_describe(record.INFO.get('EFF',''))
-            if not any( selection.matches(self.snpeff_filter, item[1]) for item in snpeff ):
+            if not any( selection.matches(self.snpeff_filter, item[1]) for item in (snpeff or [('',[])]) ):
                 continue
 
             items.append(_Nway_record(variants=variants, genotypes=genotypes, counts=counts, qualities=qualities, snpeff=snpeff, record=record))
         
+        self.log.log('%d variants\n\n' % len(items))
+        
         if self.as_ == 'table':
             self._write_table(samples, items)
+        elif self.as_ == 'nexus':
+            self._write_nexus(samples, items)
+        elif self.as_ == 'splitstree':
+            self._write_nexus(samples, items)
+            
+            io.execute(
+                'SplitsTree +g -i INPUT -x COMMAND',
+                INPUT=self.prefix + '.nex',
+                COMMAND='UPDATE; '
+                        'SAVE FILE=\'%s.nex\' REPLACE=yes; '
+                        'EXPORTGRAPHICS format=svg file=\'%s.svg\' REPLACE=yes TITLE=\'NeighborNet from %d variants\'; ' 
+                        'QUIT' 
+                        % (self.prefix, self.prefix, len(items)),
+                )
+        elif self.as_ == 'vcf':
+            self._write_vcf(samples, items, reader)
+        
         else:
             raise grace.Error('Unknown output format: '+self.as_)
         
@@ -525,6 +569,62 @@ class Vcf_nway(config.Action_with_prefix):
         
         io.write_grouped_csv(self.prefix + '.csv', groups)
     
+    def _write_nexus(self, samples, items):
+        for item in items:
+            assert len(item.variants) <= 10
+        
+        buckets = [ [] for sample in samples ]
+        for item in items:
+            if all(item2 in ('A','C','G','T') for item2 in item.variants):
+                var_names = item.variants
+            else:
+                var_names = [ chr(ord('0')+i) for i in xrange(len(item.variants)) ]
+            for i, item2 in enumerate(item.genotypes):
+                assert item2 is None or len(item2) == 1, 'Only ploidy 1 is allowed for nexus output.'
+                if item2 is None:
+                    buckets[i].append('N')
+                else:
+                    buckets[i].append(var_names[item2[0]])
+            
+        with open(self.prefix + '.nex','wb') as f:
+            print >> f, '#NEXUS'
+            print >> f, 'begin taxa;'
+            print >> f, 'dimensions ntax=%d;' % len(samples)
+            print >> f, 'taxlabels'
+            for name in samples:
+                print >> f, name
+            print >> f, ';'
+            print >> f, 'end;'
+            
+            print >> f, 'begin characters;'
+            print >> f, 'dimensions nchar=%d;' % len(items)
+            print >> f, 'format datatype=STANDARD symbols="ACGT0123456789" missing=N;'
+            print >> f, 'matrix'
+            for name, bucket in zip(samples, buckets):
+                print >> f, name, ''.join(bucket)
+            print >> f, ';'
+            print >> f, 'end;'
+
+    def _write_vcf(self, samples, items, reader):
+        # Modifies reader and items!
+        
+        shuffle = [
+            reader.samples.index(sample)
+            for sample in samples
+            if sample != 'reference'
+            ]
+        
+        reader.samples = [ reader.samples[i] for i in shuffle ]
+        writer = vcf.Writer(open(self.prefix + '.vcf','wb'), reader)
+        
+        for item in items:
+            record = item.record
+            record.samples = [ record.samples[i] for i in shuffle ]
+            writer.write_record(record)
+        
+        writer.close()
+        index_vcf(self.prefix+'.vcf')
+    
 
 @config.help("""\
 Patch variants in a VCF file into the reference sequence, \
@@ -547,7 +647,7 @@ class Vcf_patch(config.Action_with_output_dir):
         
         reference = reference_directory.Reference(self.reference, must_exist=True)
         
-        reader_f = open(self.vcf,'rU')
+        reader_f = io.open_possibly_compressed_file(self.vcf)
         reader = vcf.Reader(reader_f)
         variants = collections.defaultdict(list)
         for record in reader:
@@ -599,24 +699,27 @@ def rand_seq(n):
         for i in xrange(n) 
     )
 
-_analysis_presets = [
-    ('shrimp', workflows.Analyse_sample(clip=None), 'Do analysis using SHRiMP'),
-    ('bowtie', workflows.Analyse_sample(clip=None,align=bowtie.Bowtie()), 'Do analysis using Bowtie'),
-]
-
 @config.Positional('ref', 'Reference sequence\neg AAG')
 @config.Main_section('variants', 
     'Variants, each with a number of reads, eg ACGx10 ATGx5. '
     'The first variant given is treated as the correct variant.')
-@config.Configurable_section('analysis', 'Options for "nesoni analyse-sample:"', presets=_analysis_presets)
-@config.Configurable_section('freebayes', 'Options for "nesoni freebayes:"')
-@config.Configurable_section('vcf_filter', 'Options for "nesoni vcf-filter:"')
+@config.Configurable_section('analysis', 'Options for "nesoni analyse-sample:"', presets=[
+    ('shrimp', lambda obj: nesoni.Analyse_sample(clip=None), 'Do analysis using SHRiMP'),
+    ('bowtie', lambda obj: nesoni.Analyse_sample(clip=None,align=bowtie.Bowtie()), 'Do analysis using Bowtie'),
+    ])
+@config.Configurable_section('freebayes', 'Options for "nesoni freebayes:"', presets=[
+    ('freebayes', lambda obj: Freebayes(), ''),
+    ])
+@config.Configurable_section('vcf_filter', 'Options for "nesoni vcf-filter:"', presets=[
+    ('vcf-filter', lambda obj: Vcf_filter(), ''),
+    ])
 class Test_variant_call(config.Action_with_output_dir):
     ref = None
     variants = [ ]
-    analysis = _analysis_presets[0][1]()
-    freebayes = Freebayes()
-    vcf_filter = Vcf_filter()
+    
+    #analysis = _analysis_presets[0][1]()
+    #freebayes = Freebayes()
+    #vcf_filter = Vcf_filter()
     
     def run(self):
         workspace = self.get_workspace()
@@ -713,9 +816,11 @@ class Test_variant_call(config.Action_with_output_dir):
 @config.help("""
 Assess ability to call variants under a spread of different conditions.
 """)
-@config.Configurable_section('template','Setting for "nesoni test-variant-call".')
+@config.Configurable_section('template','Setting for "nesoni test-variant-call".', presets=[
+    ('test-variant-call', lambda obj: Test_variant_call(), ''),
+    ])
 class Power_variant_call(config.Action_with_prefix):
-    template = Test_variant_call()
+    #template = Test_variant_call()
 
     def tryout(self, ref, variants):
         with workspace.tempspace() as temp:

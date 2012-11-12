@@ -3,7 +3,7 @@ import os
 
 import nesoni
 
-from nesoni import config, clip, samshrimp, bowtie, samconsensus, working_directory, workspace
+from nesoni import config, clip, samshrimp, bowtie, samconsensus, working_directory, workspace, io
 
 @config.help('Analyse reads from a single sample.')
 @config.Positional('reference', 'Reference directory created by "make-reference:".')
@@ -12,18 +12,20 @@ from nesoni import config, clip, samshrimp, bowtie, samconsensus, working_direct
 @config.Section('interleaved', 'Files containing interleaved read pairs.')
 @config.Grouped_section('pairs', 'Pair of files containing read pairs.')
 @config.Configurable_section('clip', 'Options for clip', presets=[
-    ('clip', clip.Clip(), 'Clip reads'),
-    ('none', None, 'Don\'t clip reads'),
-])
+    ('clip', lambda obj: clip.Clip(), 'Clip reads'),
+    ('none', lambda obj: None, 'Don\'t clip reads'),
+    ])
 @config.Configurable_section('align', 'Options for aligner', presets=[
-    ('shrimp', samshrimp.Shrimp(), 'Align using SHRiMP 2'),
-    ('bowtie', bowtie.Bowtie(), 'Align using Bowtie 2'),
-])
-@config.Configurable_section('filter', 'Options for filter')
+    ('shrimp', lambda obj: samshrimp.Shrimp(), 'Align using SHRiMP 2'),
+    ('bowtie', lambda obj: bowtie.Bowtie(), 'Align using Bowtie 2'),
+    ])
+@config.Configurable_section('filter', 'Options for filter', presets=[
+    ('filter', lambda obj: samconsensus.Filter(), ''),
+    ])
 @config.Configurable_section('reconsensus', 'Options for reconsensus', presets=[
-    ('reconsensus', samconsensus.Reconsensus(), 'Do consensus call'),
-    ('none',        None,                       'Do not do consensus call'),
-])
+    ('reconsensus', lambda obj: samconsensus.Reconsensus(), 'Do consensus call'),
+    ('none',        lambda obj: None,                       'Do not do consensus call'),
+    ])
 class Analyse_sample(config.Action_with_output_dir):
     reference = None
     tags = [ ]
@@ -31,10 +33,10 @@ class Analyse_sample(config.Action_with_output_dir):
     interleaved = [ ]
     pairs = [ ]
 
-    clip = clip.Clip()
-    align = samshrimp.Shrimp()
-    filter = samconsensus.Filter()
-    reconsensus = samconsensus.Reconsensus()
+    #clip = clip.Clip()
+    #align = samshrimp.Shrimp()
+    #filter = samconsensus.Filter()
+    #reconsensus = samconsensus.Reconsensus()
     
     _workspace_class = working_directory.Working
     
@@ -87,34 +89,88 @@ class Analyse_sample(config.Action_with_output_dir):
 @config.Main_section('samples', 
     'Working directories.'
     )
+@config.Configurable_section('freebayes', 'Options for "freebayes:".', presets=[
+    ('freebayes', lambda obj: nesoni.Freebayes(), ''),
+    ])
+@config.Configurable_section('vcf_filter', 'Options for "vcf-filter:".', presets=[
+    ('vcf-filter', lambda obj: nesoni.Vcf_filter(), ''),
+    ])
+@config.Configurable_section('snpeff', 'Options for "snpeff:".', presets=[
+    ('snpeff', lambda obj: nesoni.Snpeff(), ''),
+    ('none', lambda obj: None, 'Do not use snpeff'),
+    ])
 class Analyse_variants(config.Action_with_output_dir):
     reference = None
     samples = [ ]
+    
+    #freebayes = 
+    #vcf_filter = 
+    #snpeff = 
 
     def run(self):
         assert self.reference is not None, 'No reference directory given.'
         space = self.get_workspace()
         
-        nesoni.Freebayes(
+        self.freebayes(
             space / 'variants-raw',
             samples=self.samples,
             ).make()
         
-        nesoni.Vcf_filter(
+        self.vcf_filter(
             space / 'variants-filtered',
             space / 'variants-raw.vcf',
-            ).make()
+            ).make()        
+        filename = space/'variants-filtered.vcf'
         
-        nesoni.Snpeff(
-            space / 'variants-filtered-annotated',
-            self.reference,
-            space / 'variants-filtered.vcf'
-            ).make()
+        if self.snpeff:
+            self.snpeff(
+                space / 'variants-filtered-annotated',
+                self.reference,
+                space / 'variants-filtered.vcf'
+                ).make()
+            filename = space / 'variants-filtered-annotated.vcf'
+        
+        io.symbolic_link(source=filename, link_name=space / 'variants.vcf')
+        if os.path.exists(filename+'.idx'):
+            io.symbolic_link(source=filename+'.idx', link_name=space / 'variants.vcf.idx')
         
         nesoni.Vcf_patch(
             space / 'patched',
             self.reference,
-            space / 'variants-filtered.vcf'
+            space / 'variants.vcf'
+            ).make()
+        
+        nesoni.Vcf_nway(
+            space / 'net',
+            space / 'variants.vcf',
+            require='all',
+            as_='splitstree',
+            ).make()
+
+
+#@config.Positional('reference',
+#    'Reference directory created with "make-reference:".'
+#    )
+@config.Main_section('samples', 
+    'Working directories.'
+    )
+@config.Configurable_section('count',
+    'Options for "count:".',
+    presets=[('default',lambda obj: nesoni.Count(),'')],
+    )
+class Analyse_expression(config.Action_with_output_dir):
+    #reference = None
+    samples = [ ]
+    
+    #count = 
+    
+    def run(self):
+        #assert self.reference is not None, 'No reference directory given.'
+        space = self.get_workspace()
+            
+        self.count(
+            space / 'counts',
+            filenames=self.samples,
             ).make()
 
 
@@ -139,7 +195,7 @@ Example:
 @config.Configurable_section('template', 
     'Common options for each "sample:". '
     'Put this section before the actual "sample:" sections.',
-    presets = [ ('default', Analyse_sample(), 'default "analyse-sample:" options') ],
+    presets = [ ('default', lambda obj: Analyse_sample(), 'default "analyse-sample:" options') ],
     )
 @config.Grouped_configurable_section('sample', 
     'Sample for analysis. Give one "sample:" section for each sample. '
@@ -147,10 +203,27 @@ Example:
     'Also, any options in "analyse-sample:" may be overridden. See example below.',
     template_getter=lambda obj: obj.template
     )
+@config.Configurable_section('variants',
+    'Options for "analyse-variants:".',
+    presets = [ 
+        ('default', lambda obj: Analyse_variants(), 'default "analyse-variants:" options'),
+        ('none', lambda obj: None, 'don\'t analyse variants'),
+        ],
+    )
+@config.Configurable_section('expression',
+    'Options for "analyse-expression:".',
+    presets = [ 
+        ('none', lambda obj: None, 'don\'t analyse expressions'),
+        ('default', lambda obj: Analyse_expression(), 'default "analyse-expression:" options'),
+        ],
+    )
 class Analyse_samples(config.Action_with_output_dir):
     reference = None
-    template = Analyse_sample()
+    #template = Analyse_sample()
     sample = [ ]
+    
+    #variants = 
+    #expression =
 
     def get_sample_space(self):
        work = self.get_workspace()
@@ -179,13 +252,19 @@ class Analyse_samples(config.Action_with_output_dir):
         with nesoni.Stage() as stage:
             for sample in samples:
                 sample.process_make(stage)
-
-        Analyse_variants(
-            work/'variants',
-            self.reference,
-            samples=[ sample.output_dir for sample in samples ]
-            ).make()
-
-
+            
+        with nesoni.Stage() as stage:
+            if self.variants:
+                self.variants(
+                    work/'variants',
+                    self.reference,
+                    samples=[ sample.output_dir for sample in samples ],
+                    ).process_make(stage)
+    
+            if self.expression:
+                self.expression(
+                    work/'expression',
+                    samples=[ sample.output_dir for sample in samples ],
+                    ).process_make(stage)
 
 

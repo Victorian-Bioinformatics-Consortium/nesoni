@@ -13,14 +13,13 @@ section, or as a single interleaved file in the "interleaved" section.
 @config.Main_section('references', 
     'Reference sequence filenames, '
     'or a directory created using "nesoni make-reference: --bowtie yes" (recommended).')
+@config.Int_flag('cores', 'Maximum cores to use.', affects_output=False)
 @config.Section('reads', 'FASTQ files containing unpaired reads.')
 @config.Section('interleaved', 'FASTQ files containing interleaved read pairs.')
 @config.Grouped_section('pairs', 'Pair of FASTQ files containing read pairs.')
 @config.Section('bowtie_options', 'Options to pass to bowtie.', allow_flags=True)
 class Bowtie(config.Action_with_output_dir):
-    cs = False
-    sam_unaligned = True
-    half_paired = True
+    cores = 8
     references = []
     reads = []
     interleaved = []
@@ -29,9 +28,9 @@ class Bowtie(config.Action_with_output_dir):
     
     _workspace_class = working_directory.Working
     
-    def cores_required(self):
-        # All of them, please.
-        return legion.coordinator().get_cores()
+    #def cores_required(self):
+    #    # All of them, please.
+    #    return legion.coordinator().get_cores()
 
     def run(self):
         assert self.reads or self.pairs or self.interleaved, 'No reads given'
@@ -94,9 +93,11 @@ class Bowtie(config.Action_with_output_dir):
             for item in self.reads:
                 singles.append(convert(item))
 
+            cores = min(self.cores, legion.coordinator().get_cores())
+
             command = [ 
                 'bowtie2', 
-                '--threads', str(self.cores_required()),
+                '--threads', str(cores),
                 '--rg-id', '1',
                 '--rg', 'SM:'+working.name,
                 '--all',
@@ -122,7 +123,8 @@ class Bowtie(config.Action_with_output_dir):
                     self.log.log('Running:\n' + ' '.join(command) + '\n')            
                     with io.pipe_from(
                         command,
-                        stderr=log_file
+                        stderr=log_file,
+                        cores=cores
                         ) as f_out:
                         for line in f_out:
                             if not header_sent or not line.startswith('@'):

@@ -2,6 +2,8 @@
 import nesoni
 from nesoni import grace, io, bio, config, annotation
 
+from nesoni.third_party import vcf
+
 import sys, os, math, random
 
 @config.help("""\
@@ -68,7 +70,7 @@ class Sample(config.Action):
 
 
 @config.help("""\
-Show basic statistics of a sequence or annotation file.
+Show basic statistics of a sequence or annotation or VCF file.
 """)
 @config.Main_section('filenames', 'Sequence files.', empty_is_ok=False)
 class Stats(config.Action_with_optional_output):
@@ -78,16 +80,13 @@ class Stats(config.Action_with_optional_output):
         f = self.begin_output()
     
         for filename in self.filenames:
+            info = io.get_file_info(filename)
+            
             any = False
             
             name = os.path.splitext(os.path.split(filename)[1])[0]
             
-            try:
-               iterator = io.read_sequences(filename, qualities=True)
-            except grace.Error:
-               iterator = None
-               
-            if iterator is not None:
+            if info.matches('sequences'):
                 total = 0
                 total_length = 0
                 for seq in io.read_sequences(filename, qualities=True):
@@ -99,15 +98,10 @@ class Stats(config.Action_with_optional_output):
                 print >> f
                 any = True
             
-            try:
-                iterator = annotation.read_annotations(filename)
-            except grace.Error:
-                iterator = None
-                
-            if iterator:
+            if info.matches('annotations'):
                 total = 0
                 counts = { }
-                for item in iterator:
+                for item in annotation.read_annotations(filename):
                     total += 1
                     counts[item.type] = counts.get(item.type,0)+1
                                 
@@ -117,8 +111,17 @@ class Stats(config.Action_with_optional_output):
                 print >> f
                 any = True
             
+            if info.matches('type-vcf'):
+                reader_f = io.open_possibly_compressed_file(filename)
+                reader = vcf.Reader(reader_f)
+                n = 0
+                for item in reader:
+                    n += 1
+                print >> f, grace.datum(name, 'variants', n)
+                any = True
+            
             if not any:
-                raise grace.Error(filename + ' is neither a sequence file nor an annotation file that nesoni can read.')
+                raise grace.Error('Don\'t know what to do with ' + filename)
 
         self.end_output(f)
 

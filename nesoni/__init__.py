@@ -18,13 +18,13 @@ from runr import Test_counts, Plot_counts, Heatmap, Compare_tests, Norm_from_cou
 from trivia import Test, As_fasta, As_gff, Sample, Stats
 from shred import Shred
 from igv import Make_genome, IGV_plots, As_userplots, Run_igv
-from workflows import Analyse_sample, Analyse_samples
 from variant import Freebayes, Vcf_filter, Snpeff, Vcf_nway, Vcf_patch, Test_variant_call, Power_variant_call
+from workflows import Analyse_sample, Analyse_variants, Analyse_expression, Analyse_samples
 
 from legion import *
 
 
-VERSION='0.91'
+VERSION='0.92'
 
 BOLD = '\x1b[1m'
 END = '\x1b[m'
@@ -181,12 +181,17 @@ samcount, for analysis with BioConductor packages.
     analyse-variants:
                   - Produce a VCF file listing SNPs and other variants in
                     a set of samples.
+    
+    analyse-expression:
+                  - Count alignments of fragments to genes,
+                    then perform various types of statistics and 
+                    visualization on this.
 
     analyse-samples:
                   - Run "analyse-sample:" on a set of different samples,
-                    then run "analyse-variants:".
+                    then run "analyse-variants:" and/or "analyse-expression".
 
-If a pipeline tools is run again, it restarts only from the point affected 
+If a pipeline tool is run again, it restarts only from the point affected 
 by the changed parameters. The following global flags control pipeline tool 
 behaviour:
 %(MAKE)s

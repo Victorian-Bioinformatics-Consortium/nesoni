@@ -55,7 +55,8 @@ class Tag(config.Action_with_working_dir):
     
     def run(self):
         for tag in self.tags:
-            for char in '+-:, \t\'\"':
+            assert not tag.startswith('-'), 'Tags shouldn\'t start with "-".'
+            for char in '+:, \t\'\"':
                 assert char not in tag, 'Tags shouldn\'t contain "'+char+'".'
         
         workspace = self.get_workspace()

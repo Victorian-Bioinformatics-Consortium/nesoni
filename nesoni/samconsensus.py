@@ -942,9 +942,10 @@ class Reconsensus(config.Action_with_working_dir):
     def describe(self, *args, **kwargs):
         desc = super(Reconsensus, self).describe(*args, **kwargs)
         
-        desc += '\n' + consensus.consensus_calling_advice(self.cutoff, self.indel_prior, self.prior_weight, proportion=self.majority)    
-        if self.strand_cutoff:
-            desc += '\n' + consensus.consensus_calling_advice(self.strand_cutoff, self.indel_prior, self.prior_weight, 'The per-strand coverage required is:\n', proportion=self.majority)
+        if not kwargs.get('brief',False):
+            desc += '\n' + consensus.consensus_calling_advice(self.cutoff, self.indel_prior, self.prior_weight, proportion=self.majority)    
+            if self.strand_cutoff:
+                desc += '\n' + consensus.consensus_calling_advice(self.strand_cutoff, self.indel_prior, self.prior_weight, 'The per-strand coverage required is:\n', proportion=self.majority)
         return desc    
     
     def run(self):

@@ -328,7 +328,7 @@ class Bam_merge(config.Action_with_prefix):
             'OUTPUT='+self.prefix+'.bam'
             ] + [ 'INPUT='+item for item in self.bams ])
         
-        if sort == 'coordinate':
+        if self.sort == 'coordinate':
             jar = io.find_jar('BuildBamIndex.jar', 'BuildBamIndex is part of the Picard package.')
             io.execute([
                 'java','-jar',jar,

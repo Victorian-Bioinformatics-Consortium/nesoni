@@ -152,7 +152,8 @@ class Parameter(object):
     def get(self, obj):
         return getattr(obj, self.name)
         
-    def describe_shell(self, value, verbose=True):
+    def describe_shell(self, obj, verbose=True):
+        value = self.get(obj)
         if value is None and not verbose: 
             return ''
         return color_as_flag(self.shell_name()) + ' ' + \
@@ -160,7 +161,7 @@ class Parameter(object):
 
 
 class Hidden(Parameter):
-    def describe_shell(self, value, verbose=True):
+    def describe_shell(self, obj, verbose=True):
         return ''
 
 
@@ -174,7 +175,8 @@ class Positional(Parameter):
         expect_no_further_flags([string])
         return string
     
-    def describe_shell(self, value, verbose=True):
+    def describe_shell(self, obj, verbose=True):
+        value = self.get(obj)
         if value is None:
             return color_as_template(self.shell_name()) if verbose else ''
         else:
@@ -251,9 +253,10 @@ class Section(Parameter):
     def describe_quoted(self, value):
         return ' '.join([ pipes.quote(item) for item in self.describe_each(value) ])
 
-    def describe_shell(self, value, verbose=True):
+    def describe_shell(self, obj, verbose=True):
+        value = self.get(obj)
         if not verbose and not value: return ''
-        return Parameter.describe_shell(self, value, verbose) 
+        return Parameter.describe_shell(self, obj, verbose) 
 
 
 class Grouped_section(Section):
@@ -273,7 +276,8 @@ class Grouped_section(Section):
             for item in value
         ])
     
-    def describe_shell(self, value, verbose=True):
+    def describe_shell(self, obj, verbose=True):
+        value = self.get(obj)
         if verbose and not value:
             return color_as_flag(self.shell_name()) + ' ' + color_as_template('...')
         return '\n'.join(
@@ -298,7 +302,8 @@ class Main_section(Section):
     def shell_name(self):
         return '<' + self.name.replace('_','-').rstrip('-').lower()+' ...>'
 
-    def describe_shell(self, value, verbose=True):
+    def describe_shell(self, obj, verbose=True):
+        value = self.get(obj)
         if not value:
             if verbose:
                 return color_as_template(self.shell_name())
@@ -311,9 +316,13 @@ class Main_section(Section):
 class Configurable_section(Section):
     """ A section containing another configuarbale.
     
-        presets if given is a list [(name, item, description)]        
+        presets if given is a list [(name, lambda obj -> configurable, description)]  
         
-        Each item may be a configurable or None    
+        Each item may be a configurable or None
+        
+        To avoid circular dependancies, 
+        if the class attribute is not set
+        it defaults to the first preset.
     """
     def __init__(self, name, help='', affects_output=True, empty_is_ok=True, presets=[]):
         super(Configurable_section,self).__init__(
@@ -325,11 +334,17 @@ class Configurable_section(Section):
         )
         self.presets = presets
         
-        self.help += '\n\nChoose from the following, then supply extra flags as needed:\n'
-        for item in presets:
-            self.help += ' ' + item[0] + ' - ' + item[2] + '\n'
+        if self.presets:
+            self.help += '\n\nChoose from the following, then supply extra flags as needed:\n'
+            for item in presets:
+                self.help += ' ' + item[0] + ' - ' + item[2] + '\n'
+    
+    def get(self, obj):
+        if hasattr(obj, self.name):
+            return super(Configurable_section,self).get(obj)
+        else:
+            return self.presets[0][1](obj)
         
-
     def parse(self, obj, args):
         for item in self.presets:
             if args and args[0].lower() == item[0].lower():
@@ -347,15 +362,16 @@ class Configurable_section(Section):
             new.parse( args )
         return new
 
-    def describe_shell(self, value, verbose=True):
+    def describe_shell(self, obj, verbose=True):
+        value = self.get(obj)
         preset_guess = None
         for item in self.presets:
-            if value == item[1]:
+            if value == item[1](obj):
                 preset_guess = item
                 break
         if not preset_guess:
             for item in self.presets:
-                if type(value) == type(item[1]):
+                if type(value) == type(item[1](obj)):
                     preset_guess = item
                     break
         
@@ -383,12 +399,13 @@ class Grouped_configurable_section(Section):
         new.parse( args )
         return self.get(obj) + [ new ]
 
-    def describe_shell(self, value, verbose=True):
+    def describe_shell(self, obj, verbose=True):
+        value = self.get(obj)
         if verbose and not value:
             return color_as_flag(self.shell_name()) + ' ' + color_as_template('...')
         return '\n'.join(
             color_as_flag(self.shell_name()) + 
-            item.describe(invocation='',show_help=False,escape_newlines=False,brief=True).rstrip('\n')
+            item.describe(invocation='',show_help=False,escape_newlines=False).rstrip('\n')
             for item in value
         )
         
@@ -596,7 +613,7 @@ class Configurable(object):
             parameter = self.parameters[i]
             if brief and parameter.get(self) == parameter.get(type(self)()):
                 continue
-            line = parameter.describe_shell(parameter.get(self), show_help)
+            line = parameter.describe_shell(self, show_help)
             if line:
                 desc.append(wrap(line,67,'    ',suffix))
                 if show_help and parameter.help:

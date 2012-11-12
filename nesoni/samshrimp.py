@@ -41,6 +41,7 @@ Useful shrimp options:
 @config.Bool_flag('cs', 'Are reads in colorspace?')
 @config.Bool_flag('sam_unaligned', 'Pass --sam-unaligned to gmapper?')
 @config.Bool_flag('half_paired', 'Pass --half-paired to gmapper?')
+@config.Int_flag('cores', 'Maximum cores to use.', affects_output=False)
 @config.Section('reads', 'Files containing unpaired reads.')
 @config.Section('interleaved', 'Files containing interleaved read pairs.')
 @config.Grouped_section('pairs', 'Pair of files containing read pairs.')
@@ -49,6 +50,7 @@ class Shrimp(config.Action_with_output_dir):
     cs = False
     sam_unaligned = True
     half_paired = True
+    cores = 8
     references = []
     reads = []
     interleaved = []
@@ -57,9 +59,9 @@ class Shrimp(config.Action_with_output_dir):
     
     _workspace_class = working_directory.Working
     
-    def cores_required(self):
-        # All of them, please.
-        return legion.coordinator().get_cores()
+    #def cores_required(self):
+    #    # All of them, please.
+    #    return legion.coordinator().get_cores()
 
     def run(self):
         grace.require_shrimp_2()
@@ -88,11 +90,12 @@ class Shrimp(config.Action_with_output_dir):
         reference_filename = reference.reference_fasta_filename()
 
 
-        
+        cores = min(self.cores, legion.coordinator().get_cores())
+                
         default_options = { 
             '-E' : None, 
             '-T' : None, 
-            '-N' : str(self.cores_required()), 
+            '-N' : str(cores), 
             '-n':'2', 
             '-w':'200%',
             '-p': 'opp-in', 
@@ -188,8 +191,8 @@ class Shrimp(config.Action_with_output_dir):
         sam_header_sent = [False]
         n_seen = [0]
         
-        def eat(process):
-            for line in process.stdout:
+        def eat(f):
+            for line in f:
                 if line.startswith('@'):
                     if sam_header_sent[0]: continue
                 else:
@@ -197,8 +200,6 @@ class Shrimp(config.Action_with_output_dir):
                     if n_seen[0] % 100000 == 0:
                         grace.status('%s alignments produced' % grace.pretty_number(n_seen[0]))
                 sam_eater.write_raw(line)
-                
-            assert process.wait() == 0, 'shrimp failed'
             sam_header_sent[0] = True
         
         def remove_pair_options(options):
@@ -276,10 +277,10 @@ class Shrimp(config.Action_with_output_dir):
             
             print >> sys.stderr, 'Running', ' '.join(full_param)
             
-            p = io.run(full_param,
-                    stdout=subprocess.PIPE,
-                    stderr=log_file)
-            eat(p)
+            with io.pipe_from(full_param,
+                    stderr=log_file,
+                    cores=cores) as f:
+                eat(f)
                         
             #finally:
             #    if os.path.exists(temp_read_filename):

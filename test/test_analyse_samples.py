@@ -81,7 +81,7 @@ class Test_analyse_samples(config.Action_with_output_dir):
         nesoni.Make_reference(
             output_dir=work/'TW20', 
             filenames=[ work/('genbank',accession+'.gbk') for accession in self.genbanks ],
-            bowtie=True, ls=True, snpeff=True,
+            genome=True, bowtie=True, ls=True, snpeff=True,
             ).make()
             
         analyser = nesoni.Analyse_samples
@@ -89,7 +89,7 @@ class Test_analyse_samples(config.Action_with_output_dir):
             work/'analysis',
             work/'TW20',
             sample=[
-                analyser.template(
+                nesoni.Analyse_sample(
                     accession,
                     pairs=[[ work/('sra',accession+'_1.fastq.bz2'),work/('sra',accession+'_2.fastq.bz2') ]]
                     )

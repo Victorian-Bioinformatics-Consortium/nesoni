@@ -1,4 +1,10 @@
 
+0.92 - "vcf-nway" can now run SplitsTree
+       "count" now outputs in grouped csv format, with sample tags in header
+       add "analyse-expression"
+       io.execute/pipe_from/pipe_to now accept 'cores' parameter
+       -- use this instead of Action.cores_required (now deprecated)
+
 0.91 - Make system adds "--make-do" and "--make-done" selections
        Workflow for VCF variant calling
        Workflow to analyse a set of samples

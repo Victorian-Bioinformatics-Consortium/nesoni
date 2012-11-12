@@ -296,12 +296,14 @@ def count_run(
             bam_filenames.append(arg)    
 
     n_samples = len(bam_filenames)
-    titles = bam_filenames[:]    
+    titles = bam_filenames[:]
+    tags = [ ]
     for i in xrange(len(bam_filenames)):
         if os.path.isdir(bam_filenames[i]):
-            titles[i] = os.path.basename(bam_filenames[i])
+            working = working_directory.Working(bam_filenames[i])            
+            titles[i] = working.name
+            tags.append(working.get_tags())
             if not annotation_filenames:
-                working = working_directory.Working(bam_filenames[i])
                 reference_filename = working.get_reference().annotations_filename()
                 if reference_filename is not None:
                     annotation_filenames.append(reference_filename)
@@ -574,18 +576,31 @@ def count_run(
         p = [ float(min_hits)/item for item in total_hits ]
         total_hits = [ min_hits ] * n_samples
 
-    f = open(output_prefix + '.txt', 'wb')
-    #log.attach(open(output_prefix + '_log.txt', 'wb'))
-
-    print >> f, tab_encode(
-        [ 'Feature' ] +
-        titles +
-        [ 'RPKM ' + item for item in titles ] +
-        [ 'Length' ] +
-        qualifiers +
-        [ 'On same fragment' ] +
-        ([ 'Ambiguous alignment' ] if expect_multiple_alignments else [ ])
-    )
+    
+    
+    comments = [ '#Counts' ] + [
+        '#sampleTags='+','.join(item)
+        for item in tags
+        ]
+    
+    names = [ ]
+    
+    count_type = io.named_list_type(titles)    
+    counts = [ ]
+    
+    rpkm_type = io.named_list_type(titles)
+    rpkms = [ ]
+    
+    annotation_type = io.named_list_type([ 'Length' ] + qualifiers)
+    annotations = [ ]
+    
+    alignment_type = io.named_list_type(
+        [ 'On same fragment' ] + 
+            [ 'Ambiguous alignment' ] 
+                if expect_multiple_alignments 
+                else [ ]
+        )
+    alignments = [ ]
     
     for feature in features:
         for getter in getters:
@@ -595,31 +610,84 @@ def count_run(
                 count = [
                     subsample(count[i], p[i])
                     for i in xrange(n_samples)
-                ]
+                    ]
             
             rpkm = [ count[i] * 1.0e9 / feature.length / total_hits[i] for i in xrange(n_samples) ]
             
             common_str = ' '.join(
                 '%dx%s' % (item[1],item[0])
                 for item in sorted(common.items(), key=lambda item:item[1], reverse=True)
-            ) 
+                ) 
             ambiguous_str = ' '.join(
                 '%dx%s' % (item[1],item[0])
                 for item in sorted(ambiguous.items(), key=lambda item:item[1], reverse=True)
-            ) 
+                ) 
             
-            print >> f, tab_encode(
-                [ feature_name ] +
-                [ str(item) for item in count ] +
-                [ '%.2f' % item for item in rpkm ] +
-                [ str(feature.length) ] +
-                list(feature.qualifiers) +
-                [ common_str ] +
-                ([ ambiguous_str ] if expect_multiple_alignments else [ ]) 
-            )
-            
+            names.append(feature_name)
+            counts.append(count_type(count))
+            rpkms.append(rpkm_type(rpkm))
+            annotations.append(annotation_type([ str(feature.length) ] + list(feature.qualifiers)))
+            alignments.append(alignment_type([ common_str ] + [ ambiguous_str ] if expect_multiple_alignments else [ ]))
 
-    f.close()
+    groups = [
+        ('Count', io.named_list_type(names,count_type)(counts)),
+        ('RPKM', io.named_list_type(names,rpkm_type)(rpkms)),
+        ('Annotation', io.named_list_type(names,annotation_type)(annotations)),
+        ('Alignment', io.named_list_type(names,alignment_type)(alignments)),
+        ]
+    
+    io.write_grouped_csv(output_prefix + '.csv', groups, rowname_name='Feature', comments=comments)
+
+#
+#
+#
+#
+#    f = open(output_prefix + '.txt', 'wb')
+#    #log.attach(open(output_prefix + '_log.txt', 'wb'))
+#
+#    print >> f, tab_encode(
+#        [ 'Feature' ] +
+#        titles +
+#        [ 'RPKM ' + item for item in titles ] +
+#        [ 'Length' ] +
+#        qualifiers +
+#        [ 'On same fragment' ] +
+#        ([ 'Ambiguous alignment' ] if expect_multiple_alignments else [ ])
+#    )
+#    
+#    for feature in features:
+#        for getter in getters:
+#            feature_name, count, common, ambiguous = getter(feature)
+#            
+#            if equalize:
+#                count = [
+#                    subsample(count[i], p[i])
+#                    for i in xrange(n_samples)
+#                ]
+#            
+#            rpkm = [ count[i] * 1.0e9 / feature.length / total_hits[i] for i in xrange(n_samples) ]
+#            
+#            common_str = ' '.join(
+#                '%dx%s' % (item[1],item[0])
+#                for item in sorted(common.items(), key=lambda item:item[1], reverse=True)
+#            ) 
+#            ambiguous_str = ' '.join(
+#                '%dx%s' % (item[1],item[0])
+#                for item in sorted(ambiguous.items(), key=lambda item:item[1], reverse=True)
+#            ) 
+#            
+#            print >> f, tab_encode(
+#                [ feature_name ] +
+#                [ str(item) for item in count ] +
+#                [ '%.2f' % item for item in rpkm ] +
+#                [ str(feature.length) ] +
+#                list(feature.qualifiers) +
+#                [ common_str ] +
+#                ([ ambiguous_str ] if expect_multiple_alignments else [ ]) 
+#            )
+#            
+#
+#    f.close()
 
 
 

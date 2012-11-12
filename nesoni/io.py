@@ -26,6 +26,13 @@ def find_jar(jarname, extra_help=''):
             return filename
     raise Error('Couldn\'t find "%s". Directories listed in JARPATH and PATH were searched. %s' % (jarname, extra_help))
 
+
+def symbolic_link(source, link_name):
+    if os.path.lexists(link_name):
+        os.unlink(link_name)
+    os.symlink(os.path.relpath(source, os.path.dirname(link_name)), link_name)
+
+
 def _interpret_args(args, kwargs):
     if isinstance(args,str):
         args = args.strip().split()
@@ -60,45 +67,61 @@ def run(args, stdin=None, stdout=PIPE, stderr=None, cwd=None, **kwargs):
     
 
 @contextlib.contextmanager
-def pipe_to(args, stdout=None, stderr=None, **kwargs):
+def pipe_to(args, stdout=None, stderr=None, cores=1, **kwargs):
     """ Context to pipe to a process, eg
     
         with io.pipe_to(['less']) as f:
             print >> f, 'Hello, world.'
     
     """
+    if cores > 1:
+        legion.coordinator().trade_cores(1, cores)
     process = run(args, stdin=PIPE, stdout=stdout, stderr=stderr, **kwargs)
     try:
         yield process.stdin
     finally:
         process.stdin.close()
         exit_code = process.wait()
+        if cores > 1:
+            legion.coordinator().trade_cores(cores, 1)
     assert exit_code == 0, 'Failed: "%s"' % _describe_args(args,kwargs)
 
 @contextlib.contextmanager
-def pipe_from(args, stdin=None, stderr=None, **kwargs):
+def pipe_from(args, stdin=None, stderr=None, cores=1, **kwargs):
     """ Context to pipe from a process, eg
     
         with io.pipe_from(['ls']) as f:
             print f.read().rstrip('\n').split('\n')
     
     """
+    if cores > 1:
+        legion.coordinator().trade_cores(1, cores)
     process = run(args, stdin=stdin, stdout=PIPE, stderr=stderr, **kwargs)
     try:
         yield process.stdout
     finally:
         process.stdout.close()
         exit_code = process.wait()
+        if cores > 1:
+            legion.coordinator().trade_cores(cores, 1)
     assert exit_code == 0, 'Failed: "%s"' % _describe_args(args,kwargs)
 
 
-def execute(args, stdin=None, stdout=None, stderr=None, **kwargs):
+def execute(args, stdin=None, stdout=None, stderr=None, cores=1, **kwargs):
     """ Run a program.
     
         Raise an error if it has an exit code other than 0.
     """
-    p = run(args, stdin=stdin, stdout=stdout, stderr=stderr, **kwargs)
-    assert p.wait() == 0, 'Failed to execute "%s"' % _describe_args(args,kwargs)
+    from nesoni import legion
+    
+    if cores > 1:
+        legion.coordinator().trade_cores(1, cores)
+    try:
+        p = run(args, stdin=stdin, stdout=stdout, stderr=stderr, **kwargs)
+        assert p.wait() == 0, 'Failed to execute "%s"' % _describe_args(args,kwargs)
+    finally:
+        if cores > 1:
+            legion.coordinator().trade_cores(cores, 1)
 
 
 def get_compression_type(filename):
@@ -149,7 +172,7 @@ def open_possibly_compressed_file(filename, compression_type=None):
 
 
 def get_file_info(filename):
-    info = set()    
+    info = selection.Matchable_set()    
     info.add( 'compression-'+get_compression_type(filename) )
 
     if os.path.isdir(filename):

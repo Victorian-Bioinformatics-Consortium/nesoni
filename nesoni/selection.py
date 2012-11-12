@@ -68,3 +68,10 @@ def select_and_sort(select_expression, sort_expression, items, get_tags=lambda i
     return items
 
 
+
+class Matchable_set(set):
+    def matches(self, expression):
+        return matches(expression, self)
+
+
+
