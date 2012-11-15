@@ -212,54 +212,57 @@ Clip adaptors and low quality bases from Illumina reads or read pairs.
 """)
 @config.Bool_flag('adaptor_clip',
     'Do adaptor clipping?'
-)
+    )
 @config.String_flag('adaptor_file',
     'FASTA file to read adaptors from. '
     'Defaults to a built-in list of Illumina adaptors.'
-)
+    )
 @config.Int_flag('match',
     'Minimum length adaptor match.'
-)
+    )
 @config.Int_flag('max_errors',
     'Maximum errors in adaptor match.\n'
     'Note: slow for N > 1'
-)
+    )
 @config.Bool_flag('clip_ambiguous', 
     'Clip ambiguous bases, eg N'
-)
+    )
 @config.Int_flag('quality',  
     'Quality cutoff'
-)
+    )
 @config.Int_flag('qoffset',
     'Quality character offset.\n'
     'sanger: 33, solexa: 59, illumina: 64\n'
     'Will guess if not given.'
-)
+    )
 @config.Int_flag('length',
     'Reads shorter than this will be discarded.'
-)
+    )
 @config.Bool_flag('homopolymers',  
     'Set to yes to *remove* reads containing all the same base.'
-) 
+    ) 
+@config.Int_flag('trim_to',
+    'Trim ends of reads so that they are no longer than NNN bases, irrespective of quality.'
+    )
 @config.Int_flag('trim_start',
     'Trim NNN bases from start of each read irrespective of quality.'
-)
+    )
 @config.Int_flag('trim_end',                      
     'Trim NNN bases from end of each read irrespective of quality.'
-)
+    )
 @config.Bool_flag('revcom',
     'Reverse complement all reads.\n'
     'ie convert opp-out pairs to opp-in'
-)
+    )
 @config.Bool_flag('fasta',
     'Output in fasta rather than fastq format.'
-)
+    )
 @config.Bool_flag('gzip',
     'Gzip output.'
-)
+    )
 @config.Bool_flag('rejects',  
     'Output rejected reads in separate file.'
-)
+    )
 @config.Section('reads', 'Files containing unpaired reads.')
 @config.Section('interleaved', 'Files containing interleaved read pairs.')
 @config.Grouped_section('pairs', 'Pair of files containing read pairs.') 
@@ -274,6 +277,7 @@ class Clip(config.Action_with_prefix):
     adaptor_file = None
     homopolymers = False
     revcom = False
+    trim_to = None
     trim_start = 0
     trim_end = 0
     fasta = False
@@ -453,7 +457,11 @@ class Clip(config.Action_with_prefix):
             for i, (name, seq, qual) in enumerate(fragment):
                 seq = seq.upper()
                 total_in_length[i] += len(seq)
-                                    
+                
+                if self.trim_to:
+                    seq = seq[:self.trim_to]
+                    qual = qual[:self.trim_to]
+                
                 start = trim_start
                 best_start = 0
                 best_len = 0

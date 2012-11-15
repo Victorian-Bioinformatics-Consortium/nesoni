@@ -14,7 +14,7 @@ from nway_diff import Nway
 from fisher_diff import Fisher
 from core import Core
 from samcount import Count
-from runr import Test_counts, Plot_counts, Heatmap, Compare_tests, Norm_from_counts, NMF
+from runr import Test_counts, Plot_counts, Test_power, Heatmap, Compare_tests, Norm_from_counts, NMF
 from trivia import Test, As_fasta, As_gff, Sample, Stats
 from shred import Shred
 from igv import Make_genome, IGV_plots, As_userplots, Run_igv
@@ -356,10 +356,6 @@ def get_commands():
     def pastiche(args):
         grace.load('pastiche').pastiche(args)
 
-    @add
-    def test_power(args):
-        grace.load('runr').test_power_main(args)
-        
     @add
     def plot(args):
         grace.load('trivia').plot(args)

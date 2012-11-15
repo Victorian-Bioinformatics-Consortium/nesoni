@@ -14,22 +14,29 @@ output = io.Workspace('output', must_exist=False)
 class Test_clip(unittest.TestCase):
     def test_single(self):
         nesoni.Clip(
-            output / 'clip',
+            output / 'clip-single',
             reads = [ data/'reads_1.txt.gz' ],
         ).run()
     
     def test_paired(self):
         nesoni.Clip(
-            output / 'clip',
+            output / 'clip-paired',
             pairs = [ [ data/'reads_1.txt.gz', data/'reads_2.txt.gz' ] ],
         ).run()
 
     def test_custom_adapters(self):
         nesoni.Clip(
-            output / 'clip',
+            output / 'clip-custom',
             reads = [ data/'reads_1.txt.gz' ],
             adaptor_file = data/'test_adaptors.fa',
         ).run()
+    
+    def test_trim_to(self):
+        nesoni.Clip(
+            output / 'clip-to',
+            pairs = [ [ data/'reads_1.txt.gz', data/'reads_2.txt.gz' ] ],
+            trim_to = 30,
+            ).run()
 
 class Test_analyse_sample(unittest.TestCase):
     def setUp(self):

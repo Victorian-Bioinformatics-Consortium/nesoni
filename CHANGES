@@ -2,6 +2,7 @@
 0.92 - "vcf-nway" can now run SplitsTree
        "count" now outputs in grouped csv format, with sample tags in header
        add "analyse-expression"
+       add "--trim-to" flag to "clip:"
        io.execute/pipe_from/pipe_to now accept 'cores' parameter
        -- use this instead of Action.cores_required (now deprecated)
 

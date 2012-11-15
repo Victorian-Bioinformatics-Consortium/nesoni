@@ -1,7 +1,7 @@
 
 import sys, re, subprocess
 
-from nesoni import grace, config, legion, io
+from nesoni import grace, config, legion, io, workspace
 
 def R_literal(item):
     if item is None:
@@ -982,145 +982,260 @@ def test_counts_run(
     return fdr #test-power needs this
 
 
-TEST_POWER_HELP = """\
+#TEST_POWER_HELP = """\
+#
+#Usage:
+#
+#    nesoni test-power: [options] output_prefix [of: [test-count options]] 
+#
+#Test the statistical power of "nesoni test-counts".
+#
+#Options:
+#
+#    --m NNN            - Number of differentially expressed tags
+#    
+#    --n NNN            - Total number of tags
+#    
+#    --reps N           - Within group replicates
+#    
+#    --count NNNN       - Average count
+#    
+#    --dispersion N.NN  - Dispersion
+#    
+#    --log-fold N.NN    - log2 Fold change of differentially expressed tags
+#
+#"""
+#
+#POWER_TEMPLATE = r"""
+#
+#library(MASS)
+#
+#m <- %(m)d
+#n <- %(n)d
+#reps <- %(reps)d
+#avg_count <- %(count)d
+#dispersion <- %(dispersion)f
+#log_fold <- %(log_fold)f
+#
+#mynegbin <- function(u, d) {
+#    rnegbin(1, u, 1.0/d)
+#}
+#
+#counts <- matrix(0, nrow=n, ncol=(reps*2) )
+#names <- rep('', n)
+#
+#for(i in 1:n) {
+#    a <- 1.0
+#    b <- 1.0
+#    if (i <= m) {
+#        b <- b * (2 ** sample(c(log_fold,-log_fold),1))
+#        names[i] <- paste('DifferentialTag',i,sep='')
+#    } else {
+#        s <- 0.0
+#        names[i] <- paste('Tag',i,sep='')
+#    }
+#    scale <- avg_count / (0.5*(a+b))
+#    a <- a * scale
+#    b <- b * scale
+#    
+#    for(j in 1:reps) {
+#        counts[i,j]      <- mynegbin(a, dispersion)
+#        counts[i,reps+j] <- mynegbin(b, dispersion)
+#    }
+#}
+#
+#data <- data.frame(
+#    Feature=names,
+#    counts,
+#    counts,
+#    Product=names
+#)
+#
+#for(i in 1:reps) {
+#   colnames(data)[i+1] <- paste('Control',i,sep='')
+#   colnames(data)[reps+i+1] <- paste('Experimental',i,sep='')
+#}
+#for(i in 1:(reps*2)) {
+#   colnames(data)[i+reps*2+1] <- paste('RPKM', colnames(data)[i+1])
+#}
+#
+#write.table(data, %(filename_literal)s, sep='\t', quote=FALSE, row.names=FALSE)
+#
+#"""
+#
+#POWER_REPORT_TEMPLATE = """
+#
+#claimed_fdr <- %(claimed_fdr)f
+#
+#data <- read.delim(%(output_filename_literal)s, check.names=FALSE)
+#
+#false_positives <- 0
+#true_positives <- 0
+#
+#for(i in 1:nrow(data)) {
+#    sig <- data$FDR[i] <= claimed_fdr
+#    true <- regexpr('Differential', data$Feature[i])[[1]] != -1
+#    
+#    if (sig && !true) { false_positives <- false_positives + 1 }
+#    if (sig && true) { true_positives <- true_positives + 1 }
+#}
+#
+#sink(%(log_filename_literal)s, append=TRUE, split=TRUE)
+#
+#cat('\n\nFalse positives:', false_positives, '\n')
+#cat(    'False negatives:', %(m)d - true_positives, '\n')
+#cat(    'True positives:', true_positives, '\n')
+#
+#"""
+#
+#def test_power_main(args):
+#    m, args = grace.get_option_value(args, '--m', int, 10)
+#    n, args = grace.get_option_value(args, '--n', int, 1000)
+#    reps, args = grace.get_option_value(args, '--reps', int, 2)
+#    count, args = grace.get_option_value(args, '--count', int, 100)
+#    dispersion, args = grace.get_option_value(args, '--dispersion', float, 0.1)
+#    log_fold, args = grace.get_option_value(args, '--log-fold', float, 1.0)
+#
+#    if len(args) < 1:
+#        print >> sys.stderr, TEST_POWER_HELP
+#        raise grace.Help_shown()
+#    
+#    output_prefix, args = args[0], args[1:]
+#
+#    options = [ ]
+#    def of(args):
+#        options.extend(args)    
+#    grace.execute(args, {'of': of})
+#    
+#    filename = output_prefix + '-input.txt'
+#    filename_literal = R_literal(filename)
+#    log_filename_literal = R_literal(output_prefix + '-info.txt')
+#    
+#    run_script(POWER_TEMPLATE % locals())
+#
+#    claimed_fdr = test_counts_main([ output_prefix, filename, 'Experimental' ] + options)
+#
+#    output_filename_literal = R_literal(output_prefix + '.txt')
+#
+#    run_script(POWER_REPORT_TEMPLATE % locals())
 
-Usage:
-
-    nesoni test-power: [options] output_prefix [of: [test-count options]] 
-
-Test the statistical power of "nesoni test-counts".
-
-Options:
-
-    --m NNN            - Number of differentially expressed tags
-    
-    --n NNN            - Total number of tags
-    
-    --reps N           - Within group replicates
-    
-    --count NNNN       - Average count
-    
-    --dispersion N.NN  - Dispersion
-    
-    --log-fold N.NN    - log2 Fold change of differentially expressed tags
-
-"""
-
-POWER_TEMPLATE = r"""
+POWER_SCRIPT = """
+library(nesoni)
 
 library(MASS)
-
-m <- %(m)d
-n <- %(n)d
-reps <- %(reps)d
-avg_count <- %(count)d
-dispersion <- %(dispersion)f
-log_fold <- %(log_fold)f
-
 mynegbin <- function(u, d) {
-    rnegbin(1, u, 1.0/d)
+    rnegbin(1, u, 1.0/max(1e-30,d))
 }
 
-counts <- matrix(0, nrow=n, ncol=(reps*2) )
-names <- rep('', n)
+q <- c(runif(DE, 1.0-DE_TOP, 1.0), runif(GENES-DE, 0.0, 1.0))
+elevels <- qnorm(q, 0.0, GENE_SD)
+dispersions <- rnorm(GENES, DISPERSION, DISPERSION_SD)
 
-for(i in 1:n) {
-    a <- 1.0
-    b <- 1.0
-    if (i <= m) {
-        b <- b * (2 ** sample(c(log_fold,-log_fold),1))
-        names[i] <- paste('DifferentialTag',i,sep='')
+e <- matrix(0, nrow=GENES, ncol=REPS*2)
+rnames <- rep('', GENES)
+cnames <- rep('', REPS*2)
+
+for(i in basic.seq(REPS)) {
+    cnames[i] <- sprintf('control%d', i)
+    cnames[i+REPS] <- sprintf('experimental%d',i)
+}
+
+for(i in basic.seq(REPS*2)) {
+    e[,i] <- elevels
+}
+
+for(i in basic.seq(GENES)) {
+    if (i < DE) {
+        rnames[i] <- sprintf('Diff%d',i)
+        diff <- DE_AMOUNT * sample(c(-1,1),1)
+        for(j in basic.seq(REPS)+REPS)
+            e[i,j] <- e[i,j] + diff
     } else {
-        s <- 0.0
-        names[i] <- paste('Tag',i,sep='')
-    }
-    scale <- avg_count / (0.5*(a+b))
-    a <- a * scale
-    b <- b * scale
-    
-    for(j in 1:reps) {
-        counts[i,j]      <- mynegbin(a, dispersion)
-        counts[i,reps+j] <- mynegbin(b, dispersion)
+        rnames[i] <- sprintf('Same%d',i)
     }
 }
 
-data <- data.frame(
-    Feature=names,
-    counts,
-    counts,
-    Product=names
-)
+rownames(e) <- rnames
+colnames(e) <- cnames
 
-for(i in 1:reps) {
-   colnames(data)[i+1] <- paste('Control',i,sep='')
-   colnames(data)[reps+i+1] <- paste('Experimental',i,sep='')
-}
-for(i in 1:(reps*2)) {
-   colnames(data)[i+reps*2+1] <- paste('RPKM', colnames(data)[i+1])
+counts <- 2**e 
+for(i in basic.seq(REPS*2)) {
+    scale <- READS / sum(counts[,i])
+    for(j in basic.seq(GENES)) {
+        counts[j,i] <- mynegbin(counts[j,i]*scale, dispersions[j])
+    }
 }
 
-write.table(data, %(filename_literal)s, sep='\t', quote=FALSE, row.names=FALSE)
+annotation = data.frame(gene=rnames,row.names=rnames)
 
+write.grouped.table(list(Count=data.frame(counts),Annotation=annotation), FILENAME)
 """
 
-POWER_REPORT_TEMPLATE = """
+@config.Int_flag('genes', 'Number of genes')
+@config.Int_flag('reads', 'Number of reads per sample')
+@config.Int_flag('reps', 'Replicates in each group')
+@config.Float_flag('gene_sd', 'Standard deviation of log2 average expression of each gene.')
+@config.Float_flag('dispersion', 'Mean dispersion (biological/experimental noise level)')
+@config.Float_flag('dispersion_sd', 'Standard deviation of dispersion.')
+@config.Int_flag('de', 'Number of differentially expressed genes.')
+@config.Float_flag('de_amount', 'Log2 fold change of differentially expressed genes.')
+@config.Float_flag('de_top', 'Differentially expressed genes have (measured) expression levels in the top this proportion of genes.')
+@config.Int_flag('repeats', 'How many trials of "test-counts:" to perform.')
+@config.Configurable_section('test_counts', 'Options for "test-counts:"', presets=[
+    ('default', lambda obj: Test_counts(), '')
+    ])
+class Test_power(config.Action_with_prefix):
+    genes = 3000
+    reads = 1000000
+    reps = 3
+    gene_sd = 3.0    
+    dispersion = 0.1
+    dispersion_sd = 0.0
+    de = 100
+    de_amount = 2.0
+    de_top = 1.0
+    repeats = 10    
+    #test_counts=
 
-claimed_fdr <- %(claimed_fdr)f
+    def run(self):
+        assert self.repeats >= 1
+        assert self.reps >= 1
+        assert self.de <= self.genes
 
-data <- read.delim(%(output_filename_literal)s, check.names=FALSE)
+        futures = [ legion.future(self._run_test) for i in xrange(self.repeats) ]
+        good = sum(item()[0] for item in futures)
+        bad = sum(item()[1] for item in futures)
 
-false_positives <- 0
-true_positives <- 0
-
-for(i in 1:nrow(data)) {
-    sig <- data$FDR[i] <= claimed_fdr
-    true <- regexpr('Differential', data$Feature[i])[[1]] != -1
+        self.log.log('\n')
+        self.log.log(' True positives: %4d\n' % good)
+        self.log.log('False positives: %4d (expected %.1f)\n' % (bad, self.test_counts.fdr*(good+bad)))
+        self.log.log('False negatives: %4d\n' % (self.de*self.repeats-good))
     
-    if (sig && !true) { false_positives <- false_positives + 1 }
-    if (sig && true) { true_positives <- true_positives + 1 }
-}
-
-sink(%(log_filename_literal)s, append=TRUE, split=TRUE)
-
-cat('\n\nFalse positives:', false_positives, '\n')
-cat(    'False negatives:', %(m)d - true_positives, '\n')
-cat(    'True positives:', true_positives, '\n')
-
-"""
-
-def test_power_main(args):
-    m, args = grace.get_option_value(args, '--m', int, 10)
-    n, args = grace.get_option_value(args, '--n', int, 1000)
-    reps, args = grace.get_option_value(args, '--reps', int, 2)
-    count, args = grace.get_option_value(args, '--count', int, 100)
-    dispersion, args = grace.get_option_value(args, '--dispersion', float, 0.1)
-    log_fold, args = grace.get_option_value(args, '--log-fold', float, 1.0)
-
-    if len(args) < 1:
-        print >> sys.stderr, TEST_POWER_HELP
-        raise grace.Help_shown()
-    
-    output_prefix, args = args[0], args[1:]
-
-    options = [ ]
-    def of(args):
-        options.extend(args)    
-    grace.execute(args, {'of': of})
-    
-    filename = output_prefix + '-input.txt'
-    filename_literal = R_literal(filename)
-    log_filename_literal = R_literal(output_prefix + '-info.txt')
-    
-    run_script(POWER_TEMPLATE % locals())
-
-    claimed_fdr = test_counts_main([ output_prefix, filename, 'Experimental' ] + options)
-
-    output_filename_literal = R_literal(output_prefix + '.txt')
-
-    run_script(POWER_REPORT_TEMPLATE % locals())
-
-
-
+    def _run_test(self):
+        good = 0
+        bad = 0
+        with workspace.tempspace() as space:
+            run_script(POWER_SCRIPT,
+                FILENAME=space/'counts.csv',
+                GENES=self.genes, READS=self.reads, REPS=self.reps,
+                GENE_SD=self.gene_sd, DISPERSION=self.dispersion, DISPERSION_SD=self.dispersion_sd,
+                DE=self.de, DE_AMOUNT=self.de_amount, DE_TOP=self.de_top,
+                )
+            self.test_counts(
+                space/'test',
+                space/'counts.csv',
+                test=['experimental'],
+                output_all=False
+                ).run()
+            
+            with open(space/'test.txt', 'rb') as f:
+                f.readline()
+                for line in f:
+                    if line.startswith('Diff'):
+                        good += 1
+                    else:
+                        bad += 1
+        return good, bad
 
 
 HEATMAP_SCRIPT = """
