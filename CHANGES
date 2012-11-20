@@ -5,6 +5,7 @@
        add "--trim-to" flag to "clip:"
        io.execute/pipe_from/pipe_to now accept 'cores' parameter
        -- use this instead of Action.cores_required (now deprecated)
+       "bowtie:" use "-a" instead of "--all" so as to not produce a random file in current directory
 
 0.91 - Make system adds "--make-do" and "--make-done" selections
        Workflow for VCF variant calling

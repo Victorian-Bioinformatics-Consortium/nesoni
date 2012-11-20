@@ -3,7 +3,7 @@ import os
 
 import nesoni
 
-from nesoni import config, clip, samshrimp, bowtie, samconsensus, working_directory, workspace, io
+from nesoni import config, clip, samshrimp, bowtie, samconsensus, working_directory, workspace, io, reporting
 
 @config.help('Analyse reads from a single sample.')
 @config.Positional('reference', 'Reference directory created by "make-reference:".')
@@ -158,11 +158,28 @@ class Analyse_variants(config.Action_with_output_dir):
     'Options for "count:".',
     presets=[('default',lambda obj: nesoni.Count(),'')],
     )
+@config.Configurable_section('norm_from_counts',
+    'Options for "norm-from-counts:" depth of coverage normalization.',
+    presets=[('default',lambda obj: nesoni.Norm_from_counts(),'')],
+    )
+@config.Grouped_configurable_section('heatmap',
+    'One or more heatmaps to produce.',
+    template_getter=lambda obj: nesoni.Heatmap(),
+    )
+@config.Grouped_configurable_section('test',
+    'One or more "test-counts:" to perform. '
+    'Note: on the command line, '
+    'give the counts file as ".", this is slightly broken and will be fixed in a future revision.',
+    template_getter=lambda obj: nesoni.Test_counts(),
+    )
 class Analyse_expression(config.Action_with_output_dir):
     #reference = None
     samples = [ ]
     
     #count = 
+    #norm_from_counts = 
+    heatmap = [ ]
+    test = [ ]
     
     def run(self):
         #assert self.reference is not None, 'No reference directory given.'
@@ -172,6 +189,49 @@ class Analyse_expression(config.Action_with_output_dir):
             space / 'counts',
             filenames=self.samples,
             ).make()
+        
+        self.norm_from_counts(
+            space / 'norm',
+            space / 'counts.csv'
+            ).make()
+        
+        heatmaps = [
+            heatmap(
+                space / 'heatmap-'+heatmap.prefix,
+                space / 'counts.csv',
+                norm_file = space / 'norm.csv',
+                )
+            for heatmap in self.heatmap ]
+        
+        tests = [
+            test(
+                space / 'test-'+test.prefix,
+                space / 'counts.csv',
+                norm_file = space / 'norm.csv'
+                )
+            for test in self.test ]
+        
+        with nesoni.Stage() as stage:
+            for heatmap in heatmaps: 
+                heatmap.process_make(stage)            
+            for test in tests: 
+                test.process_make(stage)        
+        
+        
+        reporter = reporting.Reporter(space / 'report', 'Expression analysis')
+        
+        if heatmaps:
+            reporter.heading('Heatmaps')
+            for heatmap in heatmaps:
+                reporter.report_heatmap(heatmap)
+        
+        if tests:
+            reporter.heading('Differential expression analysis')
+            for test in tests:
+                reporter.report_test(test)
+        
+        reporter.close()
+        
 
 
 @config.help("""\

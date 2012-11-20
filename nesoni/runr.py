@@ -1355,14 +1355,14 @@ NORMALIZATION_SCRIPT = """
 
 library(nesoni)
 
-dgelist <- read.counts(sprintf("%s.txt",PREFIX), use.tmm=USE_TMM)
+dgelist <- read.counts(COUNTS_FILENAME, use.tmm=USE_TMM)
 
 result <- data.frame(
-    Sample = rownames(dgelist$samples),
-    Normalizing.multiplier = dgelist$samples$normalizing.multiplier
+    Normalizing.multiplier = dgelist$samples$normalizing.multiplier,
+    row.names = rownames(dgelist$samples)
 )
 
-write.table(result, sprintf("%s-norm.txt",PREFIX), sep='\t', quote=FALSE, row.names=FALSE)
+write.grouped.table(list(All=result), sprintf("%s.csv",PREFIX),comments=c('#Normalization'))
 
 library(limma)
 
@@ -1394,19 +1394,20 @@ if (USE_TMM) {
 """
 
 @config.help("""\
-From <prefix>.txt creates <prefix>-norm.txt containing a table of \
+Creates <prefix>.csv containing a table of \
 normalizing multipliers as calculated by EdgeR using Trimmed Mean of M-values normalization.
 """)
 @config.Bool_flag('tmm', 'Use TMM normalization (in addition to normalizing by number of mapped reads).')
+@config.Positional('counts_filename', 'CSV file containing counts.')
 class Norm_from_counts(config.Action_with_prefix):
     tmm = True
-
-    def log_filename(self):
-        return self.prefix + '-norm_log.txt'
+    counts_filename = None
 
     def run(self):
+        assert self.counts_filename, 'Counts filename required.'
         run_script(NORMALIZATION_SCRIPT,
             PREFIX=self.prefix,
+            COUNTS_FILENAME=self.counts_filename,
             USE_TMM=self.tmm,
         )
 

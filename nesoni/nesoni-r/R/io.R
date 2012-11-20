@@ -127,7 +127,7 @@ write.grouped.table <- function(groups, filename, comments=c(), rowname.title='N
     sink(filename)
     
     for(comment in comments) {
-        cat('# ',comment,'\n',sep='')
+        cat('#',comment,'\n',sep='')
     }
     
     cat('#Groups',paste(column.groups,collapse=','),'\n',sep='')

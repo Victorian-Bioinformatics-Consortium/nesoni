@@ -18,8 +18,9 @@ read.counts <- function(filename, min.total=0, min.max=0, keep=NULL, norm.file=N
     
     have.norm <- !is.null(norm.file)
     if (have.norm) {
-        norm <- read.delim(norm.file, check.names=FALSE)
-        rownames(norm) <- norm$Sample
+        #norm <- read.delim(norm.file, check.names=FALSE)
+        #rownames(norm) <- norm$Sample
+        norm <- read.grouped.table(norm.file, require=c('All'))$All
         
         # Make counts have same order as norm file, throw out columns not included
         counts <- counts[,rownames(norm),drop=FALSE]
@@ -29,7 +30,7 @@ read.counts <- function(filename, min.total=0, min.max=0, keep=NULL, norm.file=N
     if (!is.null(keep)) {
         counts <- counts[,keep,drop=FALSE]
         if (have.norm)
-            norm <- norm[keep,]
+            norm <- norm[keep,,drop=FALSE]
         n_samples <- ncol(counts)
     }
     

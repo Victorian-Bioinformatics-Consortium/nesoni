@@ -163,6 +163,13 @@ class Reporter(object):
             self.get(action.prefix + '.png', image=True) + 
             (' &sdot; ' +self.get(action.prefix + '.csv', title='[spreadsheet]') if has_csv else '')
         )
+    
+    def report_test(self, action):
+        self.p(
+            self.get(action.prefix + '.txt') +
+            ' &sdot; ' +
+            self.get(action.prefix+'-info.txt', title='[info]')
+        )
 
 
 

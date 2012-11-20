@@ -100,8 +100,8 @@ class Bowtie(config.Action_with_output_dir):
                 '--threads', str(cores),
                 '--rg-id', '1',
                 '--rg', 'SM:'+working.name,
-                '--all',
                 '--no-discordant',
+                '-a',
                 ] + self.bowtie_options + [
                 '-x', reference.get_bowtie_index_prefix(),
                 ]
