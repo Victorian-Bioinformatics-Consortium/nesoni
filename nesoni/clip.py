@@ -263,6 +263,9 @@ Clip adaptors and low quality bases from Illumina reads or read pairs.
 @config.Bool_flag('rejects',  
     'Output rejected reads in separate file.'
     )
+@config.Bool_flag('out_separate',  
+    'Output paired reads in separate left/right files.'
+    )
 @config.Section('reads', 'Files containing unpaired reads.')
 @config.Section('interleaved', 'Files containing interleaved read pairs.')
 @config.Grouped_section('pairs', 'Pair of files containing read pairs.') 
@@ -283,6 +286,7 @@ class Clip(config.Action_with_prefix):
     fasta = False
     gzip = True
     rejects = False
+    out_separate = False
     
     reads = [ ]
     pairs = [ ]
@@ -302,7 +306,10 @@ class Clip(config.Action_with_prefix):
         return [ self.prefix + '_single' + self.output_suffix() ]
     
     def pairs_output_filenames(self):
-        return [ ]
+        if not self.pairs and not self.interleaved:
+            return [ ]
+        return [ self.prefix + '_R1' + self.output_suffix(),
+                 self.prefix + '_R2' + self.output_suffix() ]
             
     def interleaved_output_filenames(self):
         if not self.pairs and not self.interleaved:
@@ -423,7 +430,8 @@ class Clip(config.Action_with_prefix):
     
         f_single = io.open_possibly_compressed_writer(self.reads_output_filenames()[0])
         if fragment_reads == 2:
-            f_paired = io.open_possibly_compressed_writer(self.interleaved_output_filenames()[0])
+            names = self.pairs_output_filenames() if self.out_separate else self.interleaved_output_filenames()
+            f_paired = map(io.open_possibly_compressed_writer, names)
         if output_rejects:
             f_reject = io.open_possibly_compressed_writer(self.rejects_output_filenames()[0])
         
@@ -525,22 +533,25 @@ class Clip(config.Action_with_prefix):
                     ]
             
                 if len(graduates) == 1:
-                    this_f = f_single
                     n_single += 1
+
+                    (name, seq, qual) = graduates[0]
+                    write_sequence(f_single, name, seq, qual)
                 else:
                     assert len(graduates) == 2
-                    this_f = f_paired
                     n_paired += 1
+
+                    # Write the pair to an interleaved file or separate l/r files
+                    for (lr,(name, seq, qual)) in enumerate(graduates):
+                        write_sequence(f_paired[lr%len(f_paired)], name, seq, qual)
                 
-                for name, seq, qual in graduates:
-                    write_sequence(this_f, name, seq, qual)
         
         grace.status('')
         
         if output_rejects:
             f_reject.close()
         if fragment_reads == 2:
-            f_paired.close()
+            map(lambda f: f.close(), f_paired)
         f_single.close()
         
         def summarize_clips(name, location, clips):
