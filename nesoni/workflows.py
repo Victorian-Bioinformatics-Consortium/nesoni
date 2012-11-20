@@ -3,7 +3,8 @@ import os
 
 import nesoni
 
-from nesoni import config, clip, samshrimp, bowtie, samconsensus, working_directory, workspace, io, reporting
+from nesoni import config, clip, samshrimp, bowtie, samconsensus, working_directory, reference_directory, \
+                   workspace, io, reporting
 
 @config.help('Analyse reads from a single sample.')
 @config.Positional('reference', 'Reference directory created by "make-reference:".')
@@ -237,7 +238,12 @@ class Analyse_expression(config.Action_with_output_dir):
 @config.help("""\
 Analyse multiple samples. \
 "analyse-sample:" is performed on a set of different samples, \
-then "analyse-variants:".
+then some or all of \
+"analyse-variants:", "analyse-expression:", "igv-plots:".
+
+If "analyse-expression:" is used, \
+"igv-plots:" will use the same normalization as used in \
+"analyse-expression:".
 
 For your sanity \
 I recommend invoking this from a Python script \
@@ -277,6 +283,12 @@ Example:
         ('default', lambda obj: Analyse_expression(), 'default "analyse-expression:" options'),
         ],
     )
+@config.Configurable_section('igv_plots',
+    presets = [
+        ('default', lambda obj: nesoni.IGV_plots(), 'default "igv-plots:" options'),
+        ('none', lambda obj: None, 'don\'t produce IGV plots'),
+        ],
+    )
 class Analyse_samples(config.Action_with_output_dir):
     reference = None
     #template = Analyse_sample()
@@ -284,6 +296,7 @@ class Analyse_samples(config.Action_with_output_dir):
     
     #variants = 
     #expression =
+    #igv-plots =
 
     def get_sample_space(self):
        work = self.get_workspace()
@@ -306,7 +319,10 @@ class Analyse_samples(config.Action_with_output_dir):
         ]
 
     def run(self):
+        assert self.reference is not None, 'reference not given.'
+        reference = reference_directory.Reference(self.reference, True)
         samples = self.get_samples()
+        sample_dirs = [ sample.output_dir for sample in samples ]
         work = self.get_workspace()
 
         with nesoni.Stage() as stage:
@@ -318,13 +334,23 @@ class Analyse_samples(config.Action_with_output_dir):
                 self.variants(
                     work/'variants',
                     self.reference,
-                    samples=[ sample.output_dir for sample in samples ],
+                    samples=sample_dirs,
                     ).process_make(stage)
     
             if self.expression:
                 self.expression(
                     work/'expression',
-                    samples=[ sample.output_dir for sample in samples ],
+                    samples=sample_dirs,
                     ).process_make(stage)
+
+        if self.igv_plots:
+            plot_space = workspace.Workspace(work/'plot',False)
+            self.igv_plots(
+                prefix = plot_space / ('plot'),
+                genome = reference.get_genome_filename(),
+                norm_file = work/('expression','norm.csv') if self.expression else None,
+                working_dirs = sample_dirs,
+                ).make()
+
 
 

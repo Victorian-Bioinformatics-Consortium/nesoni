@@ -306,13 +306,13 @@ class Clip(config.Action_with_prefix):
         return [ self.prefix + '_single' + self.output_suffix() ]
     
     def pairs_output_filenames(self):
-        if not self.pairs and not self.interleaved:
+        if not self.out_separate or (not self.pairs and not self.interleaved):
             return [ ]
-        return [ self.prefix + '_R1' + self.output_suffix(),
-                 self.prefix + '_R2' + self.output_suffix() ]
+        return [ [ self.prefix + '_R1' + self.output_suffix(),
+                   self.prefix + '_R2' + self.output_suffix() ] ]
             
     def interleaved_output_filenames(self):
-        if not self.pairs and not self.interleaved:
+        if self.out_separate or (not self.pairs and not self.interleaved):
             return [ ]
         return [ self.prefix + '_paired' + self.output_suffix() ]
 
@@ -430,7 +430,7 @@ class Clip(config.Action_with_prefix):
     
         f_single = io.open_possibly_compressed_writer(self.reads_output_filenames()[0])
         if fragment_reads == 2:
-            names = self.pairs_output_filenames() if self.out_separate else self.interleaved_output_filenames()
+            names = self.pairs_output_filenames()[0] if self.out_separate else self.interleaved_output_filenames()
             f_paired = map(io.open_possibly_compressed_writer, names)
         if output_rejects:
             f_reject = io.open_possibly_compressed_writer(self.rejects_output_filenames()[0])

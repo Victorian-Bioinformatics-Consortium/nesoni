@@ -304,10 +304,10 @@ def check_installation(f=sys.stdout):
     
     try:
         runr.run_script('',silent=True)
-    except AssertionError:
+    except Exception:
         report('Couldn\'t run R. Some tools require R.')
-
-    if ok:
+    
+    if ok[0]:
         try: 
             runr.run_script(
                 'library(nesoni)\n'

@@ -512,6 +512,9 @@ class Configurable(object):
             elif parameter.name in kwargs:
                 value = kwargs[parameter.name]
                 unused.remove(parameter.name)
+            elif 'modify_'+parameter.name in kwargs:
+                value = kwargs['modify_'+parameter.name]( parameter.get(self) )
+                unused.remove('modify_'+parameter.name)
             else:
                 value = parameter.get(self)
             

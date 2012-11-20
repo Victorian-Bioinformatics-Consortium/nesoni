@@ -160,10 +160,11 @@ class IGV_plots(config.Action_with_prefix):
         ]
 
     def load_norm_mult(self):
-        mults = { }
-        for record in io.read_table(self.norm_file):
-            mults[record['Sample']] = float(record['Normalizing.multiplier'])        
-        self.norm_mult = [ mults[name] for name in self.sample_names ]
+        #mults = { }
+        #for record in io.read_table(self.norm_file):
+        #    mults[record['Sample']] = float(record['Normalizing.multiplier'])        
+        mults = io.read_grouped_table(self.norm_file)['All']
+        self.norm_mult = [ float(mults[name]['Normalizing.multiplier']) for name in self.sample_names ]
     
     def normalizer(self):
         #norm_factors = self.norm_factors
