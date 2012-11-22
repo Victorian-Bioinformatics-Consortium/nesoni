@@ -1,5 +1,5 @@
 
-import sys, re, subprocess
+import sys, os, re, subprocess
 
 from nesoni import grace, config, legion, io, workspace
 
@@ -317,6 +317,30 @@ describe <- function(vec) {
 }
 
 
+do.heatmap <- function(heatmap.features, heatmap.data, heatmap.labels) {
+    png(sprintf('%s-heatmap.png',OUTPUT_PLOT), res=150, width=2000, height=min(5000,25*length(heatmap.features)+800))
+    multiplot(
+        list(
+            list(
+                weight=1,
+                type='heatmap',
+                data=t(scale(t(heatmap.data),center=TRUE,scale=FALSE)),
+                signed=TRUE,
+                legend='log2 Reads Per Million\ndifference from row mean'
+            ),
+            list(
+                weight=0.25,
+                type='bar',
+                data=rowMeans(heatmap.data),
+                title='row\nmean'
+            )
+        ),
+        heatmap.labels
+    )           
+    dev.off()
+}           
+
+
 #data <- read.delim(FILENAME, check.names=FALSE)
 #rownames(data) <- data$Feature
 #
@@ -442,7 +466,7 @@ if (nrow(dgelist$counts) == 0) {
              pch=19, cex=0.25) 
         points(result[significant & sane,"log2 average per million"],
                result[significant & sane,"log2 contrast"],
-               pch=19, cex=0.25,
+               pch=19, cex=1.0,
                col="red")
         dev.off()
     } else {
@@ -466,7 +490,7 @@ if (nrow(dgelist$counts) == 0) {
                      
                 points(result[significant & sane,"log2 average per million"],
                        result[significant & sane,colnames(design)[i]],
-                       pch=19, cex=0.25,
+                       pch=19, cex=1.0,
                        col="red")
             
                 #points((result$"log2 average per million"),
@@ -477,6 +501,16 @@ if (nrow(dgelist$counts) == 0) {
                 dev.off()
             }
     }
+    
+    
+    heatmap.features <- rev(as.character(result$Feature[significant]))
+    heatmap.data <- voom(dgelist)$E[heatmap.features,,drop=FALSE]
+    heatmap.labels <- list(heatmap.features)
+    for(i in basic.seq(ncol(dgelist$genes)-1)+1) {
+        heatmap.labels[[i]] <- dgelist$genes[heatmap.features,i]
+    }
+    do.heatmap(heatmap.features,heatmap.data,heatmap.labels)
+    
     
     sink(LOG_FILENAME, split=TRUE, append=TRUE)
     
@@ -608,11 +642,11 @@ if (MODE == 'voom') {
     p <- pchisq(s2*scale, df, lower.tail=FALSE)
 }
 
-result <- data.frame(Feature = rownames(y$genes))
+result <- data.frame(Feature = rownames(y$genes), row.names=rownames(y$genes))
 
 result$'average expression (log2 reads-per-million)' <- fit$Amean
 
-for(i in 1:ncol(coef)) {
+for(i in basic.seq(ncol(coef))) {
     result[,colnames(coef)[i]] <- coef[,i]
 }
 
@@ -623,11 +657,11 @@ result$FDR <- p.adjust(p)
 #for(i in (N_ALL_SAMPLES*2+2):ncol(data)) {
 #    result[,colnames(data)[i]] = data[,i]
 #}
-for(i in 1:ncol(y$genes)) {
+for(i in basic.seq(ncol(y$genes))) {
     result[,colnames(y$genes)[i]] <- y$genes[,i]
 }
 
-for(i in 1:ncol(y$E)) {
+for(i in basic.seq(ncol(y$E))) {
     result[,sprintf('%s voomed', colnames(y$E)[i])] <- y$E[,i]
 }
 
@@ -671,11 +705,19 @@ if (ncol(coef) == 1) # <-- Plots don't seem useful for ANOVA
              
         points(result[,"average expression (log2 reads-per-million)"][significant],
                result[,colname][significant],
-               pch=19, cex=0.25,
+               pch=19, cex=1.0,
                col="red")
         dev.off()
     }
 
+
+heatmap.features <- rev(as.character(result$Feature[significant]))
+heatmap.data <- y$E[heatmap.features,,drop=FALSE]
+heatmap.labels <- list(heatmap.features)
+for(i in basic.seq(ncol(y$genes)-1)+1) {
+    heatmap.labels[[i+1]] <- y$genes[heatmap.features,i]
+}
+do.heatmap(heatmap.features,heatmap.data,heatmap.labels)
 
 sink(LOG_FILENAME, split=TRUE, append=TRUE)
 
@@ -690,7 +732,7 @@ cat('Discarded', dgelist$original.number.of.genes-nrow(dgelist$counts), 'feature
 cat('Kept', nrow(dgelist$counts), 'features\n')
 
 if (MODE == 'voom') {
-    cat(fit$df.prior, 'df prior (the prior is like this many extra samples)\n\n')
+    cat(fit$df.prior, 'prior df (the prior is like this many extra samples)\n')
 }
 
 cat('With a False Discovery Rate of', FDR_CUTOFF, 'there are\n')
@@ -952,6 +994,9 @@ def test_counts_run(
         script = VOOM
     else:
         script = EDGER
+    
+    if os.path.exists(output_prefix+'.png'):
+        os.unlink(output_prefix+'.png')
     
     run_script(
         script,

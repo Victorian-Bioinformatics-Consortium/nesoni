@@ -24,7 +24,7 @@ from workflows import Analyse_sample, Analyse_variants, Analyse_expression, Anal
 from legion import *
 
 
-VERSION='0.92'
+VERSION='0.93'
 
 BOLD = '\x1b[1m'
 END = '\x1b[m'
@@ -263,11 +263,12 @@ Simple usage would be:
 
   import nesoni
   
-  nesoni.Tool_name(
-      arg1, arg2, ..., 
-      flag_name=value,
-      section_name=[values],...
-  ).run()
+  if __name__ == '__main__':
+      nesoni.Tool_name(
+          arg1, arg2, ..., 
+          flag_name=value,
+          section_name=[values],...
+          ).run()
 
 
 More advanced usage would make use of the facilities in nesoni.legion:
@@ -275,18 +276,17 @@ More advanced usage would make use of the facilities in nesoni.legion:
   import nesoni
   
   def main():
-      stage = nesoni.Stage()
-      nesoni.Tool_1(...).process_make(stage)
-      nesoni.Tool_2(...).process_make(stage)
-      stage.barrier()
-      nesoni.Tool_3(...).make()
+      with nesoni.Stage() as stage:
+          nesoni.Tool_1(...).process_make(stage)
+          nesoni.Tool_2(...).process_make(stage)
+          stage.barrier()
+          nesoni.Tool_3(...).make()
             
   if __name__ == '__main__':
       nesoni.run_script(main)
 
-"make" only starts re-running tools when it reaches a tool whos parameters have changed. 
-A directory ".state" in the current directory is created to store the parameters from 
-previous runs. You can also delete the appropriate file from .state to force re-running.
+"make" only starts re-running tools when it reaches a tool whos parameters have changed.
+(Command line options --make-do and --make-done can be used to override this.)
 
 Allowing tools to run in parallel eliminates the implicit dependency between them.
 barrier() waits for processes to finish, and declares that what follows depends 

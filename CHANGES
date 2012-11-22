@@ -1,4 +1,6 @@
 
+0.93 - "bowtie:" add flag "--no-mixed" to suppress crazy mate pairing in output
+
 0.92 - "vcf-nway" can now run SplitsTree
        "count" now outputs in grouped csv format, with sample tags in header
        add "analyse-expression"

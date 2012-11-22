@@ -115,6 +115,9 @@ class Reference(io.Workspace):
         assert os.path.exists(filename), 'IGV .genome was not created. Please use "make-reference:" with "--genome yes".'
         return filename
     
+    def get_genome_dir(self):
+        return self / self.name
+    
     def shrimp_command(self, cs=False, parameters = [ ]):
         """ Parameters:
             First any parameters, then

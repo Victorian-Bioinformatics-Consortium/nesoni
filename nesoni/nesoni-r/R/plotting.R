@@ -222,7 +222,7 @@ nesoni.heatmap <- function(mat,
             weight=0.25,
             type='bar',
             data=levels[dend.row$order],
-            title='row\naverage'
+            title='row\nmean'
         )
     }
     

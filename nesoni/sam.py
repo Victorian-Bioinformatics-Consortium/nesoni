@@ -250,7 +250,7 @@ def bam_iter_fragments(filename, status_text='Processing'):
                     continue
                 
                 if al1 not in unused or al2 not in unused:
-                    #TODO: this is fucked
+                    # pfh says: I am displeased that the pairing is sometimes ambiguous
                     n_ambiguous += 1
                     continue
                 
@@ -258,6 +258,8 @@ def bam_iter_fragments(filename, status_text='Processing'):
                 unused.remove(al1)
                 unused.remove(al2)
         
+        if unused:
+            print unused
         assert not unused, 'Alignment pairing not even pretending to make sense'
         
         yield read_name, pairs + unpaired, unmapped
@@ -266,7 +268,7 @@ def bam_iter_fragments(filename, status_text='Processing'):
     if n_ambiguous:
         print >> sys.stderr 
         print >> sys.stderr, 'The alignment pairing was unclear %s times, and alignments were paired arbitrarily.' % grace.pretty_number(n_ambiguous)
-        print >> sys.stderr, 'Blame the SAM format and/or SHRiMP.'
+        print >> sys.stderr, 'Blame the SAM format.'
         print >> sys.stderr 
 
         

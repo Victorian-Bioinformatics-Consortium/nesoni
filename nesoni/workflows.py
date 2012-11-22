@@ -1,10 +1,12 @@
 
-import os
+import os, glob
 
 import nesoni
 
 from nesoni import config, clip, samshrimp, bowtie, samconsensus, working_directory, reference_directory, \
                    workspace, io, reporting
+
+class Context(object): pass
 
 @config.help('Analyse reads from a single sample.')
 @config.Positional('reference', 'Reference directory created by "make-reference:".')
@@ -41,47 +43,64 @@ class Analyse_sample(config.Action_with_output_dir):
     
     _workspace_class = working_directory.Working
     
-    def run(self):
+    def get_context(self):
+        context = Context()
+        context.action = self
+        context.space = self.get_workspace()
+
         reads = self.reads
         interleaved = self.interleaved
         pairs = self.pairs
         
-        workspace = self.get_workspace()
-        
-        if self.clip:
-            act = self.clip(
-                workspace/workspace.name,
+        if not self.clip:
+            context.clip = None
+        else:
+            context.clip = self.clip(
+                context.space/context.space.name,
                 reads = reads,
                 interleaved = interleaved,
                 pairs = pairs,
             )
-            act.make()
-            reads = act.reads_output_filenames()
-            pairs = act.pairs_output_filenames()
-            interleaved = act.interleaved_output_filenames()
+            reads = context.clip.reads_output_filenames()
+            pairs = context.clip.pairs_output_filenames()
+            interleaved = context.clip.interleaved_output_filenames()
         
-        self.align(
+        context.align = self.align(
             self.output_dir,
             self.reference,
             reads = reads,
             interleaved = interleaved,
             pairs = pairs, 
-        ).make()
+            )
         
-        if self.filter:
-            self.filter(
-                self.output_dir
-            ).make()
+        if not self.filter:
+            context.filter = None
+        else:
+            context.filter = self.filter(self.output_dir)
         
-        if self.reconsensus:
-            self.reconsensus(
-                self.output_dir
-            ).make()
+        if not self.reconsensus:
+            context.reconsensus = None
+        else:
+            context.reconsensus = self.reconsensus(self.output_dir)
         
-        nesoni.Tag(
-            self.output_dir, 
-            tags=self.tags
-            ).make()
+        return context
+        
+    
+    def run(self):
+        context = self.get_context()
+        
+        if context.clip: 
+            context.clip.make()
+        
+        context.align.make()
+        
+        if context.filter: 
+            context.filter.make()
+        
+        if context.reconsensus: 
+            context.reconsensus.make()        
+        
+        nesoni.Tag(self.output_dir,tags=self.tags).make()
 
 
 @config.Positional('reference',
@@ -231,6 +250,11 @@ class Analyse_expression(config.Action_with_output_dir):
             for test in tests:
                 reporter.report_test(test)
         
+        reporter.heading('Raw data')
+        
+        reporter.p(reporter.get(space / 'counts.csv'))
+        reporter.p(reporter.get(space / 'norm.csv'))
+        
         reporter.close()
         
 
@@ -289,6 +313,9 @@ Example:
         ('none', lambda obj: None, 'don\'t produce IGV plots'),
         ],
     )
+@config.String_flag('report_title')
+@config.Bool_flag('include_genome', 'Include .genome with IGV plots in report.')
+@config.Bool_flag('include_bams', 'Include BAM files in report.')
 class Analyse_samples(config.Action_with_output_dir):
     reference = None
     #template = Analyse_sample()
@@ -297,60 +324,140 @@ class Analyse_samples(config.Action_with_output_dir):
     #variants = 
     #expression =
     #igv-plots =
+    
+    report_title = 'High-throughput sequencing analysis'
+    include_genome = True
+    include_bams = True
 
-    def get_sample_space(self):
-       work = self.get_workspace()
-       return workspace.Workspace(work/'samples',must_exist=False)
-
-    def get_samples(self):
-        """ Fill in given samples with reference. """
+    def get_context(self):
         assert self.reference is not None, 'reference not given.'
+
+        context = Context()
+        context.action = self
+        context.space = self.get_workspace()
+        context.sample_space = workspace.Workspace(context.space/'samples', False)
+        context.reference = reference_directory.Reference(self.reference, True)
+
         for sample in self.sample:
             assert sample.reference is None, 'reference should not be specified within sample.'
             assert sample.output_dir, 'sample given without name.'
             assert os.path.sep not in sample.output_dir, 'sample name contains '+os.path.sep
-        sample_space = self.get_sample_space()
-        return [
+        context.sample = [
             sample(
-                output_dir = sample_space / sample.output_dir,
+                output_dir = context.sample_space / sample.output_dir,
                 reference = self.reference,                
-            )
+                )
             for sample in self.sample
-        ]
+            ]
+        context.sample_dirs = [ item.output_dir for item in context.sample ]
+        
+        if not self.variants:
+            context.variants = None
+        else:
+            context.variants = self.variants(
+                context.space/'variants',
+                self.reference,
+                samples=context.sample_dirs,
+                )
+
+        if not self.expression:
+            context.expression = None
+        else:
+            context.expression = self.expression(
+                context.space/'expression',
+                samples=context.sample_dirs,
+                )
+        
+        return context
 
     def run(self):
-        assert self.reference is not None, 'reference not given.'
-        reference = reference_directory.Reference(self.reference, True)
-        samples = self.get_samples()
-        sample_dirs = [ sample.output_dir for sample in samples ]
-        work = self.get_workspace()
+        context = self.get_context()
 
         with nesoni.Stage() as stage:
-            for sample in samples:
+            for sample in context.sample:
                 sample.process_make(stage)
             
         with nesoni.Stage() as stage:
-            if self.variants:
-                self.variants(
-                    work/'variants',
-                    self.reference,
-                    samples=sample_dirs,
-                    ).process_make(stage)
+            if context.variants:
+                context.variants.process_make(stage)
     
-            if self.expression:
-                self.expression(
-                    work/'expression',
-                    samples=sample_dirs,
-                    ).process_make(stage)
+            if context.expression:
+                context.expression.process_make(stage)
 
         if self.igv_plots:
-            plot_space = workspace.Workspace(work/'plot',False)
+            plot_space = workspace.Workspace(context.space/'plot',False)
             self.igv_plots(
                 prefix = plot_space / ('plot'),
-                genome = reference.get_genome_filename(),
-                norm_file = work/('expression','norm.csv') if self.expression else None,
-                working_dirs = sample_dirs,
+                genome = context.reference.get_genome_filename(),
+                norm_file = context.space/('expression','norm.csv') if context.expression else None,
+                working_dirs = context.sample_dirs,
                 ).make()
+
+        # =================================================================================
+        # =================================================================================
+        # =================================================================================
+
+        reporter = reporting.Reporter(context.space / 'report', self.report_title)
+        
+        reporter.report_logs('alignment-statistics',
+            [ sample.get_context().clip.log_filename() 
+                for sample in context.sample 
+                if sample.clip
+                ] +
+            ([ sample.get_context().filter.log_filename() 
+                for sample in context.sample 
+                if sample.filter 
+                ] if not context.expression else [ ]) +
+            ([ context.space/('expression','counts_log.txt') ] if context.expression else [ ])
+            )
+        
+        if self.expression:
+            io.symbolic_link(source=context.space/('expression','report'),link_name=context.space/('report','expression'))
+            reporter.heading('<a href="expression/index.html">&gt; Expression analysis</a>')
+        
+        #if self.variants:
+        #    io.symbolic_link(source=work/('variants','report'),link_name=work/('report','variants'))
+        #    reporter.heading('<a href="expression/index.html">&gt; Variants analysis</a>')
+                
+        if self.igv_plots:
+            reporter.heading('IGV plots')            
+            reporter.p('These files show the depth of coverage. They can be viewed with the IGV genome browser.')
+
+            genome_files = [ ]
+            if self.include_genome:
+                genome_filename = context.reference.get_genome_filename()
+                genome_dir = context.reference.get_genome_dir()
+                genome_files.append(genome_filename)
+                if genome_dir:
+                    base = os.path.split(genome_dir)[1]
+                    for filename in os.listdir(genome_dir):
+                        genome_files.append((
+                            os.path.join(genome_dir, filename),
+                            os.path.join(base, filename)
+                            ))
+            
+            reporter.p(reporter.tar('igv-plots.tar.gz',
+                genome_files +
+                glob.glob(plot_space/'*.tdf')
+                ))
+
+        if self.include_bams:
+            reporter.heading('BAM files')
+            
+            reporter.p('These BAM files contain the alignments of reads to the reference sequences.'
+                       ' They can also be viewed using IGV.')
+            
+            bam_files = [ ]
+            for sample in self.sample:
+                name = sample.output_dir
+                bam_files.append( (context.space/('samples',name,'alignments_filtered_sorted.bam'),name+'.bam') )
+                bam_files.append( (context.space/('samples',name,'alignments_filtered_sorted.bam.bai'),name+'.bam.bai') )
+            reporter.p(reporter.tar('bam-files.tar.gz', bam_files))
+        
+        reporter.write('<p/><hr/>\n')
+        reporter.p('nesoni version '+nesoni.VERSION)
+        reporter.close()
+
 
 
 

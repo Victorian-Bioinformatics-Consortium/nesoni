@@ -166,6 +166,10 @@ class Reporter(object):
     
     def report_test(self, action):
         self.p(
+            self.get(action.prefix + '-heatmap.png', image=True, title='[heatmap]') +
+            (' &sdot; ' + self.get(action.prefix+'.png', image=True,title='[MA-plot]')
+                if os.path.exists(action.prefix+'.png') else '') +
+            ' &sdot; ' +
             self.get(action.prefix + '.txt') +
             ' &sdot; ' +
             self.get(action.prefix+'-info.txt', title='[info]')
