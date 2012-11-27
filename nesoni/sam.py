@@ -5,7 +5,7 @@ SAM-based reboot
 
 """
 
-import sys, os, subprocess, itertools, array, datetime, socket
+import sys, os, subprocess, itertools, array, datetime, socket, heapq
 
 
 from nesoni import grace, bio, io, consensus, legion, config
@@ -315,9 +315,11 @@ Merge and sort one or more bam files using Picard.
 """)
 @config.Main_section('bams')
 @config.String_flag('sort', 'Sort order. Can be "queryname" or "coordinate".')
+@config.Bool_flag('index', 'If sorting by coordinate, produce an index file?')
 class Bam_merge(config.Action_with_prefix):
     bams = [ ]
     sort = 'coordinate'
+    index = True
     
     def run(self):
         assert self.sort in ('queryname', 'coordinate')
@@ -330,13 +332,53 @@ class Bam_merge(config.Action_with_prefix):
             'OUTPUT='+self.prefix+'.bam'
             ] + [ 'INPUT='+item for item in self.bams ])
         
-        if self.sort == 'coordinate':
+        if self.sort == 'coordinate' and self.index:
             jar = io.find_jar('BuildBamIndex.jar', 'BuildBamIndex is part of the Picard package.')
             io.execute([
                 'java','-jar',jar,
                 'INPUT='+self.prefix+'.bam'
                 ])
 
+@config.help("""\
+Limit depth of BAM file (must be sorted by coordinate).
+
+READ PAIRING INFORMATION IS DISCARDED!
+""")
+@config.Int_flag('depth', 'Depth limit.')
+@config.Positional('input', 'Input BAM file.')
+class Bam_depth_limit(config.Action_with_prefix):
+    depth = 100
+    input = None
+    
+    def run(self):
+        headers = bam_headers(self.input)
+        writer = Bam_writer(self.prefix+'.bam', headers)
+        chrom = None
+        endpoints = [ ]
+        total = 0
+        discarded = 0
+        for record in Bam_reader(self.input):
+            total += 1
+            
+            if chrom != record.rname:
+                chrom = record.rname
+                endpoints = [ ]
+            while endpoints and endpoints[0] <= record.pos:
+                heapq.heappop(endpoints)
+            
+            if len(endpoints) >= self.depth:
+                discarded += 1
+                continue
+
+            heapq.heappush(endpoints, record.pos+record.length)
+            
+            record.flag &= ~FLAG_PAIRED
+            record.mrnm = '*'
+            record.mpos = 0
+            writer.write(record)
+        writer.close()
+        
+        self.log.log('Discarded %s alignments out of %s.\n' % (grace.pretty_number(discarded),grace.pretty_number(total)))
 
 
 

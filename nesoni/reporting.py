@@ -128,10 +128,11 @@ class Reporter(object):
             prefix = self.file_prefix
         dest = self.workspace / (prefix+name)
         
-        Copy(
-            dest = dest,
-            source = filename,
-        ).make()
+        #Copy(
+        #    dest = dest,
+        #    source = filename,
+        #    ).make()
+        io.symbolic_link(source=filename, link_name=dest)
         
         return self.href(dest, title, image)
     

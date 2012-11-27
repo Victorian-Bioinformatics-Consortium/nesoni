@@ -120,14 +120,16 @@ then reducing the ploidy to 1 using "nesoni vcf-filter".
     'The read group should be set '
     '(nesoni\'s wrappers of read aligners do this as of version 0.87).'
     )
+@config.Int_flag('depth_limit', 'Limit depth of coverage of BAM files to this before running freebays. Use 0 for unlimited.')
 @config.Int_flag('ploidy', 'Ploidy of genotype calls.')
 @config.Float_flag('pvar', 'Probability of polymorphism.')
-@config.Section('freebayes_options', 'Flags to pass to FreeBayes.', allow_flags=True)
+@config.Section('freebayes_options', 'Flags to pass to FreeBayes.', allow_flags=True, append=False)
 class Freebayes(config.Action_with_prefix):
+    depth_limit = 100
     ploidy = 4
     pvar = 0.9
     samples = [ ]
-    freebayes_options = [ ]
+    freebayes_options = [ '--min-alternate-total', '2' ]
 
     def run(self):
         bams = [ ]
@@ -155,10 +157,20 @@ class Freebayes(config.Action_with_prefix):
             raise grace.Error('No reference FASTA file given.')
         
         with nesoni.Stage() as stage:
+            tempspace = stage.enter( workspace.tempspace() )
+            if self.depth_limit:
+                with nesoni.Stage() as stage2:
+                    for i in xrange(len(bams)):
+                        sam.Bam_depth_limit(
+                            tempspace/('%d'%i), 
+                            bams[i], 
+                            depth=self.depth_limit
+                            ).process_make(stage2)
+                        bams[i] = tempspace/('%d.bam'%i)
+            
             # FreeBayes claims to handle multiple bams, but it doesn't actually work
             if len(bams) > 1:
-                tempspace = stage.enter( workspace.tempspace() )
-                sam.Bam_merge(tempspace/'merged', bams=bams).run()
+                sam.Bam_merge(tempspace/'merged', bams=bams, index=False).run()
                 bams = [ tempspace/'merged.bam' ]
         
             command = [ 

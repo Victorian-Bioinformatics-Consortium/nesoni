@@ -12,7 +12,7 @@ from nesoni import config, io
 #Entrez.email = 'whatever@mail.com'
 
 @config.Positional('accession')
-@config.Positional('email')
+@config.Positional('email',affects_output=False)
 class Fetch_genbank(config.Action_with_output_dir):
     accession = None
     email = None
@@ -56,7 +56,7 @@ class Fetch_sra(config.Action_with_output_dir):
 
 
 
-@config.Positional('email', 'Email address to give when accessing NCBI')
+@config.Positional('email', 'Email address to give when accessing NCBI', affects_output=False)
 class Test_analyse_samples(config.Action_with_output_dir):
     email = None
     genbanks = 'NC_017331.1'.split()

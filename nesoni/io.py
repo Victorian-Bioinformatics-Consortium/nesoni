@@ -28,6 +28,7 @@ def find_jar(jarname, extra_help=''):
 
 
 def symbolic_link(source, link_name):
+    assert os.path.exists(source)
     if os.path.lexists(link_name):
         os.unlink(link_name)
     os.symlink(os.path.relpath(source, os.path.dirname(link_name)), link_name)

@@ -231,15 +231,19 @@ class Float_flag(Flag):
 class Section(Parameter):
     sort_order = 3
 
-    def __init__(self, name, help='', affects_output=True, allow_flags=False, empty_is_ok=True):
+    def __init__(self, name, help='', affects_output=True, allow_flags=False, empty_is_ok=True, append=True):
         Parameter.__init__(self,name=name,help=help,affects_output=affects_output)
         self.allow_flags = allow_flags
         self.empty_is_ok = empty_is_ok
+        self.append = append
 
     def parse(self, obj, args):
         if not self.allow_flags:
             expect_no_further_flags(args)
-        return self.get(obj) + args
+        if self.append:
+            return self.get(obj) + args
+        else:
+            return args
 
     def shell_name(self):
         return self.name.replace('_','-').rstrip('-').lower()+':'

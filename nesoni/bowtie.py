@@ -17,14 +17,14 @@ section, or as a single interleaved file in the "interleaved" section.
 @config.Section('reads', 'FASTQ files containing unpaired reads.')
 @config.Section('interleaved', 'FASTQ files containing interleaved read pairs.')
 @config.Grouped_section('pairs', 'Pair of FASTQ files containing read pairs.')
-@config.Section('bowtie_options', 'Options to pass to bowtie.', allow_flags=True)
+@config.Section('bowtie_options', 'Options to pass to bowtie.', allow_flags=True, append=False)
 class Bowtie(config.Action_with_output_dir):
     cores = 8
     references = []
     reads = []
     interleaved = []
     pairs = []
-    bowtie_options = []
+    bowtie_options = [ '--no-discordant', '--no-mixed', '-k', '10' ]
     
     _workspace_class = working_directory.Working
     
@@ -95,16 +95,15 @@ class Bowtie(config.Action_with_output_dir):
 
             cores = min(self.cores, legion.coordinator().get_cores())
 
-            command = [ 
-                'bowtie2', 
-                '--threads', str(cores),
-                '--rg-id', '1',
-                '--rg', 'SM:'+working.name,
-                '--no-discordant', '--no-mixed',
-                '-a',
-                ] + self.bowtie_options + [
-                '-x', reference.get_bowtie_index_prefix(),
-                ]
+            command = (
+                [ 'bowtie2', 
+                    '--threads', str(cores),
+                    '--rg-id', '1',
+                    '--rg', 'SM:'+working.name,                    
+                    ] + 
+                self.bowtie_options + 
+                [ '-x', reference.get_bowtie_index_prefix() ]
+                )
             commands = [ ]
             if ones:
                 commands.append(command + [ '-1', ','.join(ones), '-2', ','.join(twos) ])
