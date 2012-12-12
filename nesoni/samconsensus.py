@@ -357,24 +357,23 @@ def filter(working_dir, infidelity_snps, is_monogamous, output_userplots, output
     log.datum(workspace.name, 'reads' + ('/pairs' if any_pairs else '') + ' with alignments', n)
     log.datum(workspace.name, 'hit multiple locations' + (' (discarded)' if is_monogamous else ''), n_polygamous)
 
-
-    #if n_possibly_polygamous:
-    #   #log.log(
-    #   #    '%15s' % grace.pretty_number(n_possibly_polygamous) + 
-    #   #    ' scored too little to be confident of unique location' + 
-    #   #    (' (discarded)' if is_monogamous else '') + '\n'
-    #   #)
-    #   log.datum(workspace.name,
-    #       'scored too little to be confident of unique location' + (' (discarded)' if is_monogamous else ''),
-    #       n_possibly_polygamous
-    #   )
-       
     if n_kept_paired:
        #log.log('%15s' % grace.pretty_number(n_kept_paired) + ' pairs kept\n')
        log.datum(workspace.name, 'pairs kept', n_kept_paired)
     if n_kept_single:
        #log.log('%15s' % grace.pretty_number(n_kept_single) + ' reads kept\n')
        log.datum(workspace.name, 'reads kept', n_kept_single)
+
+    total_length = 0
+    total_depth = 0
+    total_ambiguous_depth = 0
+    for name, length in reference.get_lengths():
+        total_length += length
+        total_depth += depths[name].depths[0].total() + depths[name].depths[1].total()
+        total_ambiguous_depth += depths[name].ambiguous_depths[0].total() + depths[name].ambiguous_depths[1].total()
+
+    log.datum(workspace.name, 'average depth of coverage, ambiguous', float(total_ambiguous_depth)/total_length)
+    log.datum(workspace.name, 'average depth of coverage, unambiguous', float(total_depth)/total_length)
     
     log.log('\n')
     

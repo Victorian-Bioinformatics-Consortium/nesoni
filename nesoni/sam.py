@@ -372,7 +372,7 @@ class Bam_depth_limit(config.Action_with_prefix):
 
             heapq.heappush(endpoints, record.pos+record.length)
             
-            record.flag &= ~FLAG_PAIRED
+            record.flag &= ~(FLAG_PAIRED|FLAG_PROPER|FLAG_MATE_UNMAPPED|FLAG_MATE_REVERSE|FLAG_FIRST|FLAG_SECOND)
             record.mrnm = '*'
             record.mpos = 0
             writer.write(record)

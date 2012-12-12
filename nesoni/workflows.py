@@ -167,6 +167,14 @@ class Analyse_variants(config.Action_with_output_dir):
             as_='splitstree',
             ).make()
 
+        reporter = reporting.Reporter(space / 'report', 'Variant calling')
+                
+        reporter.report_logs(None, [ space / 'variants-filtered_log.txt' ], 
+            renaming = {'input':'Found by freebayes', 'kept':'Kept after quality filtering'})
+        
+        reporter.close()
+        
+
 
 #@config.Positional('reference',
 #    'Reference directory created with "make-reference:".'

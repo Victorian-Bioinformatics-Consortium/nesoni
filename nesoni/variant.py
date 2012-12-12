@@ -220,6 +220,8 @@ Filtering:
 
 - variants in which genotyping failed in all samples are removed
 
+- variants in which all genotypes match the reference are removed
+
 Note:
 
 - phased VCF files are not supported
@@ -262,6 +264,8 @@ class Vcf_filter(config.Action_with_prefix):
     def _blank_gt(self):
         return '/'.join(['.']*self.ploidy)
     
+    def _reference_gt(self):
+        return '/'.join(['0']*self.ploidy)
 
     def _make_sample_dirichlet(self, variants, sample):
         counts = get_variant_counts(sample)
@@ -329,7 +333,12 @@ class Vcf_filter(config.Action_with_prefix):
         #print 
         #print reader.infos
         #print 
+        
+        n = 0
+        n_kept = 0
+        
         for record in reader:
+            n += 1
             variants = get_variants(record)
             
             any = False
@@ -337,7 +346,7 @@ class Vcf_filter(config.Action_with_prefix):
             for sample in record.samples:
                 self._modify_sample(variants, sample)
                 
-                any = any or sample.data.GT != self._blank_gt()
+                any = any or (sample.data.GT != self._blank_gt() and sample.data.GT != self._reference_gt())
 
                 #print call.sample
                 #for key in call.data._fields:
@@ -362,9 +371,14 @@ class Vcf_filter(config.Action_with_prefix):
             
             if any:
                 writer.write_record(record)
+                n_kept += 1
                 
         writer.close()
         reader_f.close()
+        
+        self.log.datum('variants','input', n)
+        self.log.datum('variants','kept',  n_kept)
+        
         index_vcf(self.prefix+'.vcf')
 
 
@@ -387,6 +401,7 @@ class Snpeff(config.Action_with_prefix):
                 JAR=jar, GENOME=reference.name, VCF=self.vcf, CONFIG=reference/'snpeff.config',
                 stdout=f)
 
+        index_vcf(self.prefix+'.vcf')
 
 
 

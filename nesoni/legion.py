@@ -17,6 +17,7 @@ if __name__ == '__main__':
         
         if main_file is not None: # so unpickling functions in __main__ works
             module = imp.new_module('__job__')
+            module.__file__ = main_file
             sys.modules['__job__'] = module
             sys.modules['__main__'] = module
             execfile(main_file, module.__dict__)

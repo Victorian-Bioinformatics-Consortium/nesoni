@@ -26,7 +26,7 @@ def mine_logs(filenames, filter=lambda sample, field: True):
     records = [ ]
     for field in fields:
         records.append(collections.OrderedDict(
-           [ ('Statistic', field) ] + [ (item, data.get((item,field),'')) for item in samples ]
+           [ ('', field) ] + [ (item, data.get((item,field),'')) for item in samples ]
         ))
     return records
 
@@ -68,6 +68,7 @@ body { font-family: sans-serif; margin-left: 5em; margin-right: 5em; }
 img { vertical-align: middle; }
 a { text-decoration: none; }
 h1,h2,h3,h4,h5,h6 { margin-top: 2em; }
+td,th { padding: 0.5em; }
 """
 
 class Reporter(object):
@@ -154,10 +155,29 @@ class Reporter(object):
         
         return self.href(dest, title)
         
-    def report_logs(self, name, logs, filter=lambda sample, field: True):
-        filename = self.workspace / (self.file_prefix + name + '.csv')        
-        io.write_csv(filename, mine_logs(logs, filter))        
-        self.p(self.href(filename))
+    def report_logs(self, name, logs, filter=lambda sample, field: True, renaming={}):
+        table = mine_logs(logs, filter)
+        
+        if name:
+            filename = self.workspace / (self.file_prefix + name + '.csv')        
+            io.write_csv(filename, mine_logs(logs, filter))
+            self.p(self.href(filename))
+        
+        if table:
+            self.write('<table>\n')
+            self.write('<tr>\n')
+            for key in table[0].keys():
+                self.write('<th>'+key+'</th>')
+            self.write('</tr>\n')
+            for row in table:
+                self.write('<tr>\n')
+                for i,value in enumerate(row.values()):
+                    if i == 0:
+                        value = renaming.get(value,value)
+                    self.write('<td>'+value+'</td>')
+                self.write('</tr>\n')
+            self.write('</table>\n')
+                
         
     def report_heatmap(self, action, has_csv=True):
         self.p(

@@ -417,6 +417,7 @@ class As_userplots(config.Action_with_output_dir):
                     item.close()
             grace.status('')
 
+
 @config.help("""\
 Open IGV with a specified .genome file. \
 If the file is not in IGV's list of user defined genomes, it will be added.
