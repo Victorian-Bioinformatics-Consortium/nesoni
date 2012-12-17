@@ -4,7 +4,7 @@ import os, collections, datetime, shutil, tarfile
 from nesoni import io, config
 
 
-def mine_logs(filenames, filter=lambda sample, field: True):
+def mine_logs(filenames, filter=lambda sample, field: True, commas=False):
     samples = [ ]
     fields = [ ]
     data = { }
@@ -20,7 +20,9 @@ def mine_logs(filenames, filter=lambda sample, field: True):
                 samples.append(sample)
             if field not in fields:
                 fields.append(field)
-            data[ (sample,field) ] = value.replace(',','')
+            if not commas:
+                value = value.replace(',','')
+            data[ (sample,field) ] = value
         f.close()
     
     records = [ ]
@@ -155,15 +157,17 @@ class Reporter(object):
         
         return self.href(dest, title)
         
-    def report_logs(self, name, logs, filter=lambda sample, field: True, renaming={}):
+    def report_logs(self, name, logs, filter=(lambda sample, field: True), renaming={}):
         table = mine_logs(logs, filter)
         
         if name:
             filename = self.workspace / (self.file_prefix + name + '.csv')        
-            io.write_csv(filename, mine_logs(logs, filter))
+            io.write_csv(filename, table)
             self.p(self.href(filename))
         
         if table:
+            table = mine_logs(logs, filter, commas=True)
+            
             self.write('<table>\n')
             self.write('<tr>\n')
             for key in table[0].keys():

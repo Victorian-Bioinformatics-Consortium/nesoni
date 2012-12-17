@@ -167,10 +167,16 @@ class Analyse_variants(config.Action_with_output_dir):
             as_='splitstree',
             ).make()
 
-        reporter = reporting.Reporter(space / 'report', 'Variant calling')
+        reporter = reporting.Reporter(space / 'report', 'Variants analysis')
                 
         reporter.report_logs(None, [ space / 'variants-filtered_log.txt' ], 
             renaming = {'input':'Found by freebayes', 'kept':'Kept after quality filtering'})
+        
+        reporter.p(reporter.get(filename))
+        if os.path.exists(filename+'.idx'):
+            reporter.p(reporter.get(filename + '.idx') + ' (needed to view VCF file in IGV)')
+        
+        reporter.p(reporter.get(space / 'net.svg', title='Phylogenetic net'))
         
         reporter.close()
         
@@ -423,9 +429,9 @@ class Analyse_samples(config.Action_with_output_dir):
             io.symbolic_link(source=context.space/('expression','report'),link_name=context.space/('report','expression'))
             reporter.heading('<a href="expression/index.html">&gt; Expression analysis</a>')
         
-        #if self.variants:
-        #    io.symbolic_link(source=work/('variants','report'),link_name=work/('report','variants'))
-        #    reporter.heading('<a href="expression/index.html">&gt; Variants analysis</a>')
+        if self.variants:
+            io.symbolic_link(source=context.space/('variants','report'),link_name=context.space/('report','variants'))
+            reporter.heading('<a href="variants/index.html">&gt; Variants analysis</a>')
                 
         if self.igv_plots:
             reporter.heading('IGV plots')            
