@@ -90,8 +90,9 @@ Type
 
 for usage instructions.
 
-nesoni can also be used without installing:
+nesoni can also be used without installing, from the directory in
+which you unpacked it:
 
-    ./nesoni-script 
+    python -m nesoni
 
 

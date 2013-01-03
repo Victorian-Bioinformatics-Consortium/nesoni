@@ -1,7 +1,8 @@
-
-import grace, config
+VERSION='0.94'
 
 import sys
+
+import grace, config
 
 from reference_directory import Make_reference
 from clip import Clip
@@ -22,9 +23,6 @@ from variant import Freebayes, Vcf_filter, Snpeff, Vcf_nway, Vcf_patch, Test_var
 from workflows import Analyse_sample, Analyse_variants, Analyse_expression, Analyse_samples
 
 from legion import *
-
-
-VERSION='0.93'
 
 BOLD = '\x1b[1m'
 END = '\x1b[m'
@@ -376,25 +374,32 @@ def get_commands():
 
 
 
-def main(args):
-    args = configure_making(args)
+def main():
+    try:
+        args = sys.argv[1:]
+        args = configure_making(args)
+    
+        if not args:
+            config.write_colored_text(sys.stdout, USAGE)
+            grace.check_installation()
+            sys.exit(1)
+    
+        commands = get_commands()
+        
+        command, args = args[0], args[1:]
+        
+        mangled_command = command.lower().rstrip(':')
+        if mangled_command not in commands:
+            raise grace.Error("Don't know how to "+command)
+        
+        commands[mangled_command](args)
 
-    if not args:
-        config.write_colored_text(sys.stdout, USAGE)
-        grace.check_installation()
-        return 1
-
-    commands = get_commands()
+    except grace.Help_shown:
+        sys.exit(1)
     
-    command, args = args[0], args[1:]
+    except Exception:
+        config.report_exception()
+        sys.exit(1)     
     
-    mangled_command = command.lower().rstrip(':')
-    if mangled_command not in commands:
-        raise grace.Error("Don't know how to "+command)
-    
-    commands[mangled_command](args)
-    return 0
-    
-
 
 

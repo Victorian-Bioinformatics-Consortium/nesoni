@@ -339,6 +339,7 @@ class Bam_merge(config.Action_with_prefix):
                 'INPUT='+self.prefix+'.bam'
                 ])
 
+
 @config.help("""\
 Limit depth of BAM file (must be sorted by coordinate).
 
@@ -379,6 +380,5 @@ class Bam_depth_limit(config.Action_with_prefix):
         writer.close()
         
         self.log.log('Discarded %s alignments out of %s.\n' % (grace.pretty_number(discarded),grace.pretty_number(total)))
-
 
 
