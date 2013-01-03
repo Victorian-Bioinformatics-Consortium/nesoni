@@ -154,6 +154,8 @@ os.system('rm MANIFEST')
 release_tarball_name = 'nesoni-%s.tar.gz' % nesoni.VERSION
 assert 'force' in sys.argv[1:] or not os.path.exists('dist/'+release_tarball_name), release_tarball_name + ' already exists'
 
+def sh(cmd): assert 0 == os.system(cmd)
+
 try:
     #assert 0 == os.system('cd test && pypy test_nesoni.py')
     
@@ -161,8 +163,20 @@ try:
     #assert 0 == os.system('sudo -E /bio/sw/python/bin/pypy setup.py install_lib')
     #assert 0 == os.system('sudo -E /bio/sw/python/bin/python2.6 setup.py install_lib')
     
-    assert 0 == os.system('sudo pypy setup.py install --home /bio/sw/python')
-    assert 0 == os.system('sudo R CMD INSTALL --library=/bio/sw/R nesoni/nesoni-r')
+    #assert 0 == os.system('sudo pypy setup.py install --home /bio/sw/python')
+    #assert 0 == os.system('sudo PYTHONPATH=/bio/sw/python/lib/python '
+    #                      'python setup.py install --home /bio/sw/python')
+    
+    sh('sudo virtualenv -p pypy /bio/sw/python/env-pypy')
+    os.system('sudo ln -s pypy /bio/sw/python/env-pypy/bin/pypy-bio')
+    sh('sudo /bio/sw/python/env-pypy/bin/python setup.py install')
+
+    sh('sudo virtualenv -p python /bio/sw/python/env-python')
+    os.system('sudo ln -s python /bio/sw/python/env-python/bin/python-bio')
+    sh('sudo /bio/sw/python/env-python/bin/python setup.py install')        
+    sh('sudo R CMD INSTALL --library=/bio/sw/R nesoni/nesoni-r')
+    
+    os.system('sudo rm -r nesoni.egg-info')
     
     print
     print

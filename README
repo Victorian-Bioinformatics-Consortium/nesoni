@@ -81,6 +81,12 @@ Optional:
     R CMD INSTALL nesoni/nesoni-r
 
 
+For PyPy it seems to be currently easiest to set up in a virtualenv:
+
+    virtualenv -p pypy myenv
+    myenv/bin/pip install nesoni
+
+
 ~ Using nesoni
 ==============
 

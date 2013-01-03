@@ -6,8 +6,6 @@ from setuptools import setup
 
 directory = dirname(__file__)
 
-import nesoni
-
 # Get version
 with open(join(directory,'nesoni','__init__.py'),'rU') as f:
     exec f.readline()
