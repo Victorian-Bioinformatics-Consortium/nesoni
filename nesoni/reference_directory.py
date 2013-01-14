@@ -62,7 +62,7 @@ class Reference(io.Workspace):
         
     def set_annotations(self, filenames):
         f = self.open('reference.gff','wb')
-        print >> f, '##gff-version 3'
+        annotation.write_gff3_header(f)
         for filename in filenames:
             for feature in annotation.read_annotations(filename):
                 print >> f, feature.as_gff()

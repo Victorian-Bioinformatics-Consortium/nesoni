@@ -20,6 +20,7 @@ from trivia import Test, As_fasta, As_gff, Sample, Stats
 from shred import Shred
 from igv import Make_genome, IGV_plots, As_userplots, Run_igv
 from variant import Freebayes, Vcf_filter, Snpeff, Vcf_nway, Vcf_patch, Test_variant_call, Power_variant_call
+from peaks import Peaks
 from workflows import Analyse_sample, Analyse_variants, Analyse_expression, Analyse_samples
 
 from legion import *
@@ -170,6 +171,8 @@ samcount, for analysis with BioConductor packages.
     pastiche:     - Use MUMMER to plaster a set of contigs over reference 
                     sequences.
 
+    peaks:        - Call peaks (eg RNA transcripts) based on depth of coverage.
+                    
 
 %(BOLD)sPipeline tools:%(END)s
     

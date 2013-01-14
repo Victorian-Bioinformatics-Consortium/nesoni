@@ -270,7 +270,10 @@ def is_annotation_file(filename):
     except grace.Error:
         return False
 
-    
+
+def write_gff3_header(f):    
+    print >> f, '##gff-version 3'
+
 
 
 

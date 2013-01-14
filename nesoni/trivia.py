@@ -94,7 +94,8 @@ class Stats(config.Action_with_optional_output):
                     total_length += len(seq[1])
                 print >> f, grace.datum(name, 'sequences', total)
                 print >> f, grace.datum(name, 'total bases', total_length)
-                print >> f, grace.datum(name, 'average length', float(total_length)/total)
+                if total:
+                    print >> f, grace.datum(name, 'average length', float(total_length)/total)
                 print >> f
                 any = True
             
@@ -151,7 +152,8 @@ class As_gff(config.Action):
         else:
            out_file = sys.stdout
     
-        print >> out_file, '##gff-version 3'
+        annotation.write_gff3_header(out_file)
+        
         for filename in self.filenames:
             for item in annotation.read_annotations(filename):
                 if only and item.type.lower() not in only: continue

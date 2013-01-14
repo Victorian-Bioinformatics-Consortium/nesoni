@@ -189,7 +189,7 @@ def get_file_info(filename):
 
     else:    
         f = open_possibly_compressed_file(filename)
-        peek = f.read(16)
+        peek = f.read(1024)
         f.close()
         
         if 'compression-bam' in info or peek.startswith('@HD\t'):
@@ -222,6 +222,13 @@ def get_file_info(filename):
             info.add('qualities')
         elif peek.startswith('##fileformat=VCF'):
             info.add('type-vcf')
+
+        # Possibly unreliable
+        elif peek.split('\n')[0].count('\t') in (7,8):
+            info.add('type-gff')
+            info.add('sequences')
+            info.add('annotations')
+        
         else:
             raise grace.Error('Unrecognized file format for '+filename)
     
@@ -383,8 +390,8 @@ def read_gff3_sequence(filename):
     for line in f:
         if line.rstrip() == '##FASTA':
             break
-    else:
-        raise grace.Error('Tried reading file as a GFF3 but it contains no ##FASTA section')
+    #else:        
+    #    raise grace.Error('Tried reading file as a GFF3 but it contains no ##FASTA section')
     
     return read_fasta(f)
 
