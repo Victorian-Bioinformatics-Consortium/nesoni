@@ -1,4 +1,4 @@
-VERSION='0.94'
+VERSION='0.95'
 
 import sys
 
@@ -171,7 +171,7 @@ samcount, for analysis with BioConductor packages.
     pastiche:     - Use MUMMER to plaster a set of contigs over reference 
                     sequences.
 
-    peaks:        - Call peaks (eg RNA transcripts) based on depth of coverage.
+    peaks:        - Call peaks based on depth of coverage.
                     
 
 %(BOLD)sPipeline tools:%(END)s

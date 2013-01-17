@@ -7,7 +7,8 @@ Produce files for use with IGV
 
 """
 
-from nesoni import config, io, grace, legion, trivia, annotation, working_directory, reference_directory
+from nesoni import config, io, grace, legion, workspace, \
+                   trivia, annotation, working_directory, reference_directory
 
 import itertools, math, os
 
@@ -425,57 +426,66 @@ If the file is not in IGV's list of user defined genomes, it will be added.
 .genome files can be created with "nesoni make-genome:".
 """)
 @config.Positional('genome','.genome file.')
-@config.Main_section('args','command line arguments to IGV, eg files to load.', allow_flags=True)
+@config.Main_section('files','files to load into IGV', allow_flags=True)
 class Run_igv(config.Action):
     genome = None
-    args = [ ]
+    files = [ ]
 
     def run(self):
-        igv_dir = os.path.join(os.environ['HOME'],'igv')
-        if not os.path.exists(igv_dir):
-            os.mkdir(igv_dir)
-        genomes_dir = os.path.join(igv_dir,'genomes')
-        if not os.path.exists(genomes_dir):
-            os.mkdir(genomes_dir)
-        genomes_filename = os.path.join(
-            os.environ['HOME'],
-            'igv', 'genomes', 'user-defined-genomes.txt'
-        )
-        genomes = [ ]
-        if os.path.exists(genomes_filename):
-            with open(genomes_filename,'rU') as f:
-                for line in f:
-                    genomes.append(line.rstrip('\n').split('\t'))
-    
-        genome_filename = os.path.abspath(self.genome)
+        with workspace.tempspace() as temp:
+            with open(temp/'batch.txt','wb') as f:
+                print >> f, 'new'
+                print >> f, 'genome '+os.path.abspath(self.genome)
+                for filename in self.files:
+                    print >> f, 'load '+os.path.abspath(filename)
+            
+            io.execute(['java','-jar',io.find_jar('igv.jar'),'-b',temp/'batch.txt'])
         
-        name = None
-        for item in genomes:
-            if os.path.abspath(item[1]) == genome_filename:
-                name = item[2]
-                break
-        
-        if name is None:
-            names = set(item[2] for item in genomes)
-            i = 0
-            while True:
-                name = os.path.splitext(os.path.basename(genome_filename))[0]
-                name += str(i).lstrip('0')
-                if name and name not in names: break
-                i += 1
-            genomes.append([ name, genome_filename, name ])
-
-            print 'Genome not in user defined genomes list.'
-            print 'Adding it as:', name
-        
-            with open(genomes_filename,'wt') as f:
-                for item in genomes:
-                    print >> f, '\t'.join(item)
-    
+        #igv_dir = os.path.join(os.environ['HOME'],'igv')
+        #if not os.path.exists(igv_dir):
+        #    os.mkdir(igv_dir)
+        #genomes_dir = os.path.join(igv_dir,'genomes')
+        #if not os.path.exists(genomes_dir):
+        #    os.mkdir(genomes_dir)
+        #genomes_filename = os.path.join(
+        #    os.environ['HOME'],
+        #    'igv', 'genomes', 'user-defined-genomes.txt'
+        #)
+        #genomes = [ ]
+        #if os.path.exists(genomes_filename):
+        #    with open(genomes_filename,'rU') as f:
+        #        for line in f:
+        #            genomes.append(line.rstrip('\n').split('\t'))
+        #
+        #genome_filename = os.path.abspath(self.genome)
+        #
+        #name = None
+        #for item in genomes:
+        #    if os.path.abspath(item[1]) == genome_filename:
+        #        name = item[2]
+        #        break
+        #
+        #if name is None:
+        #    names = set(item[2] for item in genomes)
+        #    i = 0
+        #    while True:
+        #        name = os.path.splitext(os.path.basename(genome_filename))[0]
+        #        name += str(i).lstrip('0')
+        #        if name and name not in names: break
+        #        i += 1
+        #    genomes.append([ name, genome_filename, name ])
+        #
+        #    print 'Genome not in user defined genomes list.'
+        #    print 'Adding it as:', name
+        #
+        #    with open(genomes_filename,'wt') as f:
+        #        for item in genomes:
+        #            print >> f, '\t'.join(item)
+        #
         #igv.sh does not begin with #!/bin/sh as at version 2.1.24
         #io.execute(['igv.sh','-g',name] + self.args)
         
-        io.execute(['java','-jar',io.find_jar('igv.jar'),'-g',name] + self.args)
+        #io.execute(['java','-jar',io.find_jar('igv.jar'),'-g',name] + self.args)
         
         
 

@@ -352,7 +352,7 @@ class Configurable_section(Section):
     def parse(self, obj, args):
         for item in self.presets:
             if args and args[0].lower() == item[0].lower():
-                base = item[1]
+                base = item[1](obj)
                 args = args[1:]
                 break
         else:
@@ -399,7 +399,7 @@ class Grouped_configurable_section(Section):
         self.template_getter = template_getter
 
     def parse(self, obj, args):
-        new = self.template_getter(obj)
+        new = self.template_getter(obj)()
         new.parse( args )
         return self.get(obj) + [ new ]
 

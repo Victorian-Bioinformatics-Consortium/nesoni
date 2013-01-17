@@ -168,12 +168,17 @@ try:
     #                      'python setup.py install --home /bio/sw/python')
     
     sh('sudo virtualenv -p pypy /bio/sw/python/env-pypy')
-    os.system('sudo ln -s pypy /bio/sw/python/env-pypy/bin/pypy-bio')
+    os.system('rm /bio/sw/python/env-pypy/pypy-bio')
+    sh('sudo ln -s pypy /bio/sw/python/env-pypy/bin/pypy-bio')
+    sh('sudo /bio/sw/python/env-pypy/bin/pip install biopython')
     sh('sudo /bio/sw/python/env-pypy/bin/python setup.py install')
 
     sh('sudo virtualenv -p python /bio/sw/python/env-python')
-    os.system('sudo ln -s python /bio/sw/python/env-python/bin/python-bio')
+    os.system('rm /bio/sw/python/env-pypy/python-bio')
+    sh('sudo ln -s python /bio/sw/python/env-python/bin/python-bio')
+    sh('sudo /bio/sw/python/env-python/bin/pip install biopython')
     sh('sudo /bio/sw/python/env-python/bin/python setup.py install')        
+    
     sh('sudo R CMD INSTALL --library=/bio/sw/R nesoni/nesoni-r')
     
     os.system('sudo rm -r nesoni.egg-info')
