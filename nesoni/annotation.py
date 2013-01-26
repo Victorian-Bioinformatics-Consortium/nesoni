@@ -23,7 +23,7 @@ class Annotation(object):
         type    - feature type
         start   - start, zero based
         end     - end, zero based
-        strand  - '+' = 1, '-' = -1, '.' = 0, '?' = None
+        strand  - '+' (gff) = 1 (here), '-' = -1, '.' = 0, '?' = None
                   ie 0 is unstranded, None is unknown
                   Note: (strand or 1) will give strand with default to 1 if unknown/unstranded 
         score   - None or float

@@ -1,6 +1,6 @@
 
 import nesoni
-from nesoni import grace, io, bio, config, annotation
+from nesoni import grace, io, bio, config, annotation, selection
 
 from nesoni.third_party import vcf
 
@@ -130,13 +130,11 @@ class Stats(config.Action_with_optional_output):
 Output an annotation file in GFF format.
 """)
 @config.String_flag('output', 'Output file, defaults to STDOUT.')
+@config.String_flag('select', 'What types of annotation to keep (selection expression).')
 @config.Main_section('filenames', 'Annotation files.', empty_is_ok=False)
-@config.Section('only', 'Only output these types of annotation.')
-@config.Section('exclude', 'Do not output these types of annotation.')
 class As_gff(config.Action):
     filenames = [ ]
-    only = [ ]
-    exclude = [ ]
+    select = 'all'
     
     output = None
     
@@ -144,9 +142,6 @@ class As_gff(config.Action):
         return config.Action.ident(self) + ('--' + self.output if self.output else '')
  
     def run(self):
-        only = set( item.lower() for item in self.only )
-        exclude = set( item.lower() for item in self.exclude )
-        
         if self.output is not None:
            out_file = open(self.output,'wb')
         else:
@@ -156,8 +151,7 @@ class As_gff(config.Action):
         
         for filename in self.filenames:
             for item in annotation.read_annotations(filename):
-                if only and item.type.lower() not in only: continue
-                if item.type.lower() in exclude: continue
+                if not selection.matches(self.select, [item.type]): continue
                 
                 if 'ID' not in item.attr and 'locus_tag' in item.attr:
                     item.attr['ID'] = item.attr['locus_tag']

@@ -23,10 +23,12 @@ or from a nesoni reference directory created with "nesoni make-reference:".
 """)
 @config.String_flag('name', 'Descriptive name.')
 @config.Main_section('filenames', 'Input filenames or reference directory.')
+@config.String_flag('select', 'What types of feature to use (selection expression).')
 class Make_genome(config.Action_with_prefix):
     prefix = None
     name = None
     filenames = [ ]
+    select = '-source'
     
     def run(self):
         base = os.path.split(self.prefix)[1]
@@ -69,8 +71,8 @@ class Make_genome(config.Action_with_prefix):
         
         trivia.As_gff(output=gff_filename,
                filenames=annotations,
-               exclude=[ 'gene', 'source' ]
-        ).run()
+               select=self.select
+               ).run()
         
         f_cyt = open(cytoband_filename,'wb')
         for filename in sequences:

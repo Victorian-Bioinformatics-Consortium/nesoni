@@ -1,4 +1,7 @@
 
+0.96 - "as-gff:" and "make-genome:" allow selection of features with selection expressions.
+       "run-igv:" now uses a batch script rather than IGV command line options, can load multiple files.
+
 0.95 - fix Configurable_section
        add "peaks:" tool (under development)
 
