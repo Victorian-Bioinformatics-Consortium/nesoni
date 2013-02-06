@@ -103,7 +103,7 @@ def index_vcf(filename):
     """
     try:
         io.execute('igvtools index FILENAME',FILENAME=filename)
-    except OSError:
+    except (OSError, AssertionError):
         print >> sys.stderr, 'Failed to index VCF file with igvtools. Continuing.'
 
     
@@ -843,10 +843,12 @@ class Test_variant_call(config.Action_with_output_dir):
 @config.help("""
 Assess ability to call variants under a spread of different conditions.
 """)
+@config.Bool_flag('legacy', 'Also report performance of older "nesoni consensus:" variant caller.')
 @config.Configurable_section('template','Setting for "nesoni test-variant-call".', presets=[
     ('test-variant-call', lambda obj: Test_variant_call(), ''),
     ])
 class Power_variant_call(config.Action_with_prefix):
+    legacy = True
     #template = Test_variant_call()
 
     def tryout(self, ref, variants):
@@ -863,13 +865,16 @@ class Power_variant_call(config.Action_with_prefix):
 
     def depth_test(self, ref, variant, others=[]):
         depths = range(1,30+1)
-        results = [ self.tryout(ref, ['%sx%d'%(variant,i)] + others) for i in depths ]
+        #results = [ self.tryout(ref, ['%sx%d'%(variant,i)] + others) for i in depths ]
+        result_futures = [ nesoni.future(self.tryout, ref, ['%sx%d'%(variant,i)] + others) for i in depths ]
+        results = [ item() for item in result_futures ]
         
         report = '%s -> %s' % (ref or '-', variant or '-')
         if others: report += '  with contamination  ' + ', '.join(others)
         report += '\n'
         
-        report += 'nesoni consensus: [' + ''.join( '+' if item[1] else 'X' if item[0] else ' ' for item in results ) + ']\n'
+        if self.legacy:
+            report += 'nesoni consensus: [' + ''.join( '+' if item[1] else 'X' if item[0] else ' ' for item in results ) + ']\n'
         report += 'VCF pipeline      [' + ''.join( '+' if item[3] else 'X' if item[2] else ' ' for item in results ) + ']\n'
 
         depth_line = ''
@@ -884,21 +889,26 @@ class Power_variant_call(config.Action_with_prefix):
     def run(self):
         report = ''
         
+        futures = [ ]
         for job in [
             ('A','C',[]),
             ('A','C',['Gx1']),
+            ('A','C',['Gx2']),
             ('A','',[]),
             ('AC','',[]),
             ('ACGT','',[]),
-            #('ACGTAGCT','',[]),
+            ('ACGTAGCT','',[]),
             #('ACGTAGCTAGACCTGT','',[]),
             ('','A',[]),
             ('','AC',[]),
             ('','ACGT',[]),
-            #('','ACGTAGCT',[]),
+            ('','ACGTAGCT',[]),
             #('','ACGTAGCTAGACCTGT',[]),
-        ]:        
-            report += self.depth_test(*job)+'\n'
+        ]:  
+            futures.append( nesoni.thread_future(self.depth_test, *job) )
+        
+        for item in futures:      
+            report += item()+'\n'
         
         self.log.log(
             '\n'

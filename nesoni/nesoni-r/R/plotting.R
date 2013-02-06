@@ -150,19 +150,25 @@ multiplot <- function(plots, labels) {
                         
         } else if (plot$type == 'bar') {
             if (length(plot$data)) {
-                put.plot(x1[i],x2[i],y1,y2)
-                
-                barplot(as.vector(plot$data), space=0, horiz=TRUE, col='black', yaxs='i',xaxt='n',lab=c(3,3,7),labels=NULL)
-                axis(1,line=0.5,las=2)
-                mtext(plot$title, adj=0.5, line=0.5)
+                data <- as.vector(plot$data)
+                data[!is.finite(data)] <- NA
+                if (!all(is.na(data))) {
+                    put.plot(x1[i],x2[i],y1,y2)                
+                    barplot(data, space=0, horiz=TRUE, col='black', yaxs='i',xaxt='n',lab=c(3,3,7),labels=NULL)
+                    axis(1,line=0.5,las=2)
+                    mtext(plot$title, adj=0.5, line=0.5)
+                }
             }
         } else if (plot$type == 'scatter') {
             if (length(plot$data)) {
-                put.plot(x1[i],x2[i],y1,y2)
-                
-                plot(as.vector(plot$data),basic.seq(length(plot$data))-0.5, ylim=c(0,length(plot$data)),yaxt='n',ylab=NA,yaxs='i',xaxt='n',xlab=NA,pch=18,bty='n',lab=c(3,3,7))
-                axis(1,line=0.5,las=2)
-                mtext(plot$title, adj=0.5, line=0.5)
+                data <- as.vector(plot$data)
+                data[!is.finite(data)] <- NA
+                if (!all(is.na(data))) {
+                    put.plot(x1[i],x2[i],y1,y2)                
+                    plot(data,basic.seq(length(plot$data))-0.5, ylim=c(0,length(plot$data)),yaxt='n',ylab=NA,yaxs='i',xaxt='n',xlab=NA,pch=18,bty='n',lab=c(3,3,7))
+                    axis(1,line=0.5,las=2)
+                    mtext(plot$title, adj=0.5, line=0.5)
+                }
             }
         }
     }    

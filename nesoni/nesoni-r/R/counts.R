@@ -82,6 +82,36 @@ normalized.counts <- function(dgelist) {
     t( t(dgelist$counts) * dgelist$samples$normalizing.multiplier )
 }
 
+# log transformation with various moderation options, resulting in log2 RPM values
+# moderation can be
+# - a number 
+# - 'vst' to use DESeq's Variance Stabilizing Transformation
+log.rpm.counts <- function(dgelist, moderation=5.0) {
+    lib.size <- dgelist$samples$lib.size * dgelist$samples$norm.factors
+    mean.size <- mean(lib.size)
+
+    if (moderation == 'vst') {
+        cds <- newCountDataSet(dgelist$counts, basic.seq(ncol(dgelist$counts)))
+        pData(cds)$sizeFactor <- (dgelist$samples$lib.size * dgelist$samples$norm.factors) / 1e6
+        cdsBlind <- estimateDispersions(cds, method='blind', fitType='local')
+        e <- getVarianceStabilizedData(cdsBlind)
+        
+    } else {
+        moderation <- as.numeric(moderation)
+        is.na(moderation) && stop("expected log moderation to be either a number or 'vst'")        
+        e <- t( log2((t(dgelist$counts)/lib.size + moderation/mean.size) * 1e+06) )
+    }
+        
+    out <- list()
+    out$E <- e
+    out$lib.size <- lib.size
+    out$genes <- dgelist$genes
+    out$targets <- dgelist$samples
+    new("EList", out)
+}
+
+
+
 
 
 row.apply <- function(data, func) {

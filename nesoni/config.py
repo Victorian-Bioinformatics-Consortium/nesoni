@@ -121,6 +121,9 @@ class Parameter(object):
         self.help = help
         self.affects_output = affects_output
 
+    def get_doc_help(self, obj):
+        return self.help
+
     def parse(self, obj, string):
         return string
     
@@ -146,8 +149,12 @@ class Parameter(object):
         item.parameters = item.parameters[:n] + (self,) + item.parameters[n:]
         return item
     
+    def cast(self, obj, value):
+        """ Convert value to desired type """
+        return value
+    
     def set(self, obj, value):
-        setattr(obj, self.name, value)
+        setattr(obj, self.name, self.cast(obj, value))
     
     def get(self, obj):
         return getattr(obj, self.name)
@@ -337,17 +344,38 @@ class Configurable_section(Section):
             empty_is_ok=empty_is_ok
         )
         self.presets = presets
+        self.original_help = help
         
         if self.presets:
             self.help += '\n\nChoose from the following, then supply extra flags as needed:\n'
-            for item in presets:
+            
+            for item in self.presets:
                 self.help += ' ' + item[0] + ' - ' + item[2] + '\n'
+
+    def get_doc_help(self, obj):
+        help = self.original_help
+        help += '\n\nThis can either be a string to select one of the following presets, '
+        help += 'or an instance of the same type as one of the presets, '
+        help += 'or indeed an instance of any Configurable that quacks sufficiently like one of the presets:\n\n'
+        for item in self.presets:
+            help += ' ' + repr(item[0]) + ' (' + repr(item[1](obj)) + ')\n    ' + item[2] + '\n'        
+        help += '\nFurther parameters of the form '+self.name+'__parametername can be given'
+        help += ' in order to customize the Configurable further.'
+        return help
     
     def get(self, obj):
         if hasattr(obj, self.name):
             return super(Configurable_section,self).get(obj)
         else:
             return self.presets[0][1](obj)
+
+    def cast(self, obj, value):
+        if isinstance(value, str):
+            for item in self.presets:
+                if value.lower() == item[0].lower():
+                    return item[1](obj)
+        assert value is None or isinstance(value, Configurable), 'Incorrect type for '+self.name
+        return value
         
     def parse(self, obj, args):
         for item in self.presets:
@@ -397,6 +425,11 @@ class Grouped_configurable_section(Section):
             empty_is_ok=empty_is_ok
         )
         self.template_getter = template_getter
+
+    def get_doc_help(self, obj):        
+        element_type = type(self.template_getter(obj))
+        help = 'Give this as a list of %s.\n\n' % element_type.__name__ + self.help
+        return help
 
     def parse(self, obj, args):
         new = self.template_getter(obj)()
@@ -476,7 +509,7 @@ class Configurable_metaclass(type):
         
         result += '\n\nParameters:\n'
         for parameter in self.parameters:
-            result += '\n' + parameter.name + ' = ' + repr(parameter.get(self)) + '\n' + wrap(parameter.help, 65, '     # ')
+            result += '\n' + parameter.name + ' = ' + repr(parameter.get(self)) + '\n' + wrap(parameter.get_doc_help(self()), 65, '     # ')
         return result
 
     def __dir__(self):
@@ -525,6 +558,15 @@ class Configurable(object):
             # Set all parameters, even unmodified ones,
             # so that values that are just a class default will be pickled    
             parameter.set(self, value)
+        
+        for parameter in self.parameters:
+            modification = { }
+            for name in unused.copy():
+                if name.startswith(parameter.name+'__'):
+                    modification[ name[len(parameter.name)+2:] ] = kwargs[name]
+                    unused.remove(name)
+            if modification:
+                parameter.set(self, parameter.get(self)( **modification ))
 
         assert not unused, 'Unknown named parameter: '+', '.join(unused)
         assert not args, 'Unexpected parameters'         
@@ -587,7 +629,8 @@ class Configurable(object):
         return self.shell_name()
     
     def __repr__(self):
-        return '<'+self.ident()+'>'
+        name = type(self).__name__
+        return '<an instance of '+name+'>'
     
     def __cmp__(self, other):
         c = cmp(self.__class__, other.__class__)

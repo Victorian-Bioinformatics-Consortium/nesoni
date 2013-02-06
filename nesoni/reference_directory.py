@@ -103,10 +103,11 @@ class Reference(io.Workspace):
         assert os.path.exists(self/'bowtie.1.bt2'), 'bowtie2 index was not created. Please use "make-reference:" with "--bowtie yes".'
         return self/'bowtie'
 
-    def build_genome(self):
+    def build_genome(self, select):
         nesoni.Make_genome(
             prefix = self/self.name,
             name = self.name,
+            select = select,
             filenames = [ self.working_dir ],
             ).run()
     
@@ -177,6 +178,7 @@ using existing sequences and annotations.
 @config.Bool_flag('cs', 'Generate gmapper-cs mmap (faster SHRiMP startup for color-space reads).')
 @config.Bool_flag('bowtie', 'Generate bowtie2 index (necessary in order to use "nesoni bowtie:").')
 @config.Bool_flag('genome', 'Create .genome file and directory for use with IGV.')
+@config.String_flag('genome_select', 'What types of feature to use in IGV .genome (selection expression).')
 @config.Bool_flag('snpeff', 'Create snpEff files.')
 @config.Main_section('filenames', 'Sequence and annotation files.')
 class Make_reference(config.Action_with_output_dir):
@@ -184,6 +186,7 @@ class Make_reference(config.Action_with_output_dir):
     cs = False
     bowtie = False
     genome = False
+    genome_select = '-source'
     snpeff = False
     filenames = [ ]
 
@@ -217,7 +220,7 @@ class Make_reference(config.Action_with_output_dir):
             if self.bowtie:
                 reference.build_bowtie_index(f)
             if self.genome:
-                reference.build_genome()
+                reference.build_genome(self.genome_select)
             if self.snpeff:
                 reference.build_snpeff()
             

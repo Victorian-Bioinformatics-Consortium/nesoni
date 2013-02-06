@@ -5,5 +5,5 @@ Title: Nesoni R component
 Description: The R component of the Nesoni toolsuite.
 Author: Paul Harrison
 Maintainer: Paul Harrison <paul.harrison@monash.edu>
-Depends: limma, edgeR
+Depends: limma, edgeR, DESeq
 Suggests: seriation, NMF

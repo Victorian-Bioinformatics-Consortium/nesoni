@@ -5,7 +5,7 @@ SAM-based reboot
 
 """
 
-import sys, os, subprocess, itertools, array, datetime, socket, heapq
+import sys, os, subprocess, itertools, array, datetime, socket, heapq, tempfile
 
 
 from nesoni import grace, bio, io, consensus, legion, config
@@ -328,6 +328,7 @@ class Bam_merge(config.Action_with_prefix):
         io.execute([
             'java','-jar',jar,
             'USE_THREADING=true',
+            'TMP_DIR='+tempfile.gettempdir(), #Force picard to use same temp dir as Python
             'SORT_ORDER='+self.sort,
             'OUTPUT='+self.prefix+'.bam'
             ] + [ 'INPUT='+item for item in self.bams ])
@@ -343,7 +344,8 @@ class Bam_merge(config.Action_with_prefix):
 @config.help("""\
 Limit depth of BAM file (must be sorted by coordinate).
 
-READ PAIRING INFORMATION IS DISCARDED!
+Read pairing information is discarded. \
+Unmapped reads are discarded.
 """)
 @config.Int_flag('depth', 'Depth limit.')
 @config.Positional('input', 'Input BAM file.')
@@ -359,6 +361,8 @@ class Bam_depth_limit(config.Action_with_prefix):
         total = 0
         discarded = 0
         for record in Bam_reader(self.input):
+            if record.flag & FLAG_UNMAPPED: continue
+        
             total += 1
             
             if chrom != record.rname:

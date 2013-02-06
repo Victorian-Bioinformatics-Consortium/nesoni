@@ -2,8 +2,6 @@ global-include *.py *.pyx
 exclude release.py
 exclude backyard
 exclude backyard/*
-include nesoni-script
-include nesoni_scripts/*
 include README
 include CHANGES
 include COPYING
@@ -11,5 +9,5 @@ include MANIFEST
 include MANIFEST.in
 include test/data/*
 exclude test/output/*
-include nesoni-r/*
-include nesoni-r/R/*
+include nesoni/nesoni-r/*
+include nesoni/nesoni-r/R/*

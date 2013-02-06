@@ -1,5 +1,14 @@
 
-0.96 - "as-gff:" and "make-genome:" allow selection of features with selection expressions.
+0.97 - "analyse-variants:" now invokes "power-variant-call:"
+       Easily modify configurables within in configurables from python using a__b=... syntax.
+       Improved __doc__ text for configurables.
+       "test-counts:" heatmap now sorted by fold-change not p-value, shows fold change
+       "test-counts:" now has now "log" mode
+       "heatmap:" now uses a slightly different log transformation
+       When merging BAM files using Picard, use same temp dir as Python's tempfile module uses
+
+0.96 - Include nesoni-r in distribution. Oops.
+       "as-gff:" and "make-genome:" allow selection of features with selection expressions.
        "run-igv:" now uses a batch script rather than IGV command line options, can load multiple files.
 
 0.95 - fix Configurable_section

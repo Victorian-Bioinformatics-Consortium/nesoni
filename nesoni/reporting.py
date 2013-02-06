@@ -195,7 +195,7 @@ class Reporter(object):
             (' &sdot; ' + self.get(action.prefix+'.png', image=True,title='[MA-plot]')
                 if os.path.exists(action.prefix+'.png') else '') +
             ' &sdot; ' +
-            self.get(action.prefix + '.txt') +
+            self.get(action.prefix + '.csv') +
             ' &sdot; ' +
             self.get(action.prefix+'-info.txt', title='[info]')
         )

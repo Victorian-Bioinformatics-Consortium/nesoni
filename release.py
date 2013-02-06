@@ -167,21 +167,23 @@ try:
     #assert 0 == os.system('sudo PYTHONPATH=/bio/sw/python/lib/python '
     #                      'python setup.py install --home /bio/sw/python')
     
-    os.system('sudo rm -r /bio/sw/python/env-pypy')
-    sh('sudo virtualenv -p pypy /bio/sw/python/env-pypy')
-    sh('sudo ln -s pypy /bio/sw/python/env-pypy/bin/pypy-bio')
-    sh('sudo /bio/sw/python/env-pypy/bin/pip install biopython')
-    sh('sudo /bio/sw/python/env-pypy/bin/python setup.py install')
+    os.system('sudo -H rm -r /bio/sw/python/env-pypy')
+    sh('sudo -H virtualenv -p pypy /bio/sw/python/env-pypy')
+    sh('sudo -H ln -s pypy /bio/sw/python/env-pypy/bin/pypy-bio')
+    sh('sudo -H /bio/sw/python/env-pypy/bin/pip install biopython')
+    sh('sudo -H /bio/sw/python/env-pypy/bin/python setup.py install')
 
-    os.system('sudo rm -r /bio/sw/python/env-python')
-    sh('sudo virtualenv -p python /bio/sw/python/env-python')
-    sh('sudo ln -s python /bio/sw/python/env-python/bin/python-bio')
-    sh('sudo /bio/sw/python/env-python/bin/pip install numpy biopython')
-    sh('sudo /bio/sw/python/env-python/bin/python setup.py install')        
+    os.system('sudo -H rm -r /bio/sw/python/env-python')
+    sh('sudo -H virtualenv -p python /bio/sw/python/env-python')
+    sh('sudo -H ln -s python /bio/sw/python/env-python/bin/python-bio')
+    sh('sudo -H /bio/sw/python/env-python/bin/pip install numpy')
+    sh('sudo -H /bio/sw/python/env-python/bin/pip install matplotlib')
+    sh('sudo -H /bio/sw/python/env-python/bin/pip install biopython')
+    sh('sudo -H /bio/sw/python/env-python/bin/python setup.py install')        
     
-    sh('sudo R CMD INSTALL --library=/bio/sw/R nesoni/nesoni-r')
+    sh('sudo -H R CMD INSTALL --library=/bio/sw/R nesoni/nesoni-r')
     
-    os.system('sudo rm -r nesoni.egg-info')
+    os.system('sudo -H rm -r nesoni.egg-info')
     
     print
     print

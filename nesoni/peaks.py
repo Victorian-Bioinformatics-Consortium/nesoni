@@ -249,6 +249,8 @@ class Peaks(config.Action_with_prefix):
 
         f = open(self.prefix+'.gff', 'wb')
         annotation.write_gff3_header(f)
+        
+        n = 0
 
         for (rname, strand), span_list in spans.items():
             depth = [ 0 ] * (1+max( item[1] for item in span_list ))
@@ -261,7 +263,6 @@ class Peaks(config.Action_with_prefix):
             #import pylab
             #pylab.plot(depth)
             
-            n = 0
             for start, end in find_peaks(depth, self.min_depth, self.power, self.depth_power):
                 #pylab.axvspan(start-0.5,end-0.5,alpha=0.25)
                 
@@ -290,6 +291,8 @@ class Peaks(config.Action_with_prefix):
             #pylab.show()
 
         f.close()
+        
+        self.log.datum('-','called peaks',n)
         
         grace.status('')
 

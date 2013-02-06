@@ -167,7 +167,7 @@ class As_gff(config.Action):
                         item.attr['color'] = '#8888ff'
 
                 print >> out_file, item.as_gff()
-
+        
         if self.output is not None:
             out_file.close()
 

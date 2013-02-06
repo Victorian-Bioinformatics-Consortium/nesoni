@@ -47,8 +47,7 @@ External programs:
 
 R libraries required by R-based tools (mostly for RNA-seq):
 * Required:
-  * edgeR from BioConductor
-  * limma from BioConductor
+  * limma, edgeR, and DESeq from BioConductor
 * Optional:
   * seriation
   * NMF
@@ -65,26 +64,13 @@ R libraries required by R-based tools (mostly for RNA-seq):
 ~ Installation
 ==============
 
-The easy way:
+The easy way to install or upgrade:
 
-    pip install nesoni
+    pip install -I nesoni
 
 Then type "nesoni" and follow the command to install the R module.
 
-
-From source, download and untar the source tarball, then:
-
-    python setup.py install
-
-Optional:
-
-    R CMD INSTALL nesoni/nesoni-r
-
-
-For PyPy it seems to be currently easiest to set up in a virtualenv:
-
-    virtualenv -p pypy myenv
-    myenv/bin/pip install nesoni
+See below for more ways to install nesoni.
 
 
 ~ Using nesoni
@@ -100,5 +86,51 @@ nesoni can also be used without installing, from the directory in
 which you unpacked it:
 
     python -m nesoni
+
+
+
+~ Advanced installation methods
+===============================
+
+From source, download and untar the source tarball, then:
+
+    python setup.py install
+
+Optional:
+
+    R CMD INSTALL nesoni/nesoni-r
+
+
+For PyPy it seems to be currently easiest to install nesoni in 
+a virtualenv:
+
+    virtualenv -p pypy my-pypy-env
+    my-pypy-env/bin/pip install -I biopython 
+    my-pypy-env/bin/pip install -I nesoni
+
+You can also set up a CPython virtualenv like this:
+
+    virtualenv my-python-env
+    my-python-env/bin/pip install -I numpy 
+    my-python-env/bin/pip install -I matplotlib 
+    my-python-env/bin/pip install -I biopython 
+    my-python-env/bin/pip install -I nesoni
+
+
+~ Installing older versions
+===========================
+
+The interface and API for nesoni may change between versions (I try to
+keep this to a minimum). In order to run a script or python program
+that needs an older version, I suggest setting up a virtualenv.
+
+For example, if you want version 0.95:
+
+    virtualenv -p pypy my-old-env
+    my-old-env/bin/pip install -I biopython 
+    my-old-env/bin/pip install -I nesoni==0.95
+
+(Note: I don't have a neat way to make this work with the R components 
+of nesoni.)
 
 

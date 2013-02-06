@@ -119,6 +119,11 @@ class Analyse_sample(config.Action_with_output_dir):
     ('snpeff', lambda obj: nesoni.Snpeff(), ''),
     ('none', lambda obj: None, 'Do not use snpeff'),
     ])
+@config.Configurable_section('analysis', '"analyse-sample:" optiont to use with "power-variant-call:". Does not affect actual results.', presets=[
+    ('shrimp', lambda obj: Analyse_sample(align='shrimp'), 'Align using SHRiMP 2'),
+    ('bowtie', lambda obj: Analyse_sample(align='bowtie'), 'Align using Bowtie 2'),
+    ('none', lambda obj: None, 'Don\'t test power'),
+    ])
 class Analyse_variants(config.Action_with_output_dir):
     reference = None
     samples = [ ]
@@ -126,10 +131,20 @@ class Analyse_variants(config.Action_with_output_dir):
     #freebayes = 
     #vcf_filter = 
     #snpeff = 
+    #align = 
 
     def run(self):
         assert self.reference is not None, 'No reference directory given.'
         space = self.get_workspace()
+        
+        if self.analysis:
+            nesoni.Power_variant_call(
+                space/'power',
+                template__analysis   = self.analysis,
+                template__freebayes  = self.freebayes,
+                template__vcf_filter = self.vcf_filter,
+                legacy = False,
+                ).make()
         
         self.freebayes(
             space / 'variants-raw',
@@ -177,6 +192,11 @@ class Analyse_variants(config.Action_with_output_dir):
             reporter.p(reporter.get(filename + '.idx') + ' (needed to view VCF file in IGV)')
         
         reporter.p(reporter.get(space / 'net.svg', title='Phylogenetic net'))
+        
+        if self.analysis:
+            reporter.p(reporter.get(space / 'power_log.txt', title='Power report') +
+                       '<br/>(Test of the ability of the pipeline to call various variants at various depths of coverage and in the presence of errors, using synthetic reads.)'
+                       )
         
         reporter.close()
         
@@ -310,7 +330,7 @@ Example:
 @config.Configurable_section('variants',
     'Options for "analyse-variants:".',
     presets = [ 
-        ('default', lambda obj: Analyse_variants(), 'default "analyse-variants:" options'),
+        ('default', lambda obj: Analyse_variants(analysis=None), 'default "analyse-variants:" options'),
         ('none', lambda obj: None, 'don\'t analyse variants'),
         ],
     )
@@ -372,6 +392,7 @@ class Analyse_samples(config.Action_with_output_dir):
                 context.space/'variants',
                 self.reference,
                 samples=context.sample_dirs,
+                analysis=self.variants.analysis or self.template, #Use aligner from template unless aligner explicitly given
                 )
 
         if not self.expression:
@@ -422,7 +443,8 @@ class Analyse_samples(config.Action_with_output_dir):
                 for sample in context.sample 
                 if sample.filter 
                 ] if not context.expression else [ ]) +
-            ([ context.space/('expression','counts_log.txt') ] if context.expression else [ ])
+            ([ context.space/('expression','counts_log.txt') ] if context.expression else [ ]),
+            filter=lambda sample,field: field != 'fragments',
             )
         
         if self.expression:

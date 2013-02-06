@@ -255,6 +255,22 @@ distribution fits the residual variance.
 "voomed" columns in the output are log2 reads per million,
 normalized using EdgeR's Trimmed Mean normalization.  
 """,
+'log' : """
+This is a simpler alternative to voom. Counts are converted to 
+log2 Reads Per Million using the following formula:
+
+   log2( (count/library_size + log_moderation/mean_library_size)*1e6 )
+
+where log_moderation is a parameter.
+
+The log2 RPM values are then tested using limma.
+
+References:
+
+Smyth, G. K. (2004). Linear models and empirical Bayes methods for assessing 
+differential expression in microarray experiments. Statistical Applications 
+in Genetics and Molecular Biology 3, No. 1, Article 3.
+""",
 'poisson' : """     
 Uses BioConductor package EdgeR to look for differential expression 
 with a Poisson noise model.
@@ -317,24 +333,41 @@ describe <- function(vec) {
 }
 
 
-do.heatmap <- function(heatmap.features, heatmap.data, heatmap.labels) {
+do.heatmap <- function(heatmap.features, heatmap.data, heatmap.labels, heatmap.values) {
     png(sprintf('%s-heatmap.png',OUTPUT_PLOT), res=150, width=2000, height=min(5000,25*length(heatmap.features)+800))
-    multiplot(
-        list(
+
+    if (ncol(heatmap.values) == 1) {
+        ord <- order(heatmap.values[,1])
+    } else {        
+        ord <- do.dendrogram( t(scale(t(heatmap.data), scale=FALSE)) )$order
+    }
+    
+    cols <- list(
             list(
                 weight=1,
                 type='heatmap',
-                data=t(scale(t(heatmap.data),center=TRUE,scale=FALSE)),
+                data=t(scale(t(heatmap.data),center=TRUE,scale=FALSE)) [ord,,drop=FALSE],
                 signed=TRUE,
                 legend='log2 Reads Per Million\ndifference from row mean'
             ),
             list(
                 weight=0.25,
                 type='bar',
-                data=rowMeans(heatmap.data),
-                title='row\nmean'
+                data=rowMeans(heatmap.data) [ord],
+                title='mean\nlog2 RPM'
             )
-        ),
+        )
+        
+    for(i in basic.seq(ncol(heatmap.values)))
+        cols[[length(cols)+1]] <- list(
+                weight=0.25,
+                type='bar',
+                data=heatmap.values[,i][ord],
+                title=colnames(heatmap.values)[i]
+            )
+    
+    multiplot(
+        cols,
         heatmap.labels
     )           
     dev.off()
@@ -406,7 +439,8 @@ if (nrow(dgelist$counts) == 0) {
     
     # Construct result frame
     result <- data.frame(
-        Feature = rownames(dgelist$counts)
+        Feature = rownames(dgelist$counts),
+        row.names = rownames(dgelist$counts)
     )
     
     # 10/9/2012: logConc changed to logCPM (concentration per million?)
@@ -450,7 +484,12 @@ if (nrow(dgelist$counts) == 0) {
         results_to_output <- result[significant, ]
     }
     blank <- mapply(function(i){ all(is.na(results_to_output[,i])) }, 1:ncol(result))
-    write.table(results_to_output[,!blank], OUTPUT_FILENAME, sep='\t', na='', quote=FALSE, row.names=FALSE)
+
+    #write.table(results_to_output[,!blank], OUTPUT_FILENAME, sep='\t', na='', quote=FALSE, row.names=FALSE)
+
+    sink(OUTPUT_FILENAME)
+    write.csv(results_to_output[,!blank,drop=FALSE], na='', row.names=FALSE)
+    sink()
     
     if (USE_CONTRAST) {
         pngname = sprintf('%s.png', OUTPUT_PLOT)
@@ -506,10 +545,16 @@ if (nrow(dgelist$counts) == 0) {
     heatmap.features <- rev(as.character(result$Feature[significant]))
     heatmap.data <- voom(dgelist)$E[heatmap.features,,drop=FALSE]
     heatmap.labels <- list(heatmap.features)
+    heatmap.values <- result[heatmap.features,colnames(design)[1:N_TO_TEST],drop=FALSE]    
+    for(i in basic.seq(ncol(heatmap.values))) {
+        heatmap.values[ heatmap.values[,i] < -10.0, i ] <- -10.0
+        heatmap.values[ heatmap.values[,i] > 10.0, i ] <- 10.0
+    }
+    
     for(i in basic.seq(ncol(dgelist$genes)-1)+1) {
         heatmap.labels[[i]] <- dgelist$genes[heatmap.features,i]
     }
-    do.heatmap(heatmap.features,heatmap.data,heatmap.labels)
+    do.heatmap(heatmap.features,heatmap.data,heatmap.labels,heatmap.values)
     
     
     sink(LOG_FILENAME, split=TRUE, append=TRUE)
@@ -558,25 +603,34 @@ if (nrow(dgelist$counts) == 0) {
 
 
 
-VOOM = COMMON + r"""
+LIMMA = COMMON + r"""
 
 library(limma)
 
-if (MODE == 'nullvoom') {
-    voom.design <- design[, (N_TO_TEST+1):ncol(design), drop=FALSE]
-} else {
-    voom.design <- design
-}
+if (MODE == 'log') {
+    y <- log.rpm.counts(dgelist, LOG_MODERATION)
 
-if (QUANTILE_NORM) {
-    norm <- 'quantile'
-} else {
-    norm <- 'none'
-}
+    if (QUANTILE_NORM) {
+        y$E <- normalizeBetweenArrays(y$E, method = 'quantile')
+    }
 
-png(sprintf('%s-voom.png', OUTPUT_PLOT), width=800, height=800 )
-y <- voom(dgelist, voom.design, plot=TRUE, normalize.method=norm)
-dev.off()
+} else {
+    if (MODE == 'nullvoom') {
+        voom.design <- design[, (N_TO_TEST+1):ncol(design), drop=FALSE]
+    } else {
+        voom.design <- design
+    }
+    
+    if (QUANTILE_NORM) {
+        norm <- 'quantile'
+    } else {
+        norm <- 'none'
+    }
+    
+    png(sprintf('%s-voom.png', OUTPUT_PLOT), width=800, height=800 )
+    y <- voom(dgelist, voom.design, plot=TRUE, normalize.method=norm)
+    dev.off()
+}
 
 fit <- lmFit(y, design)
 if (USE_CONTRAST) {
@@ -586,7 +640,7 @@ if (USE_CONTRAST) {
     coef <- fit$coefficients[,1:N_TO_TEST, drop=FALSE]
 }
 
-if (MODE == 'voom') {
+if (MODE != 'nullvoom') {
     fit <- eBayes(fit)
     
     if (USE_CONTRAST) {
@@ -599,7 +653,6 @@ if (MODE == 'voom') {
     p <- top$P.Value
 
 } else {
-    stopifnot(MODE == 'nullvoom')
     stopifnot(!USE_CONTRAST) #Not supported.
 
     nullfit <- lmFit(y, voom.design)
@@ -661,9 +714,9 @@ for(i in basic.seq(ncol(y$genes))) {
     result[,colnames(y$genes)[i]] <- y$genes[,i]
 }
 
-for(i in basic.seq(ncol(y$E))) {
-    result[,sprintf('%s voomed', colnames(y$E)[i])] <- y$E[,i]
-}
+#for(i in basic.seq(ncol(y$E))) {
+#    result[,sprintf('%s %s', colnames(y$E)[i], MODE)] <- y$E[,i]
+#}
 
 #for(i in 2:(N_ALL_SAMPLES*2+1)) {
 #    result[,colnames(data)[i]] = data[,i]
@@ -680,7 +733,11 @@ if (OUTPUT_ALL) {
     results_to_output <- result[significant,]
 }
 blank <- mapply(function(i){ all(is.na(results_to_output[,i])) }, 1:ncol(result))
-write.table(results_to_output[,!blank,drop=FALSE], OUTPUT_FILENAME, sep='\t', na='', quote=FALSE, row.names=FALSE)
+
+#write.table(results_to_output[,!blank,drop=FALSE], OUTPUT_FILENAME, sep='\t', na='', quote=FALSE, row.names=FALSE)
+sink(OUTPUT_FILENAME)
+write.csv(results_to_output[,!blank,drop=FALSE], na='', row.names=FALSE)
+sink()
 
 if (ncol(coef) == 1) # <-- Plots don't seem useful for ANOVA
     for(i in 1:ncol(coef)) {
@@ -714,10 +771,11 @@ if (ncol(coef) == 1) # <-- Plots don't seem useful for ANOVA
 heatmap.features <- rev(as.character(result$Feature[significant]))
 heatmap.data <- y$E[heatmap.features,,drop=FALSE]
 heatmap.labels <- list(heatmap.features)
+heatmap.values <- result[heatmap.features,colnames(coef),drop=FALSE]
 for(i in basic.seq(ncol(y$genes)-1)+1) {
     heatmap.labels[[i+1]] <- y$genes[heatmap.features,i]
 }
-do.heatmap(heatmap.features,heatmap.data,heatmap.labels)
+do.heatmap(heatmap.features,heatmap.data,heatmap.labels,heatmap.values)
 
 sink(LOG_FILENAME, split=TRUE, append=TRUE)
 
@@ -727,11 +785,15 @@ for(i in 1:ncol(dgelist$counts)) {
 }
 cat('\n\n')
 
+if (MODE == 'log') {
+    cat('Using log_moderation =',LOG_MODERATION,'\n\n')
+}
+
 cat(dgelist$original.number.of.genes, 'features\n')
 cat('Discarded', dgelist$original.number.of.genes-nrow(dgelist$counts), 'features with total count less than', MIN_COUNT, '\n')
 cat('Kept', nrow(dgelist$counts), 'features\n')
 
-if (MODE == 'voom') {
+if (MODE == 'voom' || MODE == 'log') {
     cat(fit$df.prior, 'prior df (the prior is like this many extra samples)\n')
 }
 
@@ -785,9 +847,13 @@ Examples: A=fold-change A^B=interaction-between-A-and-B
         '='*20 +
         '\n--mode %s \n' % mode +
         MODE_HELP[mode]        
-        for mode in ('voom', 'nullvoom', 'poisson', 'common', 'trend')
+        for mode in ('voom', 'log', 'nullvoom', 'poisson', 'common', 'trend')
 ))
 @config.String_flag('mode', 'Analysis mode. See below.')
+@config.String_flag('log_moderation', 'For "--mode log" only.'
+    ' Expression levels are calculated as'
+    ' log2( (count/library_size + log_moderation/mean_library_size)*1e6 ).'
+    )
 @config.Int_flag('min_count', 'Discard features with less than this total count.')
 @config.Float_flag('fdr', 'False Discovery Rate cutoff for statistics and plots.')
 @config.Bool_flag('output_all', 'List all genes in output, not just significant ones.')
@@ -803,6 +869,7 @@ class Test_counts(config.Action_with_prefix):
     min_count = 10
     constant_term = True
     mode = 'voom'
+    log_moderation = '5.0'
     quantile_norm = False
     fdr = 0.01
     output_all = True
@@ -817,7 +884,7 @@ class Test_counts(config.Action_with_prefix):
 
     def run(self):
         test_counts_run(    
-            min_count=self.min_count, constant_term=self.constant_term, mode=self.mode, 
+            min_count=self.min_count, constant_term=self.constant_term, mode=self.mode, log_moderation=self.log_moderation,
             quantile_norm=self.quantile_norm, fdr=self.fdr, output_all=self.output_all, 
             only_tell=self.tell,
             output_prefix=self.prefix, filename=self.counts_file, 
@@ -880,13 +947,13 @@ class Test_counts(config.Action_with_prefix):
 #    )
 
 def test_counts_run(
-    min_count, constant_term, mode, quantile_norm, fdr, output_all, only_tell,
+    min_count, constant_term, mode, log_moderation, quantile_norm, fdr, output_all, only_tell,
     output_prefix, filename, test_terms, with_terms, contrast_weights, use_terms,
     norm_file
 ):
     log = grace.Log()
 
-    assert mode in ('voom', 'nullvoom', 'poisson', 'common', 'trend')
+    assert mode in ('voom', 'log', 'nullvoom', 'poisson', 'common', 'trend')
     
     if not use_terms:
         use_terms = [''] #Default to all
@@ -990,8 +1057,8 @@ def test_counts_run(
     log.attach(open(log_filename,'wb'))
     log.close()    
     
-    if mode in ('voom', 'nullvoom'):
-        script = VOOM
+    if mode in ('voom', 'log', 'nullvoom'):
+        script = LIMMA
     else:
         script = EDGER
     
@@ -1009,9 +1076,10 @@ def test_counts_run(
         OUTPUT_ALL = output_all,
         MIN_COUNT = min_count,
         MODE = mode,
+        LOG_MODERATION = log_moderation,
         QUANTILE_NORM = quantile_norm,
         KEEP = keep,
-        OUTPUT_FILENAME = output_prefix + '.txt',
+        OUTPUT_FILENAME = output_prefix + '.csv',
         LOG_FILENAME = log_filename,
         OUTPUT_PLOT = output_prefix,
         USE_CONTRAST = use_contrast,
@@ -1293,20 +1361,29 @@ if (length(ORDER)) {
     dgelist <- dgelist[, ORDER]
 }
 
-elist <- voom(dgelist, normalize.method=if(QUANTILE) 'quantile' else 'none')
+#elist <- voom(dgelist, normalize.method=if(QUANTILE) 'quantile' else 'none')
+elist <- log.rpm.counts(dgelist, LOG_MODERATION)
+
 hmap.elist(PREFIX, elist, min.sd=MIN_SD, min.span=MIN_SPAN, min.svd=MIN_SVD, svd.rank=SVD_RANK, reorder.columns=REORDER_COLUMNS)
 
 """
 
 
 @config.help("""\
-Produce a heatmap (and table) of voomed expression levels (log2(count+0.5) normalized by effective library size).
+Produce a heatmap (and table) of log expression levels.
+
+The parameter --log-moderation controls how counts close to zero are treated. \
+Counts close to zero are inherently noisier than larger counts. \
+--log-moderation controls the degree to which this variation is squashed down.
 
 Hierachical clustering and ordering of rows is performed using the "seriation" package in R+.
 
-You will typically need to turn on both an "expression level filter" and a "fold change filter" \
-in order to show a useful list of genes.
+You will need to use at least one of --min-sd, --min-span, or --min-svd.
 """)
+@config.String_flag('log_moderation',
+    ' Log RPM expression levels are calculated as'
+    ' log2( (count/library_size + log_moderation/mean_library_size)*1e6 ).'
+    )
 @config.Int_flag('min_total', 'Expression level filter:\nExclude genes with less than this total number of reads')
 @config.Int_flag('min_max', 'Expression level filter:\nExclude genes with no sample having at least this many reads')
 @config.Float_flag('min_sd', 'Fold change filter:\nExclude genes with less than this standard deviation of log2 expression levels')
@@ -1316,12 +1393,13 @@ in order to show a useful list of genes.
 @config.Int_flag('svd_rank', 'Only use the top this many columns of the SVD U matrix when applying --min-svd.')
 @config.Bool_flag('reorder_columns', 'Cluster and optimally order columns as well as rows.')
 @config.String_flag('norm_file', 'Use normalization produced by "norm-from-counts:".')
-@config.Bool_flag('quantile', 'Use quantile normalization.')
+#@config.Bool_flag('quantile', 'Use quantile normalization.')
 @config.Positional('counts', 'File containing output from "nesoni count:"')
 @config.Section('order', 'Optionally, specify an order to show the columns in.')
 class Heatmap(config.Action_with_prefix):
+    log_moderation = '5.0'
     counts = None
-    min_total = 10
+    min_total = 0
     min_max = 0
     min_sd = 0.0
     min_span = 0.0
@@ -1329,12 +1407,13 @@ class Heatmap(config.Action_with_prefix):
     svd_rank = None
     reorder_columns = False
     norm_file = None
-    quantile = False
+    #quantile = False
     order = [ ]
 
     def run(self):
         run_script(HEATMAP_SCRIPT,
             PREFIX=self.prefix,
+            LOG_MODERATION=self.log_moderation,
             COUNTS=self.counts,
             MIN_TOTAL=self.min_total,
             MIN_MAX=self.min_max,
@@ -1344,7 +1423,7 @@ class Heatmap(config.Action_with_prefix):
             SVD_RANK=self.svd_rank,
             REORDER_COLUMNS=self.reorder_columns,
             NORM_FILE=self.norm_file,
-            QUANTILE=self.quantile,
+            #QUANTILE=self.quantile,
             ORDER=self.order,
         )
 
@@ -1355,8 +1434,8 @@ library(nesoni)
 
 compare.tests(
     PREFIX,
-    read.delim(A),
-    read.delim(B),
+    read.csv(A),
+    read.csv(B),
     n=N,
     title=TITLE,
     a.title=a_TITLE,
