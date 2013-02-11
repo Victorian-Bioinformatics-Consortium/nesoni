@@ -32,6 +32,7 @@ setup(
         'nesoni' : [
             'nesoni-r/DESCRIPTION',
             'nesoni-r/R/*'
+            'CHANGES'
             ],                    
         },
     
