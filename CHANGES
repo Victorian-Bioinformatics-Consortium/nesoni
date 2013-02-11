@@ -1,4 +1,11 @@
 
+0.98 - Use generalised log transformation in "heatmap:" and "test-counts:".
+       "test-counts:" 
+       - modes trend and common now additionally use estimateGLMTagwiseDispersion
+         (this doesn't do a great deal, as df.prior is fixed at 20)
+       - added "nullglog" method, revised "nullvoom" method,
+         both methods now use eBayes moderated statistics
+
 0.97 - "analyse-variants:" now invokes "power-variant-call:"
        Easily modify configurables within in configurables from python using a__b=... syntax.
        Improved __doc__ text for configurables.

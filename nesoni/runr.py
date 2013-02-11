@@ -251,15 +251,18 @@ to expression level.
 
 A plot ...-qq.png is produced showing how well the chi-square 
 distribution fits the residual variance.
-
-"voomed" columns in the output are log2 reads per million,
-normalized using EdgeR's Trimmed Mean normalization.  
 """,
-'log' : """
+'glog' : """
 This is a simpler alternative to voom. Counts are converted to 
-log2 Reads Per Million using the following formula:
+log2 Reads Per Million using a variance stabilised transformation.
 
-   log2( (count/library_size + log_moderation/mean_library_size)*1e6 )
+Let the generalised logarithm with moderation m be
+
+   glog(x,m) = log2((x+sqrt(x*x+4*m*m))/2)
+
+then the transformed values will be
+
+   glog( count/library_size*1e6, log_moderation/mean_library_size*1e6 )
 
 where log_moderation is a parameter.
 
@@ -267,9 +270,33 @@ The log2 RPM values are then tested using limma.
 
 References:
 
-Smyth, G. K. (2004). Linear models and empirical Bayes methods for assessing 
-differential expression in microarray experiments. Statistical Applications 
-in Genetics and Molecular Biology 3, No. 1, Article 3.
+B.P. Durbin, J.S. Hardin, D.M. Hawkins and D.M. Rocke (2002)
+A variance-stabilizing transformation for gene-expression microarray data.
+Bioinformatics (2002) 18 (suppl 1): S105-S110. 
+
+Smyth, G. K. (2004). 
+Linear models and empirical Bayes methods for assessing 
+differential expression in microarray experiments. 
+Statistical Applications in Genetics and Molecular Biology 3, No. 1, Article 3.
+""",
+'nullglog' : """
+Uses BioConductor package limma, after tranformation as in the "glog" method, 
+to fit the null model to the data. A scaled chi-square distribution is then 
+fitted to the residual variance, using maximum likelihood. Genes where the 
+residual is significantly larger than would be expected from the fitted 
+chi-square distribution are reported as significant.
+
+Use this when your biologist (bless them) has not done any 
+biological replicates.
+
+This mode is unable to distinguish differentially expressed genes from 
+genes with high variability between samples.
+
+This mode gives quite conservative p-values. Also note that this is
+not a method endorsed by WEHI, it's just something I made up.
+
+A plot ...-qq.png is produced showing how well the chi-square 
+distribution fits the residual variance.
 """,
 'poisson' : """     
 Uses BioConductor package EdgeR to look for differential expression 
@@ -366,9 +393,11 @@ do.heatmap <- function(heatmap.features, heatmap.data, heatmap.labels, heatmap.v
                 title=colnames(heatmap.values)[i]
             )
     
+    heatmap.labels.ord <- lapply(heatmap.labels,function(item) item[ord])
+    
     multiplot(
         cols,
-        heatmap.labels
+        heatmap.labels.ord
     )           
     dev.off()
 }           
@@ -413,13 +442,20 @@ if (nrow(dgelist$counts) == 0) {
     if (MODE == 'trend') {
         cat('estimateGLMTrendedDisp\n')
         d <- estimateGLMTrendedDisp(d, design=design)
-        dispersion <- d$trended.dispersion
+        #dispersion <- d$trended.dispersion
+        cat('estimateGLMTagwiseDisp\n')
+        d <- estimateGLMTagwiseDisp(d, design=design)
+        dispersion <- d$tagwise.dispersion
         summary(dispersion)
     } else if (MODE == 'common') {
         cat('estimateGLMCommonDisp\n')
         d <- estimateGLMCommonDisp(d, design=design)
-        dispersion <- d$common.dispersion
-        print(dispersion)
+        #dispersion <- d$common.dispersion
+        print(d$common.dispersion)
+        cat('estimateGLMTagwiseDisp\n')
+        d <- estimateGLMTagwiseDisp(d, design=design)
+        dispersion <- d$tagwise.dispersion
+        summary(dispersion)
     } else {
         cat('Poisson dispersion\n')
         dispersion <- 1e-6    #See edgeR Poisson example
@@ -543,7 +579,8 @@ if (nrow(dgelist$counts) == 0) {
     
     
     heatmap.features <- rev(as.character(result$Feature[significant]))
-    heatmap.data <- voom(dgelist)$E[heatmap.features,,drop=FALSE]
+    heatmap.data <- glog2.rpm.counts(dgelist, GLOG_MODERATION)$E[heatmap.features,,drop=FALSE]
+       #voom(dgelist)$E[heatmap.features,,drop=FALSE]
     heatmap.labels <- list(heatmap.features)
     heatmap.values <- result[heatmap.features,colnames(design)[1:N_TO_TEST],drop=FALSE]    
     for(i in basic.seq(ncol(heatmap.values))) {
@@ -607,16 +644,18 @@ LIMMA = COMMON + r"""
 
 library(limma)
 
-if (MODE == 'log') {
-    y <- log.rpm.counts(dgelist, LOG_MODERATION)
+null.design <- design[, (N_TO_TEST+1):ncol(design), drop=FALSE]
+
+if (MODE == 'glog' || MODE == 'nullglog') {
+    y <- glog2.rpm.counts(dgelist, GLOG_MODERATION)
 
     if (QUANTILE_NORM) {
         y$E <- normalizeBetweenArrays(y$E, method = 'quantile')
     }
 
 } else {
-    if (MODE == 'nullvoom') {
-        voom.design <- design[, (N_TO_TEST+1):ncol(design), drop=FALSE]
+    if (MODE == 'nullvoom' || MODE == 'nullglog') {
+        voom.design <- null.design
     } else {
         voom.design <- design
     }
@@ -640,13 +679,13 @@ if (USE_CONTRAST) {
     coef <- fit$coefficients[,1:N_TO_TEST, drop=FALSE]
 }
 
-if (MODE != 'nullvoom') {
+if (MODE != 'nullvoom' && MODE != 'nullglog') {
     fit <- eBayes(fit)
     
     if (USE_CONTRAST) {
-        top <- topTable(fit, coef=1, sort.by='none', number=Inf)
+        top <- topTable(fit, coef=1, sort.by='none', confint=TRUE, number=Inf)
     } else {    
-        top <- topTable(fit, coef=1:N_TO_TEST, sort.by='none', number=Inf)
+        top <- topTable(fit, coef=1:N_TO_TEST, sort.by='none', confint=N_TO_TEST==1, number=Inf)
     }
      
     ordering <- order(top$P.Value)
@@ -655,9 +694,11 @@ if (MODE != 'nullvoom') {
 } else {
     stopifnot(!USE_CONTRAST) #Not supported.
 
-    nullfit <- lmFit(y, voom.design)
-    df <- ncol(dgelist$counts) - ncol(voom.design)
-    s2 <- nullfit$sigma ^ 2
+    fit <- lmFit(y, null.design)
+    fit <- eBayes(fit)
+    
+    df <- ncol(dgelist$counts) + fit$df.prior - ncol(null.design)
+    s2 <- fit$s2.post  #fit$sigma ^ 2
     
     #Trimmed chisq (untrimmed turns out to work just as well)
     #cut <- quantile(s2, 0.99)[[1]]
@@ -680,12 +721,16 @@ if (MODE != 'nullvoom') {
     #)    
     
     #Maximum likelihood scale of chi-square (special case of gamma distribution)
-    scale <- df*length(s2)/sum(s2)
+    #scale <- df*length(s2)/sum(s2)
+    
+    # fit$s2.prior allows that a proportion (1%) of genes are differentially expressed
+    # Similar idea to trimmed chisq, above.
+    scale <- df / fit$s2.prior
 
     png(sprintf('%s-qq.png', OUTPUT_PLOT), width=800, height=800 )
     qqplot(qchisq( ((1:length(s2))-0.5)/length(s2) , df)/scale, s2,
         xlab='Fitted chi-square quantiles',
-        ylab='Sample quantiles',
+        ylab='sigma^2',
         main='QQ plot of sigma^2 unexplained by null model vs chi-squared distribution' 
     ) 
     abline(0,1)
@@ -701,6 +746,10 @@ result$'average expression (log2 reads-per-million)' <- fit$Amean
 
 for(i in basic.seq(ncol(coef))) {
     result[,colnames(coef)[i]] <- coef[,i]
+}
+
+if ((MODE == 'glog' || MODE == 'voom') && ncol(coef) == 1) {
+    result[,'+/- at 95% confidence'] <- (top$CI.975-top$CI.025)*0.5
 }
 
 result$p <- p
@@ -739,33 +788,43 @@ sink(OUTPUT_FILENAME)
 write.csv(results_to_output[,!blank,drop=FALSE], na='', row.names=FALSE)
 sink()
 
-if (ncol(coef) == 1) # <-- Plots don't seem useful for ANOVA
-    for(i in 1:ncol(coef)) {
-        colname <- colnames(coef)[i]    
-        
-        #Strip "log2 "
-        name <- substr(colname, 6,nchar(colname))
-        
-        if (ncol(coef) == 1) {
-            pngname = sprintf('%s.png', OUTPUT_PLOT)
-        } else {
-            pngname = sprintf('%s-%s.png', OUTPUT_PLOT, name) 
-        }
+if (ncol(coef) == 1) { # <-- Plots don't seem useful for ANOVA
+    i <- 1    
+    colname <- colnames(coef)[i]    
     
-        png(pngname, width=800, height=800 )
-        plot(result[,"average expression (log2 reads-per-million)"], 
-             result[,colname],
-             xlab="log2 concentration",
-             ylab="log2 fold change",
-             main=name,
-             pch=19, cex=0.25)
-             
-        points(result[,"average expression (log2 reads-per-million)"][significant],
-               result[,colname][significant],
-               pch=19, cex=1.0,
-               col="red")
-        dev.off()
-    }
+    #Strip "log2 "
+    name <- substr(colname, 6,nchar(colname))
+    
+    pngname = sprintf('%s.png', OUTPUT_PLOT)
+
+    png(pngname, width=800, height=800 )
+
+    plot(result[,"average expression (log2 reads-per-million)"], 
+         result[,colname],
+         xlab="log2 concentration",
+         ylab="log2 fold change",
+         main=name,
+         pch=19, cex=0.25)
+    
+    #if (MODE == 'glog' || MODE == 'voom') {
+    #    title(xlab='Error bars indicate 95% confidence interval',adj=1)
+    #    
+    #    use <- abs(result[,colname]) >= sort(abs(result[,colname]))[floor(1+nrow(result) * 0.99)]
+    #    arrows(result[,"average expression (log2 reads-per-million)"][use],
+    #           y0=top[ordering,'CI.025'][use],
+    #           y1=top[ordering,'CI.975'][use],
+    #           angle=90,code=3,length=0.03,col=c('#8888ff'))  
+    #    points(result[,"average expression (log2 reads-per-million)"], 
+    #         result[,colname],
+    #         pch=19, cex=0.25)
+    #}
+        
+    points(result[,"average expression (log2 reads-per-million)"][significant],
+           result[,colname][significant],
+           pch=19, cex=1.0,
+           col="red")
+    dev.off()
+}
 
 
 heatmap.features <- rev(as.character(result$Feature[significant]))
@@ -785,17 +844,17 @@ for(i in 1:ncol(dgelist$counts)) {
 }
 cat('\n\n')
 
-if (MODE == 'log') {
-    cat('Using log_moderation =',LOG_MODERATION,'\n\n')
+if (MODE == 'glog' || MODE == 'nullglog') {
+    cat('Using glog_moderation =',GLOG_MODERATION,'\n\n')
 }
 
 cat(dgelist$original.number.of.genes, 'features\n')
 cat('Discarded', dgelist$original.number.of.genes-nrow(dgelist$counts), 'features with total count less than', MIN_COUNT, '\n')
 cat('Kept', nrow(dgelist$counts), 'features\n')
 
-if (MODE == 'voom' || MODE == 'log') {
-    cat(fit$df.prior, 'prior df (the prior is like this many extra samples)\n')
-}
+#if (MODE == 'voom' || MODE == 'glog') {
+cat(fit$df.prior, 'prior df (the prior is like this many extra samples)\n')
+#}
 
 cat('With a False Discovery Rate of', FDR_CUTOFF, 'there are\n')
 cat(sum(significant), 'significantly differentially expressed tags\n\n')
@@ -847,12 +906,12 @@ Examples: A=fold-change A^B=interaction-between-A-and-B
         '='*20 +
         '\n--mode %s \n' % mode +
         MODE_HELP[mode]        
-        for mode in ('voom', 'log', 'nullvoom', 'poisson', 'common', 'trend')
+        for mode in ('voom', 'glog', 'nullvoom', 'nullglog', 'poisson', 'common', 'trend')
 ))
 @config.String_flag('mode', 'Analysis mode. See below.')
-@config.String_flag('log_moderation', 'For "--mode log" only.'
-    ' Expression levels are calculated as'
-    ' log2( (count/library_size + log_moderation/mean_library_size)*1e6 ).'
+@config.Float_flag('glog_moderation', 
+    'For "--mode glog" only.'
+    ' Amount of moderation used in log transformation.'
     )
 @config.Int_flag('min_count', 'Discard features with less than this total count.')
 @config.Float_flag('fdr', 'False Discovery Rate cutoff for statistics and plots.')
@@ -869,7 +928,7 @@ class Test_counts(config.Action_with_prefix):
     min_count = 10
     constant_term = True
     mode = 'voom'
-    log_moderation = '5.0'
+    glog_moderation = 5.0
     quantile_norm = False
     fdr = 0.01
     output_all = True
@@ -884,7 +943,7 @@ class Test_counts(config.Action_with_prefix):
 
     def run(self):
         test_counts_run(    
-            min_count=self.min_count, constant_term=self.constant_term, mode=self.mode, log_moderation=self.log_moderation,
+            min_count=self.min_count, constant_term=self.constant_term, mode=self.mode, glog_moderation=self.glog_moderation,
             quantile_norm=self.quantile_norm, fdr=self.fdr, output_all=self.output_all, 
             only_tell=self.tell,
             output_prefix=self.prefix, filename=self.counts_file, 
@@ -947,13 +1006,13 @@ class Test_counts(config.Action_with_prefix):
 #    )
 
 def test_counts_run(
-    min_count, constant_term, mode, log_moderation, quantile_norm, fdr, output_all, only_tell,
+    min_count, constant_term, mode, glog_moderation, quantile_norm, fdr, output_all, only_tell,
     output_prefix, filename, test_terms, with_terms, contrast_weights, use_terms,
     norm_file
 ):
     log = grace.Log()
 
-    assert mode in ('voom', 'log', 'nullvoom', 'poisson', 'common', 'trend')
+    assert mode in ('voom', 'glog', 'nullvoom', 'nullglog', 'poisson', 'common', 'trend')
     
     if not use_terms:
         use_terms = [''] #Default to all
@@ -1018,7 +1077,7 @@ def test_counts_run(
     
     
     assert len(all_terms) <= n_all_samples, 'Can\'t have more linear model terms than samples.'
-    if mode not in ('poisson','nullvoom'):
+    if mode not in ('poisson','nullvoom','nullglog'):
         assert len(all_terms) < n_all_samples, (
             'Can\'t have as many linear model terms as samples, within group variation can\'t be estimated. '
             'I wouldn\'t recommend using --mode poisson or --mode nullvoom, '
@@ -1057,7 +1116,7 @@ def test_counts_run(
     log.attach(open(log_filename,'wb'))
     log.close()    
     
-    if mode in ('voom', 'log', 'nullvoom'):
+    if mode in ('voom', 'glog', 'nullvoom', 'nullglog'):
         script = LIMMA
     else:
         script = EDGER
@@ -1076,7 +1135,7 @@ def test_counts_run(
         OUTPUT_ALL = output_all,
         MIN_COUNT = min_count,
         MODE = mode,
-        LOG_MODERATION = log_moderation,
+        GLOG_MODERATION = glog_moderation,
         QUANTILE_NORM = quantile_norm,
         KEEP = keep,
         OUTPUT_FILENAME = output_prefix + '.csv',
@@ -1362,7 +1421,7 @@ if (length(ORDER)) {
 }
 
 #elist <- voom(dgelist, normalize.method=if(QUANTILE) 'quantile' else 'none')
-elist <- log.rpm.counts(dgelist, LOG_MODERATION)
+elist <- glog2.rpm.counts(dgelist, GLOG_MODERATION)
 
 hmap.elist(PREFIX, elist, min.sd=MIN_SD, min.span=MIN_SPAN, min.svd=MIN_SVD, svd.rank=SVD_RANK, reorder.columns=REORDER_COLUMNS)
 
@@ -1380,9 +1439,9 @@ Hierachical clustering and ordering of rows is performed using the "seriation" p
 
 You will need to use at least one of --min-sd, --min-span, or --min-svd.
 """)
-@config.String_flag('log_moderation',
-    ' Log RPM expression levels are calculated as'
-    ' log2( (count/library_size + log_moderation/mean_library_size)*1e6 ).'
+@config.Float_flag('glog_moderation', 
+    'Amount of moderation used in log transformation.'
+    ' See "glog" mode in "test-counts:".'
     )
 @config.Int_flag('min_total', 'Expression level filter:\nExclude genes with less than this total number of reads')
 @config.Int_flag('min_max', 'Expression level filter:\nExclude genes with no sample having at least this many reads')
@@ -1397,7 +1456,7 @@ You will need to use at least one of --min-sd, --min-span, or --min-svd.
 @config.Positional('counts', 'File containing output from "nesoni count:"')
 @config.Section('order', 'Optionally, specify an order to show the columns in.')
 class Heatmap(config.Action_with_prefix):
-    log_moderation = '5.0'
+    glog_moderation = 5.0
     counts = None
     min_total = 0
     min_max = 0
@@ -1413,7 +1472,7 @@ class Heatmap(config.Action_with_prefix):
     def run(self):
         run_script(HEATMAP_SCRIPT,
             PREFIX=self.prefix,
-            LOG_MODERATION=self.log_moderation,
+            GLOG_MODERATION=self.glog_moderation,
             COUNTS=self.counts,
             MIN_TOTAL=self.min_total,
             MIN_MAX=self.min_max,

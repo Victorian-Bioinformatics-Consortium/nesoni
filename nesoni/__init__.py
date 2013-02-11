@@ -1,4 +1,4 @@
-VERSION='0.97'
+VERSION='0.98'
 
 import sys
 

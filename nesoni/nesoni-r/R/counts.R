@@ -82,26 +82,32 @@ normalized.counts <- function(dgelist) {
     t( t(dgelist$counts) * dgelist$samples$normalizing.multiplier )
 }
 
-# log transformation with various moderation options, resulting in log2 RPM values
-# moderation can be
-# - a number 
-# - 'vst' to use DESeq's Variance Stabilizing Transformation
-log.rpm.counts <- function(dgelist, moderation=5.0) {
+# Similar to a log transformation, however glog2(0, m) = log2(m) rather than negative infinity.
+#
+# Stabilizes variance of values with a constant noise component plus a componet that scales with the data
+#
+glog2 <- function(x,m=1) log2((x+sqrt(x*x+4*m*m))/2)
+
+# glog2 transformation, resulting in moderated log2 Reads Per Million values
+# 
+# B.P. Durbin, J.S. Hardin, D.M. Hawkins and D.M. Rocke (2002)
+# A variance-stabilizing transformation for gene-expression microarray data.
+# Bioinformatics (2002) 18 (suppl 1): S105-S110. 
+#
+glog2.rpm.counts <- function(dgelist, moderation=5.0) {
     lib.size <- dgelist$samples$lib.size * dgelist$samples$norm.factors
     mean.size <- mean(lib.size)
 
-    if (moderation == 'vst') {
-        cds <- newCountDataSet(dgelist$counts, basic.seq(ncol(dgelist$counts)))
-        pData(cds)$sizeFactor <- (dgelist$samples$lib.size * dgelist$samples$norm.factors) / 1e6
-        cdsBlind <- estimateDispersions(cds, method='blind', fitType='local')
-        e <- getVarianceStabilizedData(cdsBlind)
-        
-    } else {
-        moderation <- as.numeric(moderation)
-        is.na(moderation) && stop("expected log moderation to be either a number or 'vst'")        
-        e <- t( log2((t(dgelist$counts)/lib.size + moderation/mean.size) * 1e+06) )
+    #e <- glog2( t(t(dgelist$counts)*(1e6/lib.size)), moderation*1e6/mean.size )
+    #e <- log2( t(t(dgelist$counts)*(1e6/lib.size)) + moderation*1e6/mean.size ) 
+    e <- matrix(nrow=nrow(dgelist$counts),ncol=ncol(dgelist$counts))
+    rownames(e) <- rownames(dgelist$counts)
+    colnames(e) <- colnames(dgelist$counts)
+    for(i in basic.seq(ncol(e))) {
+        e[,i] <- glog2( dgelist$counts[,i] * (1e6/lib.size[i]), moderation*(1e6/mean.size))
+        #e[,i] <- glog2(dgelist$counts[,i]*1.0, moderation) + log2(1e6/lib.size[i])
     }
-        
+    
     out <- list()
     out$E <- e
     out$lib.size <- lib.size

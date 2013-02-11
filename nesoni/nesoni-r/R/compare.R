@@ -14,11 +14,17 @@ compare.tests <- function(filename.prefix, a, b, n=50, title='', a.title='', b.t
     text(25,n+1.5,'FDR',adj=0)
     
     for(i in 1:n) {
-        text(10,n+1-i, a$Feature[i], adj=1)
-        text(1,n+1-i, sprintf('%.2g',a$FDR[i]), adj=0)
+        if (a$FDR[i] < 0.01) col <- 'dark green'
+        else if (a$FDR[i] < 0.05) col <- 'blue'
+        else col <- 'black'
+        text(10,n+1-i, a$Feature[i], adj=1, col=col)
+        text(1,n+1-i, sprintf('%.2g',a$FDR[i]), adj=0, col=col)
         
-        text(20,n+1-i, b$Feature[i], adj=0)
-        text(25,n+1-i, sprintf('%.2g',b$FDR[i]), adj=0)
+        if (b$FDR[i] < 0.01) col <- 'dark green'
+        else if (b$FDR[i] < 0.05) col <- 'blue'
+        else col <- 'black'
+        text(20,n+1-i, b$Feature[i], adj=0, col=col)
+        text(25,n+1-i, sprintf('%.2g',b$FDR[i]), adj=0, col=col)
     }
     
     for(i in 1:n)
