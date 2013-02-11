@@ -1,4 +1,4 @@
-VERSION='0.97'
+VERSION='0.98'
 
 import sys
 
@@ -23,6 +23,7 @@ from variant import Freebayes, Vcf_filter, Snpeff, Vcf_nway, Vcf_patch, Test_var
 from peaks import Peaks
 from annotation_tools import Modify_features, Collapse_features, Relate_features
 from workflows import Analyse_sample, Analyse_variants, Analyse_expression, Analyse_samples
+from changes import Changes
 
 from legion import *
 
@@ -173,6 +174,8 @@ samcount, for analysis with BioConductor packages.
                     sequences.
 
     peaks:        - Call peaks based on depth of coverage.
+    
+    changes:      - Prints out change log file.
                     
 
 %(BOLD)sPipeline tools:%(END)s
