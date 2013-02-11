@@ -1,3 +1,4 @@
+0.98 - Added a "nesoni changes:" command to print out this change log
 
 0.98 - Use generalised log transformation in "heatmap:" and "test-counts:".
        "test-counts:" 
