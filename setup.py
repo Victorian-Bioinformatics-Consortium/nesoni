@@ -31,8 +31,8 @@ setup(
     package_data = {
         'nesoni' : [
             'nesoni-r/DESCRIPTION',
-            'nesoni-r/R/*'
-            'CHANGES'
+            'nesoni-r/R/*',
+            'CHANGES',
             ],                    
         },
     
