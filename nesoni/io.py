@@ -662,15 +662,21 @@ def read_evidence_file(filename):
 
 
 
-class _Named_list(object):
+class _Named_list(collections.Mapping):
     """ Abstract base class of named lists. 
         Behaves very much like a dictionary.
+        
+        Can be initialized from a Mapping type with matching keys,
+        or from an iterable.
     """
     def __init__(self, values):
         assert len(values) == len(self._keys)
+        if isinstance(values, collections.Mapping):
+            values = [ values[key] for key in self._keys ]
         if self._value_type:
-            for item in values:
-                assert isinstance(item, self._value_type)
+            #for item in values:
+            #    assert isinstance(item, self._value_type)
+            values = [ self._value_type(item) for item in values ]
         self._values = values
         
     def __len__(self):
@@ -738,21 +744,35 @@ def named_list_type(keys, value_type=None):
     return Named_list            
 
 def named_list(items, value_type=None):
-    """ Create a named list from a list of (name,value) pairs.
+    """ Create a named list from a Mapping 
+        or from an iterable of (name,value) pairs.
     """
+    if isinstance(items, collections.Mapping):
+        items = items.items()
+    else:
+        items = list(items)
     keys = [ a for a,b in items ]
     values = [ b for a,b in items ]
     return named_list_type(keys, value_type)(values)
 
+def named_matrix_type(row_keys, col_keys, value_type=None):
+    """ Create a named list of named lists, to store a matrix in row-major order.
+    """
+    row_type = named_list_type(col_keys, value_type)
+    return named_list_type(row_keys, row_type)
+
 
 class Table_reader(object):
-    def __init__(self, filename):
+    def __init__(self, filename, default_group='All'):
         self.f = open(filename, 'rb')
         line = self.f.readline()
         self.groups = [ ]
+        self.comments = [ ]
         while line and line.startswith('#') or not line.strip():
             if line.startswith('#Groups'):
                 self.groups = line.rstrip('\n').split(',')
+            else:
+                self.comments.append(line[1:].rstrip('\n'))
             line = self.f.readline()    
         
         assert line, 'Table has not even a heading'
@@ -777,7 +797,7 @@ class Table_reader(object):
                 self.groups = [''] + ['Count']*n + ['RPKM']*n + ['Annotation']*(len(self.headings)-n*2-1)
                 
         if not self.groups:
-            self.groups = [''] + ['All']*(len(self.headings)-1)
+            self.groups = [''] + [default_group]*(len(self.headings)-1)
         
         if len(self.groups) < len(self.headings):
             self.groups.extend([''] * (len(self.headings)-len(self.groups)))
@@ -785,9 +805,12 @@ class Table_reader(object):
         self.groups[0] = ''
         for i in xrange(1,len(self.groups)):
             if not self.groups[i]:
-                self.groups[i] = self.groups[i-1] or 'All'
+                self.groups[i] = self.groups[i-1] or default_group
         
         self.row_type = named_list_type(self.headings)
+    
+    def close(self):
+        self.f.close()
     
     def __iter__(self):
         return self
@@ -795,7 +818,9 @@ class Table_reader(object):
     def next(self):
         while True:
             line = self.f.readline()
-            if not line: raise StopIteration()        
+            if not line: 
+                self.close()
+                raise StopIteration()        
             if line.startswith('#') or not line.strip(): continue
             
             values = self.parse(line)
@@ -808,7 +833,41 @@ class Table_reader(object):
 read_table = Table_reader
 
 
-def read_grouped_table(filename, group_cast={'All':str}):
+
+class Grouped_table(collections.OrderedDict):
+    def __init__(self, rowname_name='Name'):
+        super(Grouped_table,self).__init__()        
+        self.rowname_name = rowname_name
+        self.comments = [ ]
+
+    def write_csv(self, filename, group_line=True):
+        group_names = [ '#Groups' ]
+        column_names = [ self.rowname_name ]
+        rownames = self.values()[0].keys()
+        for name, table in self.items():
+            group_names.extend([ name ] * len(table.value_type().keys()))
+            column_names.extend(table.value_type().keys())
+            assert table.keys() == rownames
+        
+        with open(filename, 'wb') as f:
+            for line in self.comments:
+                f.write('#%s\n' % line)
+                
+            writer = csv.writer(f)
+            if group_line:
+                writer.writerow(group_names)
+            writer.writerow(column_names)
+            for i, rowname in enumerate(rownames):
+                writer.writerow(
+                    [ rowname ] +
+                    [ item #str(item)
+                      for table in self.values()
+                      for item in table.values()[i].values()
+                    ]
+                )
+
+
+def read_grouped_table(filename, group_cast=[('All',str)], default_group='All'):
     """ 
     Read some groups of columns from a grouped-column table file.
     
@@ -821,38 +880,37 @@ def read_grouped_table(filename, group_cast={'All':str}):
     
     If a #Groups line is not present, all columns belong to group 'All'.
     
-    group_cast is a dictionary specifying a parser for the values in each group
+    group_cast is a Mapping or iterable of pairs specifying a parser for the values in each group
     """
+    group_cast = collections.OrderedDict(group_cast)
 
-    reader = Table_reader(filename)
+    reader = Table_reader(filename, default_group)
 
     group_types = { }
     groups = { }
     group_columns = { }
+    group_column_names = { }
     for group in group_cast:
         groups[group] = [ ]
         group_columns[group] = [ ]
+        group_column_names[group] = [ ]
         for i, group1 in enumerate(reader.groups):
             if group == group1:
                 group_columns[group].append(i)
-        assert group_columns[group], '"%s" group is missing from table file' % group
-        
-        group_types[group] = named_list_type(
-            [ reader.headings[index] for index in group_columns[group] ]
-        )
+                group_column_names[group].append(reader.headings[i])
+        #assert group_columns[group], '"%s" group is missing from table file' % group
     
     names = [ ]
     for record in reader:
         names.append(record._values[0])        
         for group in groups:
-            groups[group].append(group_types[group]([
-                group_cast[group]( record._values[index] ) for index in group_columns[group]
-            ]))
+            groups[group].append([ group_cast[group]( record._values[index] ) for index in group_columns[group] ])
 
-    return dict(
-        (group, named_list_type(names,group_types[group])(groups[group]))
-        for group in groups
-    )
+    result = Grouped_table(reader.headings[0])
+    result.comments = reader.comments
+    for group in groups:
+        result[group] = named_matrix_type(names,group_column_names[group])(groups[group])
+    return result
 
 
 def write_grouped_csv(filename, groups, rowname_name='Name', comments=[], group_line=True):
@@ -862,30 +920,37 @@ def write_grouped_csv(filename, groups, rowname_name='Name', comments=[], group_
     groups should be a list of tuple (group name, data)
     where data is a named_list of named_lists
     """
-    group_names = [ '#Groups' ]
-    column_names = [ rowname_name ]
-    rownames = groups[0][1].keys()
+    data = Grouped_table(rowname_name)
+    data.comments = comments
     for name, table in groups:
-        group_names.extend([ name ] * len(table.value_type().keys()))
-        column_names.extend(table.value_type().keys())
-        assert table.keys() == rownames
+        data[name] = table
+    data.write_csv(filename, group_line)
     
-    with open(filename, 'wb') as f:
-        for line in comments:
-            f.write('#%s\n' % line)
-            
-        writer = csv.writer(f)
-        if group_line:
-            writer.writerow(group_names)
-        writer.writerow(column_names)
-        for i, rowname in enumerate(rownames):
-            writer.writerow(
-                [ rowname ] +
-                [ item #str(item)
-                  for _, table in groups
-                  for item in table.values()[i].values()
-                ]
-            )
+    
+    #group_names = [ '#Groups' ]
+    #column_names = [ rowname_name ]
+    #rownames = groups[0][1].keys()
+    #for name, table in groups:
+    #    group_names.extend([ name ] * len(table.value_type().keys()))
+    #    column_names.extend(table.value_type().keys())
+    #    assert table.keys() == rownames
+    #
+    #with open(filename, 'wb') as f:
+    #    for line in comments:
+    #        f.write('#%s\n' % line)
+    #        
+    #    writer = csv.writer(f)
+    #    if group_line:
+    #        writer.writerow(group_names)
+    #    writer.writerow(column_names)
+    #    for i, rowname in enumerate(rownames):
+    #        writer.writerow(
+    #            [ rowname ] +
+    #            [ item #str(item)
+    #              for _, table in groups
+    #              for item in table.values()[i].values()
+    #            ]
+    #        )
         
 
 def write_csv(filename, iterable, comments=[]):

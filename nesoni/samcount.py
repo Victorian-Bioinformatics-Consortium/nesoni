@@ -251,6 +251,20 @@ class Count(config.Action_with_prefix):
 def tab_encode(listing):
     return '\t'.join( item.replace('\t','        ').replace('\n',' ') for item in listing )
 
+def count_encode(counts):
+    return ' '.join(
+        '%dx%s' % (item[1],str(item[0]).replace(' ','-'))
+        for item in sorted(counts.items(), key=lambda item:item[1], reverse=True)
+        ) 
+
+def count_parse(count_str):
+    result = { }
+    if count_str:
+        for item in count_str.split(' '):
+            x = item.index('x')
+            result[item[x+1:]] = int(item[:x])
+    return result
+
 
 def count_run(
     min_score, min_size, max_size, filter_mode, equalize, types, locii,
@@ -540,7 +554,7 @@ def count_run(
         n_reverse = sum(feature.count[-1])
         if n_forward+n_reverse < 5: continue
         strandedness.append( (n_forward-n_reverse)*100.0 / (n_forward+n_reverse) )
-    strandedness = sum(strandedness) / len(strandedness)
+    strandedness = sum(strandedness) / max(1,len(strandedness))
     log.log('Strand specificity score: %.0f\n'
             '  (~ -100 reverse strand, ~ 0 non-specific, ~ 100 forward strand\n'
             '   Average over all features with at least 5 hits.)\n'
@@ -588,8 +602,8 @@ def count_run(
     count_type = io.named_list_type(titles)    
     counts = [ ]
     
-    rpkm_type = io.named_list_type(titles)
-    rpkms = [ ]
+    #rpkm_type = io.named_list_type(titles)
+    #rpkms = [ ]
     
     annotation_type = io.named_list_type([ 'Length' ] + qualifiers)
     annotations = [ ]
@@ -612,26 +626,28 @@ def count_run(
                     for i in xrange(n_samples)
                     ]
             
-            rpkm = [ count[i] * 1.0e9 / feature.length / total_hits[i] for i in xrange(n_samples) ]
+            #rpkm = [ count[i] * 1.0e9 / feature.length / total_hits[i] for i in xrange(n_samples) ]
             
-            common_str = ' '.join(
-                '%dx%s' % (item[1],item[0])
-                for item in sorted(common.items(), key=lambda item:item[1], reverse=True)
-                ) 
-            ambiguous_str = ' '.join(
-                '%dx%s' % (item[1],item[0])
-                for item in sorted(ambiguous.items(), key=lambda item:item[1], reverse=True)
-                ) 
+            #common_str = ' '.join(
+            #    '%dx%s' % (item[1],item[0])
+            #    for item in sorted(common.items(), key=lambda item:item[1], reverse=True)
+            #    ) 
+            #ambiguous_str = ' '.join(
+            #    '%dx%s' % (item[1],item[0])
+            #    for item in sorted(ambiguous.items(), key=lambda item:item[1], reverse=True)
+            #    )
+            common_str = count_encode(common)
+            ambiguous_str = count_encode(ambiguous)
             
             names.append(feature_name)
             counts.append(count_type(count))
-            rpkms.append(rpkm_type(rpkm))
+            #rpkms.append(rpkm_type(rpkm))
             annotations.append(annotation_type([ str(feature.length) ] + list(feature.qualifiers)))
             alignments.append(alignment_type([ common_str ] + [ ambiguous_str ] if expect_multiple_alignments else [ ]))
 
     groups = [
         ('Count', io.named_list_type(names,count_type)(counts)),
-        ('RPKM', io.named_list_type(names,rpkm_type)(rpkms)),
+        #('RPKM', io.named_list_type(names,rpkm_type)(rpkms)),
         ('Annotation', io.named_list_type(names,annotation_type)(annotations)),
         ('Alignment', io.named_list_type(names,alignment_type)(alignments)),
         ]
@@ -1089,4 +1105,80 @@ def count_run(
 ###
 ###    f.close()
 ###
+
+def merge_require_equal(a,b):
+    assert a == b, 'Values aren\'t equal while merging matrices'
+    return a
+
+def merge_counts(a,b):
+    counts = count_parse(a)
+    for key, value in count_parse(b).items():
+        counts[key] = counts.get(key,0) + value
+    return count_encode(counts)
+    
+
+def matrix_merge(matrices, reducer=merge_require_equal):
+    """ Merge several matrices. 
+        Matrices should have the same row names.
+        Where multiple matrices have the same column, the values are merged using the reducer function.
+        """
+    columns = collections.OrderedDict()
+    row_names = matrices[0].keys()
+    for i, matrix in enumerate(matrices):
+        assert row_names == matrix.keys(), 'Row names don\'t match in matrix merge'
+        for column in matrix.value_type().keys():
+            if column not in columns:
+                columns[column] = [ ]
+            columns[column].append( i )
+    
+    return io.named_matrix_type(row_names, columns.keys())([
+        [ reduce(reducer, [ matrices[i][name][column] for i in columns[column] ])
+            for column in columns
+            ]
+        for name in row_names
+        ])
+    
+
+@config.help(
+    'Merge several count files as produced by "count:".'
+    )
+@config.Main_section('filenames', 'CSV files to merge.')
+class Merge_counts(config.Action_with_prefix):
+    filenames = [ ]
+    
+    def run(self):
+        assert self.filenames, 'No files given to merge.'
+        
+        tables = [ ]
+        for filename in self.filenames:
+            tables.append(io.read_grouped_table(
+                filename,
+                [('Count',str), ('Annotation',str), ('Alignment',str)],
+                'Count',
+                ))
+                
+        result = io.Grouped_table()
+        result.comments = [ '#Counts' ]
+        for table in tables:
+            for comment in table.comments:
+                if comment != '#Counts':
+                    result.comments.append(comment)
+        
+        result['Count'] = matrix_merge([ table['Count'] for table in tables ])
+        result['Annotation'] = matrix_merge([ table['Annotation'] for table in tables ])
+        result['Alignment'] = matrix_merge([ table['Alignment'] for table in tables ], merge_counts)        
+        result.write_csv(self.prefix + '.csv')
+
+
+
+
+
+
+
+
+
+
+
+
+
 

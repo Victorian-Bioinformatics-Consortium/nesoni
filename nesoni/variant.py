@@ -210,7 +210,7 @@ Ploidy reduction:
 
 Dirichlet qualities:
 
-- genome qualities (GQ) are 
+- genome qualities (GQ) are replaced with qualities calculated using the Dirichlet model
 
 - this currently reduces the ploidy to one
 
@@ -222,9 +222,7 @@ Filtering:
 
 - variants in which all genotypes match the reference are removed
 
-Note:
-
-- phased VCF files are not supported
+Note that phased VCF files are not supported.
 
 """)
 @config.Bool_flag('dirichlet',
@@ -245,7 +243,10 @@ Note:
     'A mixture of variants is genotyped as being a particular variant if it makes up at least this '
     'proportion of the mixture.'
     )
-@config.Float_flag('min_gq', 'Genotype quality cutoff, based on GQ as produced by Freebayes, phred scale.')
+@config.Float_flag('min_gq', 
+    'Genotype quality cutoff, based on GQ as produced by the Dirichlet model if Dirichlet is enabled, '
+    'or as originally listed in the file if not. This is a phred-style scale.'
+    )
 @config.Int_flag('ploidy', 
     'Reduce to this polidy. Should be a divisor of the ploidy of the input. '
     'If the genotype does not have an exact representation at the reduced ploidy, it is filtered.')

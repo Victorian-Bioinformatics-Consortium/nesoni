@@ -1,7 +1,7 @@
 
 import collections
 
-from nesoni import config, annotation, span_index
+from nesoni import config, annotation, span_index, selection
 
 def join_descriptions(seq):
     result = [ ]
@@ -36,7 +36,7 @@ class Modify_features(config.Action_with_prefix):
         annotation.write_gff3_header(out_file)
         
         for filename in self.filenames:
-            for item in annotation.read_annotations(self.filename):
+            for item in annotation.read_annotations(filename):
                 if not selection.matches(self.select, [item.type]): continue
                 
                 if item.strand == 1:
@@ -173,8 +173,8 @@ class _Related_feature(collections.namedtuple(
     'in opposite upstrand downstrand upstrand-opposite downstrand-opposite\n\n'
     'Features that overlap are also called "in" (or "opposite").'
     )
-@config.Int_flag('upstrand', 'Number of bases upstrand of features in features-1 to look.')
-@config.Int_flag('downstrand', 'Number of bases downstrand of features in features-1 to look.')
+@config.Int_flag('upstrand', 'Number of bases upstrand of parent features to look.')
+@config.Int_flag('downstrand', 'Number of bases downstrand of parent features to look.')
 @config.String_flag('use', 'What relations to set "Parent" attribute for (selection expression).')
 @config.String_flag('select_parent', 'What types of annotation to use from parent features file (selection expression).')
 @config.String_flag('select_child', 'What types of annotation to use from child features file (selection expression).')

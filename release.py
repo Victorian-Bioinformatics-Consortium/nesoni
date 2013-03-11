@@ -172,6 +172,7 @@ try:
     sh('sudo -H ln -s pypy /bio/sw/python/env-pypy/bin/pypy-bio')
     sh('sudo -H /bio/sw/python/env-pypy/bin/pip install biopython')
     sh('sudo -H /bio/sw/python/env-pypy/bin/python setup.py install')
+    sh('sudo -H /bio/sw/python/env-pypy/bin/pip install tail-tools')
 
     os.system('sudo -H rm -r /bio/sw/python/env-python')
     sh('sudo -H virtualenv -p python /bio/sw/python/env-python')
@@ -180,10 +181,11 @@ try:
     sh('sudo -H /bio/sw/python/env-python/bin/pip install matplotlib')
     sh('sudo -H /bio/sw/python/env-python/bin/pip install biopython')
     sh('sudo -H /bio/sw/python/env-python/bin/python setup.py install')        
+    sh('sudo -H /bio/sw/python/env-python/bin/pip install tail-tools')
     
     sh('sudo -H R CMD INSTALL --library=/bio/sw/R nesoni/nesoni-r')
     
-    os.system('sudo -H rm -r nesoni.egg-info')
+    os.system('sudo -H rm -r nesoni.egg-info build')
     
     print
     print

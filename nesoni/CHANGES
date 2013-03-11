@@ -1,11 +1,15 @@
 0.98 - Added a "nesoni changes:" command to print out this change log
-
-0.98 - Use generalised log transformation in "heatmap:" and "test-counts:".
+       Use generalised log transformation in "heatmap:" and "test-counts:".
        "test-counts:" 
-       - modes trend and common now additionally use estimateGLMTagwiseDispersion
+       - INTERFACE CHANGE: now uses selection expression on tags, rather than regular expressions
+       - modes "trend" and "common" now additionally use estimateGLMTagwiseDispersion
          (this doesn't do a great deal, as df.prior is fixed at 20)
        - added "nullglog" method, revised "nullvoom" method,
-         both methods now use eBayes moderated statistics
+         both methods now use eBayes moderated variances
+       New parameter type Configurable_section_list, will replace Grouped_configurable_section.
+       "count:" no longer produces RPKMs.
+       Added "merge-counts:".
+       "analyse-sample:" now includes a "count:" step, and "analyse-expression:" uses "merge-counts:" rather than "count:".
 
 0.97 - "analyse-variants:" now invokes "power-variant-call:"
        Easily modify configurables within in configurables from python using a__b=... syntax.

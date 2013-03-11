@@ -45,9 +45,8 @@ class Copy(config.Action):
         shutil.copyfile(self.source, self.dest)
 
 
-@config.String_flag('dest')
 @config.Section('files', 'filenames or tuples (filename, destname)')
-class Tar(config.Action):
+class Tar(config.Action_with_prefix):
     dest = None
     files = [ ]
     
@@ -55,13 +54,13 @@ class Tar(config.Action):
         return super(Tar,self).ident() + '--' + (self.dest or '')
     
     def run(self):
-        tarf = tarfile.open(self.dest, 'w:gz')
+        tarf = tarfile.open(self.prefix+'.tar.gz', 'w:gz')
         for filename in self.files:
             if isinstance(filename, tuple):
                 filename, destname = filename
             else:
                 destname = os.path.split(filename)[1]            
-            tarf.add(filename, destname)        
+            tarf.add(filename, os.path.join(os.path.split(self.prefix)[1],destname))
         tarf.close()
 
 
@@ -143,7 +142,7 @@ class Reporter(object):
         dest = self.workspace / (self.file_prefix+tar_name)
         
         Tar(
-            dest = dest,
+            dest,
             files = filenames,
         ).make()        
         #tarf = tarfile.open(dest, 'w:gz')
@@ -155,7 +154,7 @@ class Reporter(object):
         #    tarf.add(filename, destname)        
         #tarf.close()
         
-        return self.href(dest, title)
+        return self.href(dest+'.tar.gz', title)
         
     def report_logs(self, name, logs, filter=(lambda sample, field: True), renaming={}):
         table = mine_logs(logs, filter)

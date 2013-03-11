@@ -1047,7 +1047,7 @@ def run_script(function):
         if __name__ == '__main__':
             run_script(my_script)
     """
-    maker = Make_script(function=function)
+    maker = Make_script(function=function)    
     config.shell_run(maker, sys.argv[1:], sys.executable + ' ' + sys.argv[0])
 
 

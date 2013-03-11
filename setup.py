@@ -33,7 +33,7 @@ setup(
             'nesoni-r/DESCRIPTION',
             'nesoni-r/R/*',
             'CHANGES',
-            ],                    
+            ],            
         },
     
     entry_points = {

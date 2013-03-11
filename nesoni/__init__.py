@@ -1,4 +1,5 @@
 VERSION='0.98'
+#^ Note: this first line is read by the setup.py script to get the version
 
 import sys
 
@@ -14,7 +15,7 @@ from samconsensus import Filter, Reconsensus, Consensus
 from nway_diff import Nway
 from fisher_diff import Fisher
 from core import Core
-from samcount import Count
+from samcount import Count, Merge_counts
 from runr import Test_counts, Plot_counts, Test_power, Heatmap, Compare_tests, Norm_from_counts, NMF
 from trivia import Test, As_fasta, As_gff, Sample, Stats
 from shred import Shred
@@ -39,6 +40,7 @@ Usage:
 
 Give <tool>: without further arguments for help on using that tool.
 
+
 %(BOLD)sAlignment to reference -- core tools:%(END)s
 
     make-reference:
@@ -57,6 +59,7 @@ Give <tool>: without further arguments for help on using that tool.
     (import:      - Pipe SAM alignments to set up a working directory)
     (filter:      - Filter read hits, but do not call consensus)
     (reconsensus: - Re-call consensus, using previously filtered hits)
+
 
 %(BOLD)sAlignment to reference -- VCF based tools: (under development)%(END)s
 
@@ -84,6 +87,7 @@ These provide an alternative to consensus calling using "nesoni consensus:"
                   - Apply "neosni test-variant-call:" to a variety of
                     different variants over a range of depths.
 
+
 %(BOLD)sAlignment to reference -- analysis tools:%(END)s
 
     igv-plots:    - Generate plots for IGV.
@@ -106,6 +110,7 @@ These provide an alternative to consensus calling using "nesoni consensus:"
                   - Determine effects at the amino acid level of SNPs and INDELs
                     called by nesoni consensus. Most of the features of this tool
                     are now a part of "samconsensus:".)
+
 
 %(BOLD)sAlignment to reference -- differential expression:%(END)s
 
@@ -135,6 +140,26 @@ These provide an alternative to consensus calling using "nesoni consensus:"
 An R+ module is included with nesoni which will help load the output from
 samcount, for analysis with BioConductor packages.
 
+
+%(BOLD)sPeak calling and annotation manipulation tools:%(END)s
+
+    peaks:        - Call peaks based on depth of coverage.
+    
+    modify-features:
+                  - Shift start or end position of features,
+                    filter by type, change type.
+    
+    collapse-features:
+                  - Merge overlapping features.
+    
+    relate-features:
+                  - Find features from one set that are near or overlapping
+                    features from another set.
+    
+    as-gff:       - Output an annotation in GFF format,
+                    optionally filtering by annotation type.
+
+    
 %(BOLD)sk-mer tools:%(END)s (experimental)
 
     bag:          - Create an index of kmers in a read set for analysis with
@@ -142,6 +167,7 @@ samcount, for analysis with BioConductor packages.
     
     graph:        - Use a bag or bags to lay out a deBruijn graph.
                     Interact with the graph in various ways.
+
 
 %(BOLD)sUtility tools:%(END)s
 
@@ -153,9 +179,6 @@ samcount, for analysis with BioConductor packages.
                     above tools. Yes, this isn't ideal.
 
     as-fasta:     - Output a sequence file in FASTA format.
-    
-    as-gff:       - Output an annotation in GFF format,
-                    optionally filtering by annotation type.
     
     as-userplots: - Convert a .igv file to a set of .userplot files
                     for viewing in Artemis.
@@ -173,8 +196,6 @@ samcount, for analysis with BioConductor packages.
     pastiche:     - Use MUMMER to plaster a set of contigs over reference 
                     sequences.
 
-    peaks:        - Call peaks based on depth of coverage.
-    
     changes:      - Prints out change log file.
                     
 

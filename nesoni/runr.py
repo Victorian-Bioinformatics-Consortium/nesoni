@@ -1,7 +1,7 @@
 
 import sys, os, re, subprocess
 
-from nesoni import grace, config, legion, io, workspace
+from nesoni import grace, config, legion, io, workspace, selection
 
 def R_literal(item):
     if item is None:
@@ -890,16 +890,55 @@ def term_name(term):
 @config.help("""\
 Find significant differential expression from the output of "count:".
 
-Terms are a regular expression on the sample names, or several 
-terms joined by ^, indicating an interaction term (ie the XOR of the 
-component terms). "with:" terms are included in the linear model, but 
-not the significance test. The model will also include a constant term.
+Terms are selection expressions on the sample names and any tags they were \
+given with "tag:". See the main nesoni help page for selection expression syntax. \
+"with:" terms are included in the linear model, but not the significance test. \
+The model will also include a constant term.
 
-Examples: A A^B
-
-A term can be given a more intuitive name in the output by appending "=name", eg
-
+A term can be given a more intuitive name in the output by appending "=name". \
 Examples: A=fold-change A^B=interaction-between-A-and-B
+
+
+Example 1: Say we have two conditions, "control" and "experimental". Here's are some possible tests:
+
+experimental
+- What is the fold change from control to experimental? \
+Hypothesis 0 is that all samples have the same log expression level. \
+Hypothesis 1 is that the control samples have a baseline log expression level, \
+and the experimental samples have that baseline plus a further amount.
+
+control experimental contrast: -1 1 --constant-term no
+- This is a different way to perform the same test.
+
+
+Example 2: Say we have two strains, "strain1" and "strain2" and two time points "time1" and "time2". \
+Here are some possible tests:
+
+time2
+- What is the fold change from time1 to time2? \
+But note that any difference between strains will be seen as within group variation!
+
+time2 --select strain1
+- What is the fold change from time1 to time2, looking at strain1 samples only?
+
+time2 with: strain2
+- What is there a change from time1 to time2? \
+Any difference between strains is accounted for.
+
+strain2^time2 with: strain2 time2
+- Is there an interaction effect between strain and time?
+
+
+Example 3: Say we have three time points, "time1", "time2" and "time3". Here are some possible tests:
+
+time3 --select time2/time3
+- Is there a change between time2 and time3?
+
+time2 time3
+- Is there any change over time? \
+This is an ANOVA style test that is potentially more sensitive than comparing each pair of time points individually.
+
+
 """ +
 ''.join(
         '\n\n'+
@@ -913,6 +952,7 @@ Examples: A=fold-change A^B=interaction-between-A-and-B
     'For "--mode glog" only.'
     ' Amount of moderation used in log transformation.'
     )
+@config.String_flag('select', 'Selection expression. Which samples to use.')
 @config.Int_flag('min_count', 'Discard features with less than this total count.')
 @config.Float_flag('fdr', 'False Discovery Rate cutoff for statistics and plots.')
 @config.Bool_flag('output_all', 'List all genes in output, not just significant ones.')
@@ -923,8 +963,9 @@ Examples: A=fold-change A^B=interaction-between-A-and-B
 @config.Main_section('test', 'Terms to test.')
 @config.Float_section('contrast', 'Instead of doing an ANOVA on multiple terms, perform a contrast with the given weights.')
 @config.Section('with_', 'Also include these terms in the model.')
-@config.Section('use', 'Only use samples matching these regexes.')
+#@config.Section('use', 'Only use samples matching these regexes.')
 class Test_counts(config.Action_with_prefix):
+    select = 'all'
     min_count = 10
     constant_term = True
     mode = 'voom'
@@ -947,7 +988,9 @@ class Test_counts(config.Action_with_prefix):
             quantile_norm=self.quantile_norm, fdr=self.fdr, output_all=self.output_all, 
             only_tell=self.tell,
             output_prefix=self.prefix, filename=self.counts_file, 
-            test_terms=self.test, with_terms=self.with_, contrast_weights=self.contrast, use_terms=self.use,
+            test_terms=self.test, with_terms=self.with_, contrast_weights=self.contrast, 
+            #use_terms=self.use,
+            select=self.select,
             norm_file=self.norm_file,
         )
 
@@ -1007,15 +1050,17 @@ class Test_counts(config.Action_with_prefix):
 
 def test_counts_run(
     min_count, constant_term, mode, glog_moderation, quantile_norm, fdr, output_all, only_tell,
-    output_prefix, filename, test_terms, with_terms, contrast_weights, use_terms,
+    output_prefix, filename, test_terms, with_terms, contrast_weights, 
+    #use_terms,
+    select,
     norm_file
 ):
     log = grace.Log()
 
     assert mode in ('voom', 'glog', 'nullvoom', 'nullglog', 'poisson', 'common', 'trend')
     
-    if not use_terms:
-        use_terms = [''] #Default to all
+    #if not use_terms:
+    #    use_terms = [''] #Default to all
     
     assert test_terms, 'No terms to test'
     
@@ -1023,7 +1068,7 @@ def test_counts_run(
     assert not use_contrast or len(contrast_weights) == len(test_terms), 'Need one contrast weight per term'
     
     all_terms = test_terms + with_terms 
-    if constant_term: all_terms += [ '' ]
+    if constant_term: all_terms += [ 'all' ]
     n_to_test = len(test_terms)
     
     if use_contrast:
@@ -1037,30 +1082,45 @@ def test_counts_run(
     #n_all_samples = parts.index('RPKM '+parts[1])-1    
     #all_samples = parts[1:n_all_samples+1]
     
-    data = io.read_grouped_table(filename,{'Count':str,'Annotation':str})
-    assert len(data['Count']), 'Count file is empty'
+    #data = io.read_grouped_table(filename,{'Count':str,'Annotation':str})
+    #assert len(data['Count']), 'Count file is empty'    
+    #all_samples = data['Count'].values()[0].keys()
     
-    all_samples = data['Count'].values()[0].keys()
+    reader = io.Table_reader(filename, 'Count')
+    reader.close()
+    all_samples = [ item for i, item in enumerate(reader.headings) if reader.groups[i] == 'Count' ]
+    tags = { }
+    for item in all_samples:
+        tags[item] = [ item ]
+    for line in reader.comments:
+        if line.startswith('#sampleTags='):
+            parts = line[len('#sampleTags='):].split(',')
+            tags[parts[0]] = parts
+    
     n_all_samples = len(all_samples)
-    
-    
-    keep = [ any( re.search(use_expr, item) for use_expr in use_terms ) for item in all_samples ]
+        
+    #keep = [ any( re.search(use_expr, item) for use_expr in use_terms ) for item in all_samples ]
+    keep = [ selection.matches(select, tags[item]) for item in all_samples ]
     samples = [ all_samples[i] for i in xrange(n_all_samples) if keep[i] ]
     n_samples = len(samples)
     
+    assert n_samples, 'No samples selected'
+    assert n_samples > 1, 'Only one sample selected'
+    
     model = [ ]
-    for term in all_terms:
-        column = [ False ] * n_samples
-        for expression in term_specification(term).split('^'):
-            for i in xrange(n_samples):
-                if re.search(expression, samples[i]):
-                    column[i] = not column[i]
-        model.append([ int(item) for item in column ])
+    for term in all_terms:        
+        spec = term_specification(term)
+        model.append([ 1 if selection.matches(spec, tags[item]) else 0 for item in samples ])
+        #column = [ False ] * n_samples
+        #for expression in term_specification(term).split('^'):
+        #    for i in xrange(n_samples):
+        #        if re.search(expression, samples[i]):
+        #            column[i] = not column[i]
+        #model.append([ int(item) for item in column ])
     model = zip(*model) #Transpose
     
     
-    
-    
+        
     log.log('Model matrix (terms being tested for significance shown in { }):\n')
     for i in xrange(n_samples):
         log.log('{ ')

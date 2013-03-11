@@ -86,12 +86,13 @@ class Explorer(object):
 #pylab.show()
 #foo
 
-def find_peaks(depth, min_depth, power, depth_power=1.0, min_initial_size=8):
+
+def find_peaks(depth, min_depth, power, width_power=1.0, min_initial_size=8):
     """ Find peaks from a depth of coverage profile (list of integers). 
         """
     integral = [ 0.0 ]
     for i in xrange(len(depth)):
-        integral.append(integral[i]+depth[i]**(power * depth_power))
+        integral.append(integral[i]+depth[i]**power)
 
     dominance = [ 0.0 ] * len(depth)            
     candidates = [ ]
@@ -103,7 +104,7 @@ def find_peaks(depth, min_depth, power, depth_power=1.0, min_initial_size=8):
         #mean = sum(pdepth[start:end]) / width
         if mean <= 0.0: continue
         
-        score = math.log(mean) + math.log(width)*power
+        score = math.log(mean)/power + math.log(width)*width_power
         
         all = True
         n = 0
@@ -121,6 +122,12 @@ def find_peaks(depth, min_depth, power, depth_power=1.0, min_initial_size=8):
     
     peaks = [ ]
     for start,end,score in candidates:
+        #n = 0
+        #for i in xrange(start,end):
+        #    if score >= dominance[i]:
+        #        n += 1
+        #if n*2 > end-start:
+        
         if score >= max(dominance[start:end]):
             peaks.append((start,end))
     peaks.sort()
@@ -139,8 +146,8 @@ def find_peaks(depth, min_depth, power, depth_power=1.0, min_initial_size=8):
     '\n\n'
     
     'Algorithm details:'
-    ' Potential peaks are scored as the mean of the depths aveaged using a power mean'
-    ' multiplied by the peak width.'
+    ' Potential peaks are scored as the mean of the depths aveaged using a power mean (--power)'
+    ' multiplied by the peak width raised to a power (--width-power).'
     ' A peak is reported if there is no higher scoring potential peak that overlaps it.'
     ' (A heuristic method is used to choose potential peaks to examine, the search is moderately thorough but'
     ' not guaranteed to be exhaustive.)\n\n'
@@ -153,8 +160,15 @@ def find_peaks(depth, min_depth, power, depth_power=1.0, min_initial_size=8):
     'Larger values will suppress calling of peaks near taller peaks.'
     )
 @config.Float_flag(
-    'depth_power',
-    'Smaller values will allow more variability within a peak.'
+    'width_power',
+    'Smaller values will encourage division into smaller peaks.'
+    )
+@config.Int_flag(
+    'trim',
+    'Trim this many bases from each end of each fragment alignment when calculating depth, '
+    'then expanded called peaks by this much, back to original size. '
+    'This may allow calling of slightly overlapping transcripts, '
+    'and enhance calling of transcripts that are close together.'
     )
 @config.Int_flag(
     'min_depth',
@@ -182,7 +196,7 @@ def find_peaks(depth, min_depth, power, depth_power=1.0, min_initial_size=8):
 class Peaks(config.Action_with_prefix):
     min_depth = 25
     power = 0.1
-    depth_power = 0.5
+    width_power = 1.0
     trim = 0
     filter = 'poly'
     strand_specific = True
@@ -263,7 +277,7 @@ class Peaks(config.Action_with_prefix):
             #import pylab
             #pylab.plot(depth)
             
-            for start, end in find_peaks(depth, self.min_depth, self.power, self.depth_power):
+            for start, end in find_peaks(depth, self.min_depth, self.power, self.width_power):
                 #pylab.axvspan(start-0.5,end-0.5,alpha=0.25)
                 
                 n += 1

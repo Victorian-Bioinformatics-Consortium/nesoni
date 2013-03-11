@@ -120,11 +120,16 @@ class Parameter(object):
         self.name = name
         self.help = help
         self.affects_output = affects_output
+        
+    def get_flags(self):
+        return [ ]
+    def get_sections(self):
+        return [ ]
 
     def get_doc_help(self, obj):
         return self.help
 
-    def parse(self, obj, string):
+    def parse(self, obj, what, string):
         return string
     
     def describe(self, value):
@@ -178,7 +183,7 @@ class Positional(Parameter):
     def shell_name(self):
         return '<%s>' % self.name.replace('_','-').lower()
     
-    def parse(self, obj, string):
+    def parse(self, obj, what, string):
         expect_no_further_flags([string])
         return string
     
@@ -195,6 +200,9 @@ class Flag(Parameter):
 
     def shell_name(self):
         return '--'+self.name.replace('_','-').rstrip('-').lower()
+    
+    def get_flags(self):
+        return [ self.shell_name() ]
 
 
 class String_flag(Flag):
@@ -203,7 +211,7 @@ class String_flag(Flag):
 
 
 class Bool_flag(Flag):
-    def parse(self, obj, string): 
+    def parse(self, obj, what, string): 
         return as_bool(string)
         
     def describe(self, value): 
@@ -213,7 +221,7 @@ class Bool_flag(Flag):
 
 
 class Int_flag(Flag):
-    def parse(self, obj, string):
+    def parse(self, obj, what, string):
         return int(string)
     
     def describe(self, value):
@@ -223,7 +231,7 @@ class Int_flag(Flag):
 
 
 class Float_flag(Flag):
-    def parse(self, obj, string):
+    def parse(self, obj, what, string):
         return float(string)
     
     def describe(self, value):
@@ -244,7 +252,7 @@ class Section(Parameter):
         self.empty_is_ok = empty_is_ok
         self.append = append
 
-    def parse(self, obj, args):
+    def parse(self, obj, what, args):
         if not self.allow_flags:
             expect_no_further_flags(args)
         if self.append:
@@ -254,6 +262,9 @@ class Section(Parameter):
 
     def shell_name(self):
         return self.name.replace('_','-').rstrip('-').lower()+':'
+    
+    def get_sections(self):
+        return [ self.shell_name() ]
 
     def describe_each(self, value):
         return [ str(item) for item in value ]
@@ -271,7 +282,7 @@ class Section(Parameter):
 
 
 class Grouped_section(Section):
-    def parse(self, obj, args):
+    def parse(self, obj, what, args):
         if not self.allow_flags:
             expect_no_further_flags(args)
         return self.get(obj) + [ args ]
@@ -285,7 +296,7 @@ class Grouped_section(Section):
             ' ' + 
             ' '.join([ pipes.quote(item2) for item2 in item]) 
             for item in value
-        ])
+            ])
     
     def describe_shell(self, obj, verbose=True):
         value = self.get(obj)
@@ -296,11 +307,11 @@ class Grouped_section(Section):
             ' ' + 
             color_as_value(' '.join(pipes.quote(item2) for item2 in item))
             for item in value
-        )
+            )
             
 
 class Float_section(Section):
-    def parse(self, obj, args):
+    def parse(self, obj, what, args):
         return self.get(obj) + [ float(item) for item in args ]
 
     def describe_each(self, value):
@@ -309,6 +320,9 @@ class Float_section(Section):
 
 class Main_section(Section):
     sort_order = 2
+    
+    def get_sections(self):
+        return [ ]
 
     def shell_name(self):
         return '<' + self.name.replace('_','-').rstrip('-').lower()+' ...>'
@@ -377,7 +391,7 @@ class Configurable_section(Section):
         assert value is None or isinstance(value, Configurable), 'Incorrect type for '+self.name
         return value
         
-    def parse(self, obj, args):
+    def parse(self, obj, what, args):
         for item in self.presets:
             if args and args[0].lower() == item[0].lower():
                 base = item[1](obj)
@@ -431,7 +445,7 @@ class Grouped_configurable_section(Section):
         help = 'Give this as a list of %s.\n\n' % element_type.__name__ + self.help
         return help
 
-    def parse(self, obj, args):
+    def parse(self, obj, what, args):
         new = self.template_getter(obj)()
         new.parse( args )
         return self.get(obj) + [ new ]
@@ -445,8 +459,103 @@ class Grouped_configurable_section(Section):
             item.describe(invocation='',show_help=False,escape_newlines=False).rstrip('\n')
             for item in value
         )
-        
 
+
+class Configurable_section_list(Section):
+    """ Create a list by optionally selecting a preset list 
+        then giving additional sections.
+    
+        templates is a list of (name, lambda obj: list of configurables, description)
+        sections is a list of (name, lambda obj: configurable, description)
+    
+        """
+    def __init__(self, name, help='', affects_output=True, empty_is_ok=True,
+          templates = [ 'clear', lambda obj: [] ],
+          sections = [ ]):
+        super(Configurable_section_list,self).__init__(
+            name,
+            help,
+            affects_output=affects_output,
+            empty_is_ok=empty_is_ok,
+            )
+        self.templates = templates
+        self.sections = sections
+        self.original_help = help
+    
+    def get_sections(self):
+        return [ self.shell_name() ] + [ item[0]+':' for item in sections ]
+    
+    def parse(self, obj, what, args):
+        if what == self.shell_name():
+            result = [ ]
+            for item in args:
+                for name,getter,help in self.presets:
+                    if name.lower() == item.lower():
+                        result += getter(obj)
+                        break
+                else:
+                    raise Error('Unknown preset "'+item+'" in '+self.shell_name())
+            return result
+        
+        for name,getter,help in self.sections:
+            if name.lower()+':' == what.lower():
+                break
+        else:
+            assert False, 'This should never happen.'
+        
+        new = getter(obj)()
+        new.parse(args)        
+        return self.get(obj) + [ new ]
+    
+    def describe_shell(self, obj, verbose=True):
+        value = self.get(obj)
+        if verbose:
+            if not value:
+                result = [ ]
+                if self.templates:
+                    result.append(color_as_flag(self.shell_name()) + ' ' + color_as_template('...'))
+                for item in self.sections:
+                    result.append(color_as_flag(item[0]+':') + ' ' + color_as_template('...'))
+                    result.append(color_as_template('...'))
+                return '\n'.join(result)
+            for item in self.templates:
+                if item[1](obj) == value:
+                    return color_as_flag(self.shell_name()) + ' ' + color_as_value(item[0]) 
+
+        result = [ ]
+        
+        for item in self.templates:
+            if item[1](obj) == [ ]:
+                result.append( color_as_flag(self.shell_name()) + ' ' + color_as_value(item[0]) )
+                break
+        
+        for item in value:
+            section_guess = None
+            for item2 in self.sections:
+                if item == item2[1](obj):
+                    section_guess = item2
+                    break
+            if not section_guess:
+                for item2 in self.sections:
+                    if type(item) == type(item2[1](obj)):
+                        section_guess = item2
+                        break
+            
+            if section_guess:
+                this_result = color_as_flag(section_guess[0]+': ')
+            else:
+                this_result = color_as_flag('<'+type(item).__name__+'>: ')
+            
+            if not verbose or not section_guess or (value != section_guess[1](obj)):
+                this_result += item.describe(invocation='',show_help=False,escape_newlines=False,brief=True)
+            
+            result.append(this_result)
+        return '\n'.join(result)
+        
+    
+    
+    
+        
 
 def help(short, extra=''):
     full = short
@@ -549,9 +658,9 @@ class Configurable(object):
             elif parameter.name in kwargs:
                 value = kwargs[parameter.name]
                 unused.remove(parameter.name)
-            elif 'modify_'+parameter.name in kwargs:
-                value = kwargs['modify_'+parameter.name]( parameter.get(self) )
-                unused.remove('modify_'+parameter.name)
+            #elif 'modify_'+parameter.name in kwargs:
+            #    value = kwargs['modify_'+parameter.name]( parameter.get(self) )
+            #    unused.remove('modify_'+parameter.name)
             else:
                 value = parameter.get(self)
             
@@ -578,8 +687,8 @@ class Configurable(object):
         """
         kwargs = { }
         for parameter in self.parameters:
-            if isinstance(parameter, Flag):
-                present, value, args = get_flag_value(args,parameter.shell_name(),lambda item: parameter.parse(self, item))
+            for flag in parameter.get_flags():
+                present, value, args = get_flag_value(args,flag,lambda item: parameter.parse(self, flag, item))
                 if present:
                     parameter.set(self, value)
 
@@ -590,20 +699,22 @@ class Configurable(object):
         commands = { }
         
         for parameter in self.parameters:
-            if isinstance(parameter, Section):
+            if isinstance(parameter, Main_section):
                 def command(args, self=self,parameter=parameter):
-                    value = parameter.parse(self, args)
+                    value = parameter.parse(self, None, args)
                     parameter.set(self, value) 
-            
-                if isinstance(parameter, Main_section):
-                    default_command = command
-                else:
-                    commands[parameter.shell_name()] = command
+                default_command = command
+
+            for section in parameter.get_sections():
+                def command(args, self=self,section=section,parameter=parameter):
+                    value = parameter.parse(self, section, args)
+                    parameter.set(self, value) 
+                commands[parameter.shell_name()] = command
          
         def outer_default_command(args):
             for parameter in self.parameters:
                 if args and isinstance(parameter, Positional):
-                    parameter.set(self, parameter.parse(self, args[0]))
+                    parameter.set(self, parameter.parse(self, None, args[0]))
                     args = args[1:]
             default_command(args)
         
@@ -838,7 +949,6 @@ class Action_with_optional_input(Action):
 
 class Action_filter(Action_with_optional_input, Action_with_optional_output):
     pass
-
 
 
 

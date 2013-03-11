@@ -19,15 +19,22 @@ class Context(object): pass
     ('none', lambda obj: None, 'Don\'t clip reads'),
     ])
 @config.Configurable_section('align', 'Options for aligner', presets=[
-    ('shrimp', lambda obj: samshrimp.Shrimp(), 'Align using SHRiMP 2'),
-    ('bowtie', lambda obj: bowtie.Bowtie(), 'Align using Bowtie 2'),
+    ('shrimp', lambda obj: nesoni.Shrimp(), 'Align using SHRiMP 2'),
+    ('bowtie', lambda obj: nesoni.Bowtie(), 'Align using Bowtie 2'),
     ])
 @config.Configurable_section('filter', 'Options for filter', presets=[
-    ('filter', lambda obj: samconsensus.Filter(), ''),
+    ('filter', lambda obj: nesoni.Filter(), ''),
     ])
 @config.Configurable_section('reconsensus', 'Options for reconsensus', presets=[
-    ('reconsensus', lambda obj: samconsensus.Reconsensus(), 'Do consensus call'),
+    ('reconsensus', lambda obj: nesoni.Reconsensus(), 'Do consensus call'),
     ('none',        lambda obj: None,                       'Do not do consensus call'),
+    ])
+@config.Configurable_section('count', 'Options for count, if doing RNA-seq.', presets=[
+    ('none',    lambda obj: None,                           'Not RNA-seq, do not count expression levels.'),
+    ('pool',    lambda obj: nesoni.Count(strand='pool'),    'Pool forward and reverse strands.'),
+    ('forward', lambda obj: nesoni.Count(strand='forward'), 'Count on forward strand.'),
+    ('reverse', lambda obj: nesoni.Count(strand='reverse'), 'Count on reverse strand.'),
+    ('both',    lambda obj: nesoni.Count(strand='both'),    'Count both strands.'),
     ])
 class Analyse_sample(config.Action_with_output_dir):
     reference = None
@@ -40,6 +47,7 @@ class Analyse_sample(config.Action_with_output_dir):
     #align = samshrimp.Shrimp()
     #filter = samconsensus.Filter()
     #reconsensus = samconsensus.Reconsensus()
+    #count = samcount.Count()
     
     _workspace_class = working_directory.Working
     
@@ -83,6 +91,11 @@ class Analyse_sample(config.Action_with_output_dir):
         else:
             context.reconsensus = self.reconsensus(self.output_dir)
         
+        if not self.count:
+            context.count = None
+        else:
+            context.count = self.count(os.path.join(self.output_dir,'counts'), self.output_dir)
+        
         return context
         
     
@@ -97,10 +110,14 @@ class Analyse_sample(config.Action_with_output_dir):
         if context.filter: 
             context.filter.make()
         
-        if context.reconsensus: 
-            context.reconsensus.make()        
+        with nesoni.Stage() as stage:
+            if context.reconsensus: 
+                context.reconsensus.process_make(stage)        
         
-        nesoni.Tag(self.output_dir,tags=self.tags).make()
+            nesoni.Tag(self.output_dir,tags=self.tags).make()
+
+            if context.count:
+                context.count.make()
 
 
 @config.Positional('reference',
@@ -208,10 +225,10 @@ class Analyse_variants(config.Action_with_output_dir):
 @config.Main_section('samples', 
     'Working directories.'
     )
-@config.Configurable_section('count',
-    'Options for "count:".',
-    presets=[('default',lambda obj: nesoni.Count(),'')],
-    )
+#@config.Configurable_section('count',
+#    'Options for "count:".',
+#    presets=[('default',lambda obj: nesoni.Count(),'')],
+#    )
 @config.Configurable_section('norm_from_counts',
     'Options for "norm-from-counts:" depth of coverage normalization.',
     presets=[('default',lambda obj: nesoni.Norm_from_counts(),'')],
@@ -239,9 +256,14 @@ class Analyse_expression(config.Action_with_output_dir):
         #assert self.reference is not None, 'No reference directory given.'
         space = self.get_workspace()
             
-        self.count(
+        #self.count(
+        #    space / 'counts',
+        #    filenames=self.samples,
+        #    ).make()
+        
+        nesoni.Merge_counts(
             space / 'counts',
-            filenames=self.samples,
+            filenames = [ os.path.join(item,'counts.csv') for item in self.samples ]
             ).make()
         
         self.norm_from_counts(
@@ -321,11 +343,18 @@ Example:
     'Put this section before the actual "sample:" sections.',
     presets = [ ('default', lambda obj: Analyse_sample(), 'default "analyse-sample:" options') ],
     )
-@config.Grouped_configurable_section('sample', 
-    'Sample for analysis. Give one "sample:" section for each sample. '
+#@config.Grouped_configurable_section('sample', 
+#    'Sample for analysis. Give one "sample:" section for each sample. '
+#    'Give a name for the sample and reads or read pairs as in "analyse-sample:". '
+#    'Also, any options in "analyse-sample:" may be overridden. See example below.',
+#    template_getter=lambda obj: obj.template
+#    )
+@config.Configurable_section_list('samples',
+    'Samples for analysis. Give one "sample:" section for each sample. '
     'Give a name for the sample and reads or read pairs as in "analyse-sample:". '
     'Also, any options in "analyse-sample:" may be overridden. See example below.',
-    template_getter=lambda obj: obj.template
+    templates = [ ],
+    sections = [ ('sample', lambda obj: obj.template, 'A sample, parameters as per "analyse-sample:".') ],
     )
 @config.Configurable_section('variants',
     'Options for "analyse-variants:".',
@@ -353,7 +382,7 @@ Example:
 class Analyse_samples(config.Action_with_output_dir):
     reference = None
     #template = Analyse_sample()
-    sample = [ ]
+    samples = [ ]
     
     #variants = 
     #expression =
@@ -369,21 +398,22 @@ class Analyse_samples(config.Action_with_output_dir):
         context = Context()
         context.action = self
         context.space = self.get_workspace()
+        context.name = context.space.name
         context.sample_space = workspace.Workspace(context.space/'samples', False)
         context.reference = reference_directory.Reference(self.reference, True)
 
-        for sample in self.sample:
+        for sample in self.samples:
             assert sample.reference is None, 'reference should not be specified within sample.'
             assert sample.output_dir, 'sample given without name.'
             assert os.path.sep not in sample.output_dir, 'sample name contains '+os.path.sep
-        context.sample = [
+        context.samples = [
             sample(
                 output_dir = context.sample_space / sample.output_dir,
                 reference = self.reference,                
                 )
-            for sample in self.sample
+            for sample in self.samples
             ]
-        context.sample_dirs = [ item.output_dir for item in context.sample ]
+        context.sample_dirs = [ item.output_dir for item in context.samples ]
         
         if not self.variants:
             context.variants = None
@@ -409,7 +439,7 @@ class Analyse_samples(config.Action_with_output_dir):
         context = self.get_context()
 
         with nesoni.Stage() as stage:
-            for sample in context.sample:
+            for sample in context.samples:
                 sample.process_make(stage)
             
         with nesoni.Stage() as stage:
@@ -432,15 +462,15 @@ class Analyse_samples(config.Action_with_output_dir):
         # =================================================================================
         # =================================================================================
 
-        reporter = reporting.Reporter(context.space / 'report', self.report_title)
+        reporter = reporting.Reporter(context.space / 'report', self.report_title, context.name)
         
         reporter.report_logs('alignment-statistics',
             [ sample.get_context().clip.log_filename() 
-                for sample in context.sample 
+                for sample in context.samples
                 if sample.clip
                 ] +
             ([ sample.get_context().filter.log_filename() 
-                for sample in context.sample 
+                for sample in context.samples 
                 if sample.filter 
                 ] if not context.expression else [ ]) +
             ([ context.space/('expression','counts_log.txt') ] if context.expression else [ ]),
@@ -472,7 +502,7 @@ class Analyse_samples(config.Action_with_output_dir):
                             os.path.join(base, filename)
                             ))
             
-            reporter.p(reporter.tar('igv-plots.tar.gz',
+            reporter.p(reporter.tar('igv-plots',
                 genome_files +
                 glob.glob(plot_space/'*.tdf')
                 ))
@@ -484,11 +514,11 @@ class Analyse_samples(config.Action_with_output_dir):
                        ' They can also be viewed using IGV.')
             
             bam_files = [ ]
-            for sample in self.sample:
+            for sample in self.samples:
                 name = sample.output_dir
                 bam_files.append( (context.space/('samples',name,'alignments_filtered_sorted.bam'),name+'.bam') )
                 bam_files.append( (context.space/('samples',name,'alignments_filtered_sorted.bam.bai'),name+'.bam.bai') )
-            reporter.p(reporter.tar('bam-files.tar.gz', bam_files))
+            reporter.p(reporter.tar('bam-files', bam_files))
         
         reporter.write('<p/><hr/>\n')
         reporter.p('nesoni version '+nesoni.VERSION)
