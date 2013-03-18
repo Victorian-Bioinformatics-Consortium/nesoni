@@ -483,7 +483,7 @@ class Configurable_section_list(Section):
         self.original_help = help
     
     def get_sections(self):
-        return [ self.shell_name() ] + [ item[0]+':' for item in sections ]
+        return [ self.shell_name() ] + [ item[0]+':' for item in self.sections ]
     
     def parse(self, obj, what, args):
         if what == self.shell_name():
@@ -709,7 +709,7 @@ class Configurable(object):
                 def command(args, self=self,section=section,parameter=parameter):
                     value = parameter.parse(self, section, args)
                     parameter.set(self, value) 
-                commands[parameter.shell_name()] = command
+                commands[section] = command
          
         def outer_default_command(args):
             for parameter in self.parameters:

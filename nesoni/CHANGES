@@ -1,3 +1,6 @@
+
+0.99 - Bugfix in Configurable_section_list parsing.
+
 0.98 - Added a "nesoni changes:" command to print out this change log
        Use generalised log transformation in "heatmap:" and "test-counts:".
        "test-counts:" 
@@ -10,6 +13,10 @@
        "count:" no longer produces RPKMs.
        Added "merge-counts:".
        "analyse-sample:" now includes a "count:" step, and "analyse-expression:" uses "merge-counts:" rather than "count:".
+       Added "peaks:".
+       Added "modify-features:".
+       Added "collapse-features:".
+       Added "relate-features:".
 
 0.97 - "analyse-variants:" now invokes "power-variant-call:"
        Easily modify configurables within in configurables from python using a__b=... syntax.

@@ -87,7 +87,7 @@ __all__ = """
 
 import multiprocessing 
 from multiprocessing import managers
-import threading, sys, os, signal, atexit, time, base64, socket, warnings, re
+import threading, sys, os, signal, atexit, time, base64, socket, warnings, re, marshal
 import cPickle as pickle
 
 from nesoni import grace, config, selection
@@ -164,7 +164,6 @@ class My_coordinator:
         for key in kwargs:
             assert key in ('job_command','kill_command','cores')
             setattr(self,key,kwargs[key])
-
     
     def set_mail(self, value):
         with self.lock:
@@ -176,7 +175,6 @@ class My_coordinator:
     def get_mail(self, number):
         with self.lock:
             return self.mail.pop(number)
-
 
     def new_future(self):
         with self.lock:
@@ -213,7 +211,6 @@ class My_coordinator:
         result = self.futures[number][1]
         self.deref_future(number)
         return result
-
 
     def time(self):
         """ A common source of timestamps, if spread over many nodes. """
@@ -284,7 +281,6 @@ class My_coordinator:
             #Show in terminal title
             sys.stderr.write('\x1b]2;'+status+'\x07')
             sys.stderr.flush()
-            
 
     def job(self, func, *args, **kwargs):
         number = self.set_mail((func,args,kwargs))
@@ -666,18 +662,35 @@ def thread_future(func, *args, **kwargs):
     return get_thread_future
     
 
-def parallel_imap(func,iterable, future=future):
-    # This may be memory inefficient for long iterators
-    return (item() for item in [ future(func,item2) for item2 in iterable ])
+def _parallel_imap_task(filename, func, item, args, kwargs):
+    result = func(item, *args, **kwargs)
+    with open(filename,'wb') as f:
+        marshal.dump(result, f)
 
-def parallel_map(func, iterable, future=future):
-    return list(parallel_imap(func, iterable, future))
+def parallel_imap(func, iterable, *args, **kwargs):
+    from . import workspace
+    with workspace.tempspace() as temp:
+        futures = [ ]
+        for i, item in enumerate(iterable):
+            futures.append(future(_parallel_imap_task,temp/str(i),func,item,args,kwargs))
+        for i, item in enumerate(futures):
+            item()
+            with open(temp/str(i),'rb') as f:
+                yield marshal.load(f)
 
-def parallel_for(iterable, future=future):
+#def parallel_imap(func,iterable, future=future):
+#    # This may be memory inefficient for long iterators
+#    return (item() for item in [ future(func,item2) for item2 in iterable ])
+
+def parallel_map(func, iterable, *args, **kwargs):
+    return list(parallel_imap(func, iterable, *args, **kwargs))
+
+
+def parallel_for(iterable):
     """ Execute a "for loop" in parallel.
     """
     def doit(func):
-        for item in parallel_imap(func, iterable, future):
+        for item in [ future(func, item) for item in iterable ]:
             pass
     return doit
 
@@ -685,7 +698,13 @@ def thread_for(iterable):
     """ Execute a "for loop" in parallel.
         Use this as a function decorator. 
     """
-    return parallel_for(iterable, future=thread_future)
+    def doit(func):
+        for item in [ thread_future(func, item) for item in iterable ]:
+            item()
+    return doit
+    
+
+
 
 
 def process(func, *args, **kwargs):

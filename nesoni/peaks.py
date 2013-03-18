@@ -14,7 +14,7 @@ from __future__ import division
 import os, collections, math
 
 import nesoni
-from nesoni import config, io, annotation, sam, grace
+from nesoni import config, legion, io, annotation, sam, grace
 
 
 class Explorer(object):
@@ -39,10 +39,11 @@ class Explorer(object):
         
         i = 0
         while i < len(self.queue):
-            if self.step[self.queue[i]] >= max(min_step,(self.queue[i][1]-self.queue[i][0])//8):
+            if self.step[self.queue[i]] >= max(min_step,(self.queue[i][1]-self.queue[i][0])//4):
                 self.elaborate(self.queue[i][0],self.queue[i][1], True)
             else:
                 i += 1
+        self.queue.sort(key=lambda item: item[1]-item[0])
             
     def elaborate(self, start, end, once=False):
         while True:
@@ -50,14 +51,14 @@ class Explorer(object):
             if not step: break
             all = True
             for new_start, new_end in [
-                     (start+step,end),
-                     (start-step,end),
-                     (start,end+step),
-                     (start,end-step),
-                     (start+step,end+step),
-                     (start+step,end-step),
                      (start-step,end+step),
+                     (start,end+step),
+                     (start-step,end),
+                     (start+step,end+step),
                      (start-step,end-step),
+                     (start+step,end),
+                     (start,end-step),
+                     (start+step,end-step),
                      ]:
                 if new_start >= new_end or new_end > self.size or new_start < 0 or \
                    (new_start,new_end) in self.step: 
@@ -66,8 +67,8 @@ class Explorer(object):
                 self.queue.append((new_start,new_end))
                 self.step[(new_start,new_end)] = step
             self.step[(start,end)] = step//2
-            if once or all: break
-            #if once: break
+            #if once or all: break
+            if once: break
     
     def __iter__(self):
         return self
@@ -87,12 +88,14 @@ class Explorer(object):
 #foo
 
 
-def find_peaks(depth, min_depth, power, width_power=1.0, min_initial_size=8):
+def find_peaks(depth, power, moderation=5.0, width_power=1.0, min_initial_size=8):
     """ Find peaks from a depth of coverage profile (list of integers). 
         """
-    integral = [ 0.0 ]
-    for i in xrange(len(depth)):
-        integral.append(integral[i]+depth[i]**power)
+    #integral = [ 0.0 ]
+    #for i in xrange(len(depth)):
+    #    integral.append(integral[i]+(depth[i]+moderation)**-power)
+    
+    pow_depth = [ (item+moderation)**-power for item in depth ]
 
     dominance = [ 0.0 ] * len(depth)            
     candidates = [ ]
@@ -100,68 +103,70 @@ def find_peaks(depth, min_depth, power, width_power=1.0, min_initial_size=8):
     exp = Explorer(len(depth), min_initial_size)
     for start,end in exp:
         width = end-start
-        mean = (integral[end]-integral[start]) / width
-        #mean = sum(pdepth[start:end]) / width
-        if mean <= 0.0: continue
+        #total = integral[end]-integral[start]
+        total = sum( pow_depth[i] for i in xrange(start,end) )
+        score = math.log(width)*width_power - math.log(total)
         
-        score = math.log(mean)/power + math.log(width)*width_power
-        
-        all = True
-        n = 0
+        all_good = True
+        #n = 0
         for i in xrange(start,end):
             if score > dominance[i]:
                 dominance[i] = score
-                n += 1
+                #n += 1
             else:
-                all = False
-        if n*16 > end-start:
+                all_good = False
+        #if n*16 > end-start:
+        if all_good:
             exp.elaborate(start,end)
-        if all:
-            if max(depth[start:end]) >= min_depth:
-                candidates.append((start,end,score))
+            candidates.append((start,end,score))
     
     peaks = [ ]
     for start,end,score in candidates:
-        #n = 0
-        #for i in xrange(start,end):
-        #    if score >= dominance[i]:
-        #        n += 1
-        #if n*2 > end-start:
-        
-        if score >= max(dominance[start:end]):
+        if ( all( dominance[i] <= score for i in xrange(start,end) ) and
+             any( depth[i] > moderation for i in xrange(start,end) ) ):
             peaks.append((start,end))
+
     peaks.sort()
     return peaks
 
 
 
 @config.help(
-    'Call peaks that are higher than their surrounding coverage.\n\n'
-    
+    'Call peaks that are higher than their surrounding coverage.\n\n'    
     'Peaks are often surrounded by a low level of noise.'
     ' The peak caller seeks to ignore this noise,'
     ' in a manner somewhat similar to human auditory masking.'
     ' This is controlled by the --power parameter,'
     ' and is independant of scale and depth of coverage.'
-    '\n\n'
-    
-    'Algorithm details:'
-    ' Potential peaks are scored as the mean of the depths aveaged using a power mean (--power)'
-    ' multiplied by the peak width raised to a power (--width-power).'
+    '\n\n'    
+    'Algorithm details: '
+    'The peak caller is intended to be invariant under rescaling of the size and depth of peaks. '
+    'The basic idea is to score potential peaks using a the area of a rectangle with '
+    'width equal to the width of the span, and height equal to the harmonic mean of some function of the depths within the span. '
     ' A peak is reported if there is no higher scoring potential peak that overlaps it.'
     ' (A heuristic method is used to choose potential peaks to examine, the search is moderately thorough but'
-    ' not guaranteed to be exhaustive.)\n\n'
-    
-    'Note: Not intended for calling RNA transcripts.'
+    ' not guaranteed to be exhaustive.) '
+    'The actual scoring function is: \n\n'
+    '  width^width_power / sum( (depth+moderation)^-power )'    
+    )
+@config.Float_flag(
+    'moderation',
+    'moderation > 0\n'
+    'The water line. Depth is clipped to be at least this much. '
+    'Peaks will not be called with depth less than this.'
     )
 @config.Float_flag(
     'power',
-    '0 < power < 1\n'
-    'Larger values will suppress calling of peaks near taller peaks.'
+    'power > 0\n'
+    'Smaller values will encourage more and shorter peaks. '
+    'Larger values will encourage less and longer peaks. '
     )
 @config.Float_flag(
     'width_power',
-    'Smaller values will encourage division into smaller peaks.'
+    'width-power >= 1\n'
+    'This probably isn\'t an important parameter to tweak. '
+    'Larger values will encourage calling wider peaks. '
+    'Smaller values will encourage calling shorter peaks.'
     )
 @config.Int_flag(
     'trim',
@@ -169,10 +174,6 @@ def find_peaks(depth, min_depth, power, width_power=1.0, min_initial_size=8):
     'then expanded called peaks by this much, back to original size. '
     'This may allow calling of slightly overlapping transcripts, '
     'and enhance calling of transcripts that are close together.'
-    )
-@config.Int_flag(
-    'min_depth',
-    'Peaks must have at least this average depth of coverage.'
     )
 @config.String_flag(
     'filter',
@@ -182,8 +183,16 @@ def find_peaks(depth, min_depth, power, width_power=1.0, min_initial_size=8):
     'existing - Use alignments from "filter:" or "consensus:"\n'
     )
 @config.Bool_flag(
+    'deduplicate',
+    'Count fragment alignments with the exact same start and end positions as a single alignment.'
+    )
+@config.Bool_flag(
     'strand_specific',
     'Are the reads strand specific?'
+    )
+@config.Float_flag(
+    'crosstalk',
+    'Before calling peaks, subtract the depth of the reverse strand depth scaled by this amount.'
     )
 @config.String_flag(
     'type',
@@ -194,70 +203,85 @@ def find_peaks(depth, min_depth, power, width_power=1.0, min_initial_size=8):
     'Working directories or BAM files (sorted by read name).'
     )
 class Peaks(config.Action_with_prefix):
-    min_depth = 25
-    power = 0.1
-    width_power = 1.0
+    #min_depth = 25
+    moderation = 5.0
+    power = 10.0
+    width_power = 2.0
     trim = 0
     filter = 'poly'
+    deduplicate = False
     strand_specific = True
+    crosstalk = 0.0
     type = 'peak'
     filenames = [ ]
     
     def run(self):
-        if self.filter == 'poly':
-            use_bam_filename = 'alignments.bam'
-            use_only_top = True
-            use_only_monogamous = False
-            expect_multiple_alignments = True
-        elif self.filter == 'mono': 
-            use_bam_filename = 'alignments.bam'
-            use_only_top = True
-            use_only_monogamous = True
-            expect_multiple_alignments = True
-        else:
-            assert self.filter == 'existing', 'Unrecognized filtering mode'
-            use_bam_filename = 'alignments_filtered.bam'
-            use_only_top = False
-            use_only_monogamous = False
-            expect_multiple_alignments = False
+        assert self.moderation > 0.0, '--moderation must be greater than zero.'
+        assert self.power > 0.0, '--power must be greater than zero.'
+        assert self.width_power >= 1.0, '--width-power must be greater than or equal to one.'
+    
+        #if self.filter == 'poly':
+        #    use_bam_filename = 'alignments.bam'
+        #    use_only_top = True
+        #    use_only_monogamous = False
+        #    expect_multiple_alignments = True
+        #elif self.filter == 'mono': 
+        #    use_bam_filename = 'alignments.bam'
+        #    use_only_top = True
+        #    use_only_monogamous = True
+        #    expect_multiple_alignments = True
+        #else:
+        #    assert self.filter == 'existing', 'Unrecognized filtering mode'
+        #    use_bam_filename = 'alignments_filtered.bam'
+        #    use_only_top = False
+        #    use_only_monogamous = False
+        #    expect_multiple_alignments = False
                     
         spans = collections.defaultdict(list)
         
-        for i, filename in enumerate(self.filenames):
-            if os.path.isdir(filename):
-                filename = os.path.join(filename, use_bam_filename)
-            
-            n = 0
-            for read_name, fragment_alignments, unmapped in \
-                    sam.bam_iter_fragments(
-                        filename, 
-                        'Scanning sample %d of %d' % (i+1,len(self.filenames))):
-                if not fragment_alignments:
-                    continue
-                    
-                if use_only_top:
-                    fragment_scores = [ sum( al.get_AS() for al in item ) for item in fragment_alignments ]            
-                    best_score = max(fragment_scores)
-                    fragment_alignments = [ 
-                        item 
-                        for item, score in zip(fragment_alignments, fragment_scores)
-                        if score >= best_score ]            
-                
-                for alignments in fragment_alignments:
-                    if self.strand_specific:
-                        strand = -1 if alignments[0].flag&sam.FLAG_REVERSE else 1
-                    else:
-                        strand = 0
-                
-                    start = min(item.pos-1 for item in alignments)
-                    end = max(item.pos+item.length-1 for item in alignments)
-                    if end-start <= self.trim*2: continue
-                    
-                    rname = alignments[0].rname                    
-                    spans[(rname, strand)].append((start+self.trim,end-self.trim))
-                
-                n += 1
-                #if n > 100000: break
+        for item in legion.parallel_imap(self._load_bam, self.filenames):
+            for key,value in item.items():
+                spans[key].extend(value)
+        
+        #for i, filename in enumerate(self.filenames):
+        #    if os.path.isdir(filename):
+        #        filename = os.path.join(filename, use_bam_filename)
+        #    
+        #    n = 0
+        #    for read_name, fragment_alignments, unmapped in \
+        #            sam.bam_iter_fragments(
+        #                filename, 
+        #                'Scanning sample %d of %d' % (i+1,len(self.filenames))):
+        #        if not fragment_alignments:
+        #            continue
+        #            
+        #        if use_only_top:
+        #            fragment_scores = [ sum( al.get_AS() for al in item ) for item in fragment_alignments ]            
+        #            best_score = max(fragment_scores)
+        #            fragment_alignments = [ 
+        #                item 
+        #                for item, score in zip(fragment_alignments, fragment_scores)
+        #                if score >= best_score ]            
+        #        
+        #        for alignments in fragment_alignments:
+        #            if self.strand_specific:
+        #                strand = -1 if alignments[0].flag&sam.FLAG_REVERSE else 1
+        #            else:
+        #                strand = 0
+        #        
+        #            start = min(item.pos-1 for item in alignments)
+        #            end = max(item.pos+item.length-1 for item in alignments)
+        #            if end-start <= self.trim*2: continue
+        #            
+        #            rname = alignments[0].rname                    
+        #            spans[(rname, strand)].append((start+self.trim,end-self.trim))
+        #        
+        #        n += 1
+        #        #if n > 100000: break
+        #
+        #if self.deduplicate:
+        #    for key in spans:
+        #        spans[key] = list(set(spans[key]))
 
         grace.status('Calling peaks')
 
@@ -267,17 +291,27 @@ class Peaks(config.Action_with_prefix):
         n = 0
 
         for (rname, strand), span_list in spans.items():
-            depth = [ 0 ] * (1+max( item[1] for item in span_list ))
+            depth = [ 0.0 ] * (1+max( item[1] for item in span_list ))
             for start, end in span_list:
-                depth[start] += 1
-                depth[end] -= 1
+                depth[start] += 1.0
+                depth[end] -= 1.0
+            
+            if self.crosstalk and strand and (rname,-strand) in spans:
+                for start, end in spans[(rname,-strand)]:
+                    if start < len(depth): depth[start] -= self.crosstalk
+                    if end < len(depth): depth[end] += self.crosstalk
+            
             for i in xrange(1,len(depth)):
                 depth[i] += depth[i-1]
+
+            if self.crosstalk:
+                for i in xrange(len(depth)):
+                    depth[i] = max(0.0,depth[i])
 
             #import pylab
             #pylab.plot(depth)
             
-            for start, end in find_peaks(depth, self.min_depth, self.power, self.width_power):
+            for start, end in find_peaks(depth, power=self.power, moderation=self.moderation, width_power=self.width_power):
                 #pylab.axvspan(start-0.5,end-0.5,alpha=0.25)
                 
                 n += 1
@@ -309,6 +343,66 @@ class Peaks(config.Action_with_prefix):
         self.log.datum('-','called peaks',n)
         
         grace.status('')
+
+
+    def _load_bam(self, filename):
+        spans = { }
+
+        if self.filter == 'poly':
+            use_bam_filename = 'alignments.bam'
+            use_only_top = True
+            use_only_monogamous = False
+            expect_multiple_alignments = True
+        elif self.filter == 'mono': 
+            use_bam_filename = 'alignments.bam'
+            use_only_top = True
+            use_only_monogamous = True
+            expect_multiple_alignments = True
+        else:
+            assert self.filter == 'existing', 'Unrecognized filtering mode'
+            use_bam_filename = 'alignments_filtered.bam'
+            use_only_top = False
+            use_only_monogamous = False
+            expect_multiple_alignments = False
+        
+        if os.path.isdir(filename):
+            filename = os.path.join(filename, use_bam_filename)
+        
+        for read_name, fragment_alignments, unmapped in \
+                sam.bam_iter_fragments(
+                    filename, 
+                    'Scanning'):
+            if not fragment_alignments:
+                continue
+                
+            if use_only_top:
+                fragment_scores = [ sum( al.get_AS() for al in item ) for item in fragment_alignments ]            
+                best_score = max(fragment_scores)
+                fragment_alignments = [ 
+                    item 
+                    for item, score in zip(fragment_alignments, fragment_scores)
+                    if score >= best_score ]            
+            
+            for alignments in fragment_alignments:
+                if self.strand_specific:
+                    strand = -1 if alignments[0].flag&sam.FLAG_REVERSE else 1
+                else:
+                    strand = 0
+            
+                start = min(item.pos-1 for item in alignments)
+                end = max(item.pos+item.length-1 for item in alignments)
+                if end-start <= self.trim*2: continue
+                
+                rname = alignments[0].rname
+                if (rname,strand) not in spans: 
+                    spans[(rname,strand)] = [ ]          
+                spans[(rname, strand)].append((start+self.trim,end-self.trim))
+                
+        if self.deduplicate:
+            for key in spans:
+                spans[key] = list(set(spans[key]))
+        
+        return spans
 
             
             

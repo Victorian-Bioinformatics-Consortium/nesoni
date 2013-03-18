@@ -14,6 +14,15 @@ def join_descriptions(seq):
     return ', '.join(result)
 
 
+STRAND_CHANGE = {
+   'no'      : {-1:-1,0:0,1:1,None:None},
+   'flip'    : {-1:1,0:0,1:-1,None:None},
+   'clear'   : {-1:0,0:0,1:0,None:0},
+   'forward' : {-1:1,0:1,1:1,None:1},
+   'reverse' : {-1:-1,0:-1,1:-1,None:-1},
+}
+
+
 @config.help(
     'Modify annotated features.'
     '\n\n'
@@ -21,6 +30,12 @@ def join_descriptions(seq):
     )
 @config.Int_flag('shift_start', 'Bases to shift feature start.')
 @config.Int_flag('shift_end', 'Bases to shift feature end.')
+@config.String_flag(
+    'change_strand',
+    'no / flip / clear / forward / reverse\n'
+    'What to do with the strand of features. '
+    '(Applied after shifting the feature.)'
+    )
 @config.String_flag('type', 'Output feature type.\nDefault: retain existing type.')
 @config.String_flag('select', 'What types of annotation to use (selection expression).')
 @config.Main_section('filenames', 'Annotation files.',empty_is_ok=False)
@@ -28,10 +43,14 @@ class Modify_features(config.Action_with_prefix):
     type = None
     shift_start = 0
     shift_end = 0
+    change_strand = 'keep'
     select = 'all'
     filenames = [ ]
  
     def run(self):
+        assert self.change_strand in STRAND_CHANGE, 'Unknown way to change strand.'
+        strand_changer = STRAND_CHANGE[self.change_strand]
+    
         out_file = open(self.prefix+'.gff','wb')    
         annotation.write_gff3_header(out_file)
         
@@ -46,8 +65,7 @@ class Modify_features(config.Action_with_prefix):
                     item.end -= self.shift_start
                     item.start -= self.shift_end
                 
-                if self.type:
-                    item.type = self.type
+                item.strand = strand_changer[item.strand]
             
                 print >> out_file, item.as_gff()
 
@@ -74,7 +92,7 @@ class Collapse_features(config.Action_with_prefix):
     def run(self):
         annotations = [ ]
         for filename in self.filenames:
-            for item in annotation.read_annotations(self.filename):
+            for item in annotation.read_annotations(filename):
                 if not selection.matches(self.select, [item.type]): continue
                 if self.type:
                     item.type = self.type
@@ -129,13 +147,16 @@ class Collapse_features(config.Action_with_prefix):
 class _Related_feature(collections.namedtuple(
         '_Related_feature', 
         'feature start end relations')):
-    def modify_with_relations(self, parent_selection):
+    def __hash__(self):
+        return id(self)
+    
+    def modify_with_relations(self): #, parent_selection):
         buckets = collections.defaultdict(list)
         
         my_strand = self.feature.strand or 0
         for item in self.relations:
             their_strand = item.feature.strand or 0
-            overlaps = self.feature.overlaps(item,check_strand=False)
+            overlaps = self.feature.overlaps(item.feature,check_strand=False)
             if my_strand * their_strand == -1:
                 if overlaps:
                     relation = 'opposite'
@@ -156,6 +177,14 @@ class _Related_feature(collections.namedtuple(
                         relation = 'downstrand'
             
             buckets[relation].append(item)
+        
+        for name,relatives in buckets.items():
+            rel_name = 'relation-'+name
+            for relative in relatives:
+                if rel_name not in self.feature.attr:
+                    self.feature.attr[rel_name] = relative.feature.get_id()
+                else:
+                    self.feature.attr[rel_name] += ',' + relative.feature.get_id()
                 
         
 
@@ -175,7 +204,7 @@ class _Related_feature(collections.namedtuple(
     )
 @config.Int_flag('upstrand', 'Number of bases upstrand of parent features to look.')
 @config.Int_flag('downstrand', 'Number of bases downstrand of parent features to look.')
-@config.String_flag('use', 'What relations to set "Parent" attribute for (selection expression).')
+#@config.String_flag('use', 'What relations to set "Parent" attribute for (selection expression).')
 @config.String_flag('select_parent', 'What types of annotation to use from parent features file (selection expression).')
 @config.String_flag('select_child', 'What types of annotation to use from child features file (selection expression).')
 @config.Positional('parent', 'File containing "parent" features.')
@@ -183,52 +212,63 @@ class _Related_feature(collections.namedtuple(
 class Relate_features(config.Action_with_prefix):
     upstrand = 0
     downstrand = 0
-    use = 'all'
+    #use = 'all'
     select_parent = 'all'
     select_child = 'all'
     parent = None
     child = None
 
-    # Also output un-related features.
+    # TODO: Also output un-related features.
     
     def run(self):
         features_parent = [ 
             _Related_feature(item,item.start,item.end,[]) 
-            for item in read_annotations(self.parent) 
+            for item in annotation.read_annotations(self.parent) 
             if selection.matches(self.select_parent, [item.type]) 
             ]
         features_child = [ 
             _Related_feature(item,item.start,item.end,[]) 
-            for item in read_annotations(self.child) 
+            for item in annotation.read_annotations(self.child) 
             if selection.matches(self.select_child, [item.type])
             ]
         
-        index = Span_index()
+        index = { }
         for item in features_child:
-            index.insert(item)
-        index.prepare()
+            if item.feature.seqid not in index:
+                index[item.feature.seqid] = span_index.Span_index()
+            index[item.feature.seqid].insert(item)
+        for value in index.values():
+            value.prepare()
         
         for item_1 in features_parent:
-            if item_1.strand == 1:
+            if item_1.feature.strand == 1:
                 start = item_1.start - self.upstrand
                 end = item_1.end + self.downstrand
-            elif item_1.strand == -1:
+            elif item_1.feature.strand == -1:
                 start = item_1.start - self.downstrand
                 end = item_1.end + self.upstrand
             else:
                 start = item_1.start - max(self.upstrand,self.downstrand)
                 end = item_1.end + max(self.upstrand,self.downstrand)
-            for item_2 in index.get(start,end):
-                item_1.relations.append(item_2)
-                item_2.relations.append(item_1)
+            if item_1.feature.seqid in index:
+                for item_2 in index[item_1.feature.seqid].get(start,end):
+                    item_1.relations.append(item_2)
+                    item_2.relations.append(item_1)
 
         for item in features_parent:
-            item.modify_with_relations(self.use)
+            item.modify_with_relations() #self.use)
         for item in features_child:
-            item.modify_with_relations('-all')
+            item.modify_with_relations() #'-all')
         
-        f_1 = open(self.prefix + '-parent.gff','wb')
-        f_2 = open(self.prefix + '-child.gff','wb')
+        with open(self.prefix + '-parent.gff','wb') as f:
+            annotation.write_gff3_header(f)
+            for item in features_parent:
+                print >> f, item.feature.as_gff()
+        
+        with open(self.prefix + '-child.gff','wb') as f:
+            annotation.write_gff3_header(f)
+            for item in features_child:
+                print >> f, item.feature.as_gff()
 
 
 

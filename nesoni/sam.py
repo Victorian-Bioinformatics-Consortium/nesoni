@@ -22,6 +22,24 @@ FLAG_NONPRIMARY = 256
 FLAG_FAIL = 512 #Read failed platform/vendor quality checks
 FLAG_DUP = 1024 #PCR or optical duplicate
 
+LENGTH_CACHE = { }
+def get_length(cigar):
+    if cigar not in LENGTH_CACHE:
+        if len(LENGTH_CACHE) > 100000: LENGTH_CACHE.clear()
+    
+        length = 0
+        n = 0
+        for char in cigar:
+            if '0' <= char <= '9':
+                n = n*10+(ord(char)-48)
+            else:
+                if char in ('M','D','N','P','=','X'): #'MDNP=X':
+                    length += n
+                n = 0
+        LENGTH_CACHE[cigar] = length
+    return LENGTH_CACHE[cigar]
+
+
 class Alignment(object):
     #__slots__ = [
     #    'qname',
@@ -73,17 +91,7 @@ class Alignment(object):
         self.mapq = int(mapq)
         self.mpos = int(mpos)
         self.isize = int(isize)
-                
-        self.length = 0
-        n = 0
-        for value in array.array('B', self.cigar):
-            if 48 <= value <= 57:
-                n = n*10+(value-48)
-            else:
-                #if char in 'MDNP=X':
-                if value == 77 or value == 68 or value == 78 or value == 80 or value == 61 or value == 88:
-                    self.length += n
-                n = 0
+        self.length = get_length(self.cigar)
     
     def original_name(self):
         #Assuming it was Illumina
@@ -126,20 +134,6 @@ class Alignment(object):
                 return int(item[5:])
         
         return self.mapq        
-        #raise grace.Error('SAM line lacks AS')
-    
-    #def get_length(self):
-    #    length = 0
-    #    i = 0
-    #    n = 0
-    #    for c in self.cigar:
-    #        if c.isdigit():
-    #            n = n*10 + ord(c)-48
-    #        else:
-    #            if c in 'MDNP': #TODO: checkme
-    #                length += n
-    #            n = 0
-    #    return length
 
 
 def is_bam(filename):
