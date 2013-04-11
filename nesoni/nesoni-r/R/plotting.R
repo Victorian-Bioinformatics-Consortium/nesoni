@@ -42,12 +42,21 @@ do.dendrogram <- function(mat, enable=TRUE) {
             order = basic.seq(nrow(mat)),
             paths = rep('',nrow(mat))
         )
+    } else if (nrow(mat) > 1000) {
+        # Too many for seriation to deal with efficiently
+        perm <- seriation::seriate(mat, method='PCA')[[1]]
+        
+        list(dendrogram = NULL, 
+             order = seriation::get_order(perm),
+             paths = rep('',nrow(mat))
+        )        
     } else {
         dist.mat <- dist(mat)
         control <- list(hclust = hclust(dist.mat))
         dend.mat <- as.dendrogram(
                 seriation::seriate(dist.mat, 
-                method = 'OLO', control = control)[[1]])
+                method = 'OLO', 
+                control = control)[[1]])
         
         list(dendrogram = dend.mat, 
              order = order.dendrogram(dend.mat),

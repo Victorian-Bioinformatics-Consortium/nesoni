@@ -169,6 +169,8 @@ def bam_headers(filename):
     return headers
 
 
+
+
 class Bam_reader(object):
     def __init__(self, filename):
         assert os.path.exists(filename), filename + ' does not exist'

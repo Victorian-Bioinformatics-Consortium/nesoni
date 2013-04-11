@@ -642,7 +642,7 @@ def thread_future(func, *args, **kwargs):
         exception = None
         try:
             result = func(*args, **kwargs)
-            barrier()        
+            LOCAL.stage.barrier()
             assert not LOCAL.stages, 'Process completed without calling .barrier() on all Stages.'
         except:
             config.report_exception()

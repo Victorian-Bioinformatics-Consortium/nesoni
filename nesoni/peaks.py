@@ -316,12 +316,14 @@ class Peaks(config.Action_with_prefix):
                 
                 n += 1
                 
-                if strand == -1:
-                    id = '%s-%d..%d' % (rname,start,end+1)
-                elif strand == 0:
-                    id = '%s.%d..%d' % (rname,start,end+1)
-                else:
-                    id = '%s+%d..%d' % (rname,start,end+1)
+                id = 'peak%d' % n
+                
+                #if strand == -1:
+                #    id = '%s-%d..%d' % (rname,start,end+1)
+                #elif strand == 0:
+                #    id = '%s.%d..%d' % (rname,start+1,end)
+                #else:
+                #    id = '%s+%d..%d' % (rname,start+1,end)
                 
                 ann = annotation.Annotation()
                 ann.source = 'nesoni'

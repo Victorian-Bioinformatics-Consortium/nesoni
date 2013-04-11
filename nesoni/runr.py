@@ -866,6 +866,94 @@ cat("which are differentially expressed is around", (1.0-convest(p)) * length(p)
 
 
 
+GOSEQ = r"""
+
+library(nesoni)
+library(goseq)
+
+report <- function(result,col, significant,direction,categories) {
+    good <- result
+    good$fdr <- p.adjust(good[,col])    
+    good <- good[order(good[,col]),]
+    
+    good <- good[good$fdr < 0.5,,drop=FALSE]
+    n <- 0
+    while(n < nrow(good) && 
+          ((n < 10 && good$fdr[n+1] < 1.0) || good$fdr[n+1] <= FDR_CUTOFF))
+      n <- n + 1
+    good <- good[basic.seq(n),,drop=FALSE]
+    
+    significants <- names(significant)[significant]
+    
+    all.genes <- list()
+    for(i in basic.seq(nrow(good))) {
+        all.genes[[i]] <- sort(unique(categories[categories[,2] == good[i,'category'],1]))
+    }
+    
+    seen <- rep(FALSE, nrow(good))    
+    
+    for(i in basic.seq(nrow(good))) {
+        if (!seen[i]) {
+            for(j in (i:nrow(good))) {
+                if (identical(all.genes[[i]],all.genes[[j]])) {
+                    cat(if (good[j,'fdr'] > FDR_CUTOFF) '(' else ' ')
+                    cat(sprintf('FDR %-10.2g  %s',good[j,'fdr'],good[j,'category']))
+                    cat(cat(if (good[j,'fdr'] > FDR_CUTOFF) ')\n' else '\n'))
+                    seen[j] <- TRUE
+                }
+            }
+            
+            genes <- all.genes[[i]]
+            siggenes <- genes[genes %in% significants]
+            cat(sprintf(' %-16s',sprintf('%d of %d',length(siggenes),length(genes))))        
+            for(gene in siggenes) {
+                    if (direction[gene] < 0) cat('-')
+                    if (direction[gene] > 0) cat('+')
+                    cat(sprintf('%s ',gene))
+            }
+            cat('\n\n')
+        }
+    }
+    
+    if (nrow(good) == 0) cat('none\n\n')
+}
+
+analyse <- function(significant,direction,length,categories) {
+    pwf <- nullp(significant, bias.data=length, plot.fit=FALSE)
+    result <- goseq(pwf,gene2cat=categories)
+    cat('\nOver-represented categories:\n\n')
+    report(result,'over_represented_pvalue', significant,direction,categories)
+    cat('\nUnder-represented categories:\n\n')
+    report(result,'under_represented_pvalue', significant,direction,categories)    
+}
+
+
+data <- read.grouped.table(INPUT_FILENAME)$All
+categories <- read.csv(CATEGORY_FILENAME)
+
+significant <- data$FDR <= FDR_CUTOFF
+
+if (substr(colnames(data)[2],1,5) == 'log2 ' && substr(colnames(data)[3],1,5) != 'log2 ') {
+    direction <- sign(data[,2])
+} else {
+    direction <- rep(0,nrow(data))
+}
+names(direction) <- rownames(data)
+
+names(significant) <- rownames(data)
+length <- data$Length
+
+sink(LOG_FILENAME, split=TRUE, append=TRUE)
+cat('\n\n=============================\n')
+cat(NAME)
+cat('\n\n')
+
+#cat(sprintf('%d of %d significantly DE genes\n',sum(significant),length(significant)))
+
+analyse(significant,direction,length,categories)
+
+"""
+
 
 
 
@@ -964,6 +1052,14 @@ This is an ANOVA style test that is potentially more sensitive than comparing ea
 @config.Float_section('contrast', 'Instead of doing an ANOVA on multiple terms, perform a contrast with the given weights.')
 @config.Section('with_', 'Also include these terms in the model.')
 #@config.Section('use', 'Only use samples matching these regexes.')
+@config.Section('goseq', 
+     'One or more files containing gene categories. '
+     'goseq will be used to find over-represented categories in the significantly differentially expressed genes.\n\n'
+     'A category file should be a CSV file. The first line should contain the headings:\n\n'
+     'Gene,Category\n\n'
+     'Subsequent lines should give pairings of genes with categories.\n\n'
+     'The filename may be given as "filename.csv=heading", in which case the heading will be used in place of the filename in the output.'
+     )
 class Test_counts(config.Action_with_prefix):
     select = 'all'
     min_count = 10
@@ -981,6 +1077,7 @@ class Test_counts(config.Action_with_prefix):
     contrast = [ ]
     with_ = [ ]
     use = [ ] 
+    goseq = [ ]
 
     def run(self):
         test_counts_run(    
@@ -992,6 +1089,7 @@ class Test_counts(config.Action_with_prefix):
             #use_terms=self.use,
             select=self.select,
             norm_file=self.norm_file,
+            goseq=self.goseq,
         )
 
 
@@ -1053,7 +1151,8 @@ def test_counts_run(
     output_prefix, filename, test_terms, with_terms, contrast_weights, 
     #use_terms,
     select,
-    norm_file
+    norm_file,
+    goseq
 ):
     log = grace.Log()
 
@@ -1209,7 +1308,20 @@ def test_counts_run(
         NORM_FILE = norm_file,
         
         only_tell=only_tell
-    )
+        )
+    
+    for item in goseq:
+        run_script(
+            GOSEQ,
+            
+            INPUT_FILENAME= output_prefix + '.csv',
+            LOG_FILENAME = log_filename,
+            NAME = term_name(item),
+            CATEGORY_FILENAME = term_specification(item),
+            FDR_CUTOFF = fdr,
+        
+            only_tell=only_tell
+            )
         
     return fdr #test-power needs this
 

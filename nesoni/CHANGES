@@ -1,4 +1,10 @@
 
+0.101 - "test-counts:" now has "goseq:" section.
+
+0.100 - Bugfix in "modify-features:".
+        Improvements to "relate-features:".
+        Large heatmaps now seriate using first principal component -- not ideal, but also not O(n^3)
+
 0.99 - Bugfix in Configurable_section_list parsing.
 
 0.98 - Added a "nesoni changes:" command to print out this change log

@@ -47,9 +47,10 @@ External programs:
 
 R libraries required by R-based tools (mostly for RNA-seq):
 * Required:
-  * limma, edgeR, and DESeq from BioConductor
-* Optional:
+  * limma, edgeR from BioConductor
   * seriation
+* Optional:
+  * goseq from BioConductor
   * NMF
 
 

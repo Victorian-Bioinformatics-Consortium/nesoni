@@ -43,7 +43,7 @@ class Modify_features(config.Action_with_prefix):
     type = None
     shift_start = 0
     shift_end = 0
-    change_strand = 'keep'
+    change_strand = 'no'
     select = 'all'
     filenames = [ ]
  
@@ -150,7 +150,13 @@ class _Related_feature(collections.namedtuple(
     def __hash__(self):
         return id(self)
     
-    def modify_with_relations(self): #, parent_selection):
+    def add_to_attr(self, name, value):
+        if name in self.feature.attr:
+            self.feature.attr[name] += ','+value
+        else:
+            self.feature.attr[name] = value
+    
+    def modify_with_relations(self, use, to_child, to_parent):
         buckets = collections.defaultdict(list)
         
         my_strand = self.feature.strand or 0
@@ -161,9 +167,9 @@ class _Related_feature(collections.namedtuple(
                 if overlaps:
                     relation = 'opposite'
                 elif item.feature.start*my_strand < self.feature.start*my_strand:
-                    relation = 'upstrand-opposite'
+                    relation = 'upstrand_opposite'
                 else:
-                    relation = 'downstrand-opposite'
+                    relation = 'downstrand_opposite'
             elif overlaps:
                 relation = 'in'
             else:
@@ -178,13 +184,19 @@ class _Related_feature(collections.namedtuple(
             
             buckets[relation].append(item)
         
-        for name,relatives in buckets.items():
-            rel_name = 'relation-'+name
-            for relative in relatives:
-                if rel_name not in self.feature.attr:
-                    self.feature.attr[rel_name] = relative.feature.get_id()
-                else:
-                    self.feature.attr[rel_name] += ',' + relative.feature.get_id()
+        for name,relatives in buckets.items():        
+            if selection.matches(use, [name]):
+                for relative in relatives:
+                    self.add_to_attr('has_'+name, relative.feature.get_id())
+                    relative.add_to_attr('is_'+name, self.feature.get_id())
+                    relative.add_to_attr('Parent', self.feature.get_id())
+                    
+                    for key in self.feature.attr:
+                        if selection.matches(to_child,[key]):
+                            relative.add_to_attr(key, self.feature.attr[key])
+                    for key in relative.feature.attr:
+                        if selection.matches(to_parent,[key]):
+                            self.add_to_attr(key, relative.feature.attr[key])
                 
         
 
@@ -199,12 +211,14 @@ class _Related_feature(collections.namedtuple(
     'in near'
     '\n\n'
     'Possible relations for stranded features are:\n'
-    'in opposite upstrand downstrand upstrand-opposite downstrand-opposite\n\n'
+    'in opposite upstrand downstrand upstrand_opposite downstrand_opposite\n\n'
     'Features that overlap are also called "in" (or "opposite").'
     )
 @config.Int_flag('upstrand', 'Number of bases upstrand of parent features to look.')
 @config.Int_flag('downstrand', 'Number of bases downstrand of parent features to look.')
-#@config.String_flag('use', 'What relations to set "Parent" attribute for (selection expression).')
+@config.String_flag('use', 'What relationship types to use (selection expression).')
+@config.String_flag('to_child', 'What attributes to copy to children.')
+@config.String_flag('to_parent', 'What attributes to copy to parent.')
 @config.String_flag('select_parent', 'What types of annotation to use from parent features file (selection expression).')
 @config.String_flag('select_child', 'What types of annotation to use from child features file (selection expression).')
 @config.Positional('parent', 'File containing "parent" features.')
@@ -212,7 +226,9 @@ class _Related_feature(collections.namedtuple(
 class Relate_features(config.Action_with_prefix):
     upstrand = 0
     downstrand = 0
-    #use = 'all'
+    use = 'all'
+    to_child = '-all'
+    to_parent = '-all'
     select_parent = 'all'
     select_child = 'all'
     parent = None
@@ -256,9 +272,7 @@ class Relate_features(config.Action_with_prefix):
                     item_2.relations.append(item_1)
 
         for item in features_parent:
-            item.modify_with_relations() #self.use)
-        for item in features_child:
-            item.modify_with_relations() #'-all')
+            item.modify_with_relations(self.use, self.to_child, self.to_parent)
         
         with open(self.prefix + '-parent.gff','wb') as f:
             annotation.write_gff3_header(f)

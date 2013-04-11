@@ -6,4 +6,4 @@ Description: The R component of the Nesoni toolsuite.
 Author: Paul Harrison
 Maintainer: Paul Harrison <paul.harrison@monash.edu>
 Depends: limma, edgeR
-Suggests: seriation, NMF
+Suggests: goseq, seriation, NMF
