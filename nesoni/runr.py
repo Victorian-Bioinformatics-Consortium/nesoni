@@ -521,6 +521,11 @@ if (nrow(dgelist$counts) == 0) {
     }
     blank <- mapply(function(i){ all(is.na(results_to_output[,i])) }, 1:ncol(result))
 
+    if (OUTPUT_COUNTS) {
+        # Add raw counts
+        results_to_output <- cbind(results_to_output, dgelist$counts[rownames(results_to_output),])
+    }
+
     #write.table(results_to_output[,!blank], OUTPUT_FILENAME, sep='\t', na='', quote=FALSE, row.names=FALSE)
 
     sink(OUTPUT_FILENAME)
@@ -783,6 +788,11 @@ if (OUTPUT_ALL) {
 }
 blank <- mapply(function(i){ all(is.na(results_to_output[,i])) }, 1:ncol(result))
 
+if (OUTPUT_COUNTS) {
+    # Add raw counts
+    results_to_output <- cbind(results_to_output, dgelist$counts[rownames(results_to_output),])
+}
+
 #write.table(results_to_output[,!blank,drop=FALSE], OUTPUT_FILENAME, sep='\t', na='', quote=FALSE, row.names=FALSE)
 sink(OUTPUT_FILENAME)
 write.csv(results_to_output[,!blank,drop=FALSE], na='', row.names=FALSE)
@@ -1044,6 +1054,7 @@ This is an ANOVA style test that is potentially more sensitive than comparing ea
 @config.Int_flag('min_count', 'Discard features with less than this total count.')
 @config.Float_flag('fdr', 'False Discovery Rate cutoff for statistics and plots.')
 @config.Bool_flag('output_all', 'List all genes in output, not just significant ones.')
+@config.Bool_flag('output_counts', 'Include raw read counts in output.')
 @config.Bool_flag('constant_term', 'Include a constant term in the model.')
 @config.String_flag('norm_file', 'Use normalization produced by "norm-from-counts:".')
 @config.Bool_flag('tell', 'Output R code instead of executing it.')
@@ -1069,6 +1080,7 @@ class Test_counts(config.Action_with_prefix):
     quantile_norm = False
     fdr = 0.01
     output_all = True
+    output_counts = False
     tell = False
     counts_file = None
     norm_file = None
@@ -1090,6 +1102,7 @@ class Test_counts(config.Action_with_prefix):
             select=self.select,
             norm_file=self.norm_file,
             goseq=self.goseq,
+            output_counts=self.output_counts,
         )
 
 
@@ -1152,7 +1165,8 @@ def test_counts_run(
     #use_terms,
     select,
     norm_file,
-    goseq
+    goseq,
+    output_counts
 ):
     log = grace.Log()
 
@@ -1292,6 +1306,7 @@ def test_counts_run(
         N_TO_TEST = n_to_test,
         FDR_CUTOFF = fdr,
         OUTPUT_ALL = output_all,
+        OUTPUT_COUNTS = output_counts,
         MIN_COUNT = min_count,
         MODE = mode,
         GLOG_MODERATION = glog_moderation,
