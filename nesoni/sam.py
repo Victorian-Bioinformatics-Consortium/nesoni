@@ -71,28 +71,6 @@ class Alignment(object):
     #cdef public list extra
     #cdef public int length
 
-    def __init__(self, line):
-        parts = line.rstrip('\n').split('\t')
-        self.extra = parts[11:]
-        (self.qname, 
-         flag, 
-         self.rname, 
-         pos, 
-         mapq, 
-         self.cigar, 
-         self.mrnm, 
-         mpos, 
-         isize, 
-         self.seq, 
-         self.qual) = parts[:11]
-        
-        self.flag = int(flag)
-        self.pos = int(pos) # 1-based
-        self.mapq = int(mapq)
-        self.mpos = int(mpos)
-        self.isize = int(isize)
-        self.length = get_length(self.cigar)
-    
     def original_name(self):
         #Assuming it was Illumina
         if self.flag&FLAG_PAIRED:
@@ -134,6 +112,30 @@ class Alignment(object):
                 return int(item[5:])
         
         return self.mapq        
+
+def alignment_from_sam(line):
+    self = Alignment()
+    parts = line.rstrip('\n').split('\t')
+    self.extra = parts[11:]
+    (self.qname, 
+     flag, 
+     self.rname, 
+     pos, 
+     mapq, 
+     self.cigar, 
+     self.mrnm, 
+     mpos, 
+     isize, 
+     self.seq, 
+     self.qual) = parts[:11]
+    
+    self.flag = int(flag)
+    self.pos = int(pos) # 1-based
+    self.mapq = int(mapq)
+    self.mpos = int(mpos)
+    self.isize = int(isize)
+    self.length = get_length(self.cigar)
+    return self    
 
 
 def is_bam(filename):
@@ -199,7 +201,7 @@ class Bam_reader(object):
                 assert self.process.wait() == 0, '"samtools view ..." failed'
             raise StopIteration()
         
-        return Alignment(line)
+        return alignment_from_sam(line)
 
 
 def bam_iter_fragments(filename, status_text='Processing'):

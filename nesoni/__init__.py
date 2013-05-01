@@ -1,4 +1,4 @@
-VERSION='0.101'
+VERSION='0.102'
 #^ Note: this first line is read by the setup.py script to get the version
 
 import sys
@@ -21,7 +21,7 @@ from trivia import Test, As_fasta, As_gff, Sample, Stats
 from shred import Shred
 from igv import Make_genome, IGV_plots, As_userplots, Run_igv
 from variant import Freebayes, Vcf_filter, Snpeff, Vcf_nway, Vcf_patch, Test_variant_call, Power_variant_call
-from peaks import Peaks
+from peaks import Peaks, Transcripts
 from annotation_tools import Modify_features, Collapse_features, Relate_features
 from workflows import Analyse_sample, Analyse_variants, Analyse_expression, Analyse_samples
 from changes import Changes
@@ -143,7 +143,9 @@ samcount, for analysis with BioConductor packages.
 
 %(BOLD)sPeak calling and annotation manipulation tools:%(END)s
 
-    peaks:        - Call peaks based on depth of coverage.
+    transcripts:  - Call gene transcripts based on depth of coverage.
+
+    peaks:        - Call isolated peaks based on depth of coverage.
     
     modify-features:
                   - Shift start or end position of features,

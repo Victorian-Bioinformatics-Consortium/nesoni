@@ -95,7 +95,7 @@ def find_peaks(depth, power, moderation=5.0, width_power=1.0, min_initial_size=8
     #for i in xrange(len(depth)):
     #    integral.append(integral[i]+(depth[i]+moderation)**-power)
     
-    pow_depth = [ (item+moderation)**-power for item in depth ]
+    pow_depth = [ max(item,moderation)**-power for item in depth ]
 
     dominance = [ 0.0 ] * len(depth)            
     candidates = [ ]
@@ -123,7 +123,7 @@ def find_peaks(depth, power, moderation=5.0, width_power=1.0, min_initial_size=8
     peaks = [ ]
     for start,end,score in candidates:
         if ( all( dominance[i] <= score for i in xrange(start,end) ) and
-             any( depth[i] > moderation for i in xrange(start,end) ) ):
+             (power < 0 or any( depth[i] > moderation for i in xrange(start,end) )) ):
             peaks.append((start,end))
 
     peaks.sort()
@@ -131,43 +131,6 @@ def find_peaks(depth, power, moderation=5.0, width_power=1.0, min_initial_size=8
 
 
 
-@config.help(
-    'Call peaks that are higher than their surrounding coverage.\n\n'    
-    'Peaks are often surrounded by a low level of noise.'
-    ' The peak caller seeks to ignore this noise,'
-    ' in a manner somewhat similar to human auditory masking.'
-    ' This is controlled by the --power parameter,'
-    ' and is independant of scale and depth of coverage.'
-    '\n\n'    
-    'Algorithm details: '
-    'The peak caller is intended to be invariant under rescaling of the size and depth of peaks. '
-    'The basic idea is to score potential peaks using a the area of a rectangle with '
-    'width equal to the width of the span, and height equal to the harmonic mean of some function of the depths within the span. '
-    ' A peak is reported if there is no higher scoring potential peak that overlaps it.'
-    ' (A heuristic method is used to choose potential peaks to examine, the search is moderately thorough but'
-    ' not guaranteed to be exhaustive.) '
-    'The actual scoring function is: \n\n'
-    '  width^width_power / sum( (depth+moderation)^-power )'    
-    )
-@config.Float_flag(
-    'moderation',
-    'moderation > 0\n'
-    'The water line. Depth is clipped to be at least this much. '
-    'Peaks will not be called with depth less than this.'
-    )
-@config.Float_flag(
-    'power',
-    'power > 0\n'
-    'Smaller values will encourage more and shorter peaks. '
-    'Larger values will encourage less and longer peaks. '
-    )
-@config.Float_flag(
-    'width_power',
-    'width-power >= 1\n'
-    'This probably isn\'t an important parameter to tweak. '
-    'Larger values will encourage calling wider peaks. '
-    'Smaller values will encourage calling shorter peaks.'
-    )
 @config.Int_flag(
     'trim',
     'Trim this many bases from each end of each fragment alignment when calculating depth, '
@@ -202,23 +165,19 @@ def find_peaks(depth, power, moderation=5.0, width_power=1.0, min_initial_size=8
     'filenames',
     'Working directories or BAM files (sorted by read name).'
     )
-class Peaks(config.Action_with_prefix):
-    #min_depth = 25
-    moderation = 5.0
-    power = 10.0
-    width_power = 2.0
-    trim = 0
+class Span_finder(config.Action_with_prefix):
     filter = 'poly'
     deduplicate = False
     strand_specific = True
+    trim = 0
     crosstalk = 0.0
     type = 'peak'
     filenames = [ ]
     
     def run(self):
-        assert self.moderation > 0.0, '--moderation must be greater than zero.'
-        assert self.power > 0.0, '--power must be greater than zero.'
-        assert self.width_power >= 1.0, '--width-power must be greater than or equal to one.'
+        #assert self.moderation > 0.0, '--moderation must be greater than zero.'
+        #assert self.power > 0.0, '--power must be greater than zero.'
+        #assert self.width_power >= 1.0, '--width-power must be greater than or equal to one.'
     
         #if self.filter == 'poly':
         #    use_bam_filename = 'alignments.bam'
@@ -311,7 +270,7 @@ class Peaks(config.Action_with_prefix):
             #import pylab
             #pylab.plot(depth)
             
-            for start, end in find_peaks(depth, power=self.power, moderation=self.moderation, width_power=self.width_power):
+            for start, end in self._find_spans(depth):
                 #pylab.axvspan(start-0.5,end-0.5,alpha=0.25)
                 
                 n += 1
@@ -406,8 +365,90 @@ class Peaks(config.Action_with_prefix):
         
         return spans
 
+
+@config.help(
+    'Call peaks that are higher than their surrounding coverage.\n\n'    
+    'Peaks are often surrounded by a low level of noise.'
+    ' The peak caller seeks to ignore this noise,'
+    ' in a manner somewhat similar to human auditory masking.'
+    ' This is controlled by the --power parameter,'
+    ' and is independant of scale and depth of coverage.'
+    '\n\n'    
+    'Algorithm details: '
+    'The peak caller is intended to be invariant under rescaling of the size and depth of peaks. '
+    'The basic idea is to score potential peaks using a the area of a rectangle with '
+    'width equal to the width of the span, and height equal to the harmonic mean of some function of the depths within the span. '
+    ' A peak is reported if there is no higher scoring potential peak that overlaps it.'
+    ' (A heuristic method is used to choose potential peaks to examine, the search is moderately thorough but'
+    ' not guaranteed to be exhaustive.) '
+    'The actual scoring function is: \n\n'
+    '  width^width_power / sum( (depth+moderation)^-power )'    
+    )
+@config.Float_flag(
+    'moderation',
+    'moderation > 0\n'
+    'The water line. Depth is clipped to be at least this much. '
+    'Peaks will not be called with depth less than this.'
+    )
+@config.Float_flag(
+    'power',
+    'power > 0\n'
+    'Smaller values will encourage more and shorter peaks. '
+    'Larger values will encourage less and longer peaks. '
+    )
+@config.Float_flag(
+    'width_power',
+    'width-power >= 1\n'
+    'This probably isn\'t an important parameter to tweak. '
+    'Larger values will encourage calling wider peaks. '
+    'Smaller values will encourage calling shorter peaks.'
+    )
+class Peaks(Span_finder):
+    #min_depth = 25
+    moderation = 5.0
+    power = 10.0
+    width_power = 2.0
+
+    def _find_spans(self, depth):            
+        return find_peaks(depth, power=self.power, moderation=self.moderation, width_power=self.width_power)
+
+
+
+
+@config.help(
+    'Call transcripts.\n'
+    )
+@config.Int_flag(
+    'min_depth',
+    'All of the transcript must have at least this depth.'
+    )
+@config.Int_flag(
+    'median_depth',
+    'Potential transcripts identified using --min-depth must also have at least this median depth.'
+    )    
+class Transcripts(Span_finder):
+    min_depth = 1
+    median_depth = 100
+
+    def _find_spans(self, depth):
+        result = [ ]
+        def consider(start,end):
+            if start < end:
+                items = depth[start:end]
+                items.sort()
+                if items[len(items)//2] >= self.median_depth:
+                    result.append((start,end))
             
-            
+        start = 0
+        for i, item in enumerate(depth):
+            if item < self.min_depth:
+                consider(start,i)
+                start = i+1                
+        consider(start,len(depth))
+        
+        return result
+
+
 if __name__ == '__main__':
     nesoni.run_tool(Peaks)            
 

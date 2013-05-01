@@ -1,4 +1,9 @@
 
+0.102 - Added "transcripts:".
+        Option "--output-counts" added to "test-counts:".
+        Setting environment variable NESONI_NOTITLE will supress
+        showing the status in the terminal title.
+
 0.101 - "test-counts:" now has "goseq:" section.
 
 0.100 - Bugfix in "modify-features:".
