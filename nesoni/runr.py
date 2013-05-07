@@ -519,12 +519,13 @@ if (nrow(dgelist$counts) == 0) {
     } else {
         results_to_output <- result[significant, ]
     }
-    blank <- mapply(function(i){ all(is.na(results_to_output[,i])) }, 1:ncol(result))
 
     if (OUTPUT_COUNTS) {
         # Add raw counts
         results_to_output <- cbind(results_to_output, dgelist$counts[rownames(results_to_output),])
     }
+
+    blank <- mapply(function(i){ all(is.na(results_to_output[,i])) }, 1:ncol(results_to_output))
 
     #write.table(results_to_output[,!blank], OUTPUT_FILENAME, sep='\t', na='', quote=FALSE, row.names=FALSE)
 
@@ -786,12 +787,13 @@ if (OUTPUT_ALL) {
 } else {
     results_to_output <- result[significant,]
 }
-blank <- mapply(function(i){ all(is.na(results_to_output[,i])) }, 1:ncol(result))
 
 if (OUTPUT_COUNTS) {
     # Add raw counts
     results_to_output <- cbind(results_to_output, dgelist$counts[rownames(results_to_output),])
 }
+
+blank <- mapply(function(i){ all(is.na(results_to_output[,i])) }, 1:ncol(results_to_output))
 
 #write.table(results_to_output[,!blank,drop=FALSE], OUTPUT_FILENAME, sep='\t', na='', quote=FALSE, row.names=FALSE)
 sink(OUTPUT_FILENAME)
