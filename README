@@ -25,7 +25,7 @@ suitable for phylogenetic analysis in SplitsTree4.
 ~ Requirements
 ==============
 
-Python 2.6 or higher. Use of PyPy where possible is highly recommended 
+Python 2.7 or higher. Use of PyPy where possible is highly recommended 
 for performance.
 
 Python libraries
@@ -74,24 +74,8 @@ Then type "nesoni" and follow the command to install the R module.
 See below for more ways to install nesoni.
 
 
-~ Using nesoni
-==============
-
-Type
-
-    nesoni
-
-for usage instructions.
-
-nesoni can also be used without installing, from the directory in
-which you unpacked it:
-
-    python -m nesoni
-
-
-
-~ Advanced installation methods
-===============================
+ Advanced Installation 
+-----------------------
 
 From source, download and untar the source tarball, then:
 
@@ -118,8 +102,8 @@ You can also set up a CPython virtualenv like this:
     my-python-env/bin/pip install -I nesoni
 
 
-~ Installing older versions
-===========================
+ Installing older versions
+---------------------------
 
 The interface and API for nesoni may change between versions (I try to
 keep this to a minimum). In order to run a script or python program
@@ -133,5 +117,22 @@ For example, if you want version 0.95:
 
 (Note: I don't have a neat way to make this work with the R components 
 of nesoni.)
+
+
+~ Using nesoni
+==============
+
+Type
+
+    nesoni
+
+for usage instructions.
+
+nesoni can also be used without installing, from the directory in
+which you unpacked it:
+
+    python -m nesoni
+
+
 
 

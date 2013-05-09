@@ -1,4 +1,8 @@
 
+0.103 - "test-counts:" was incorrectly using Holm multiple testing correction rather than FDR in limma based analyses, fixed to use FDR
+        "nmf:" was incorrectly using Holm multiple testing correction rather than FDR, fixed to use FDR
+        Bugfix to "test-counts: --output-counts yes"
+
 0.102 - Added "transcripts:".
         Option "--output-counts" added to "test-counts:".
         Setting environment variable NESONI_NOTITLE will supress

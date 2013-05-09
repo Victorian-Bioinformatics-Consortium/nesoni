@@ -294,6 +294,12 @@ class Pipe_writer(object):
     def close(self):
         self.process.stdin.close()
         assert self.process.wait() == 0, ' '.join(self.command) + ' failed'
+    
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
 
 
 def open_gzip_writer(filename):

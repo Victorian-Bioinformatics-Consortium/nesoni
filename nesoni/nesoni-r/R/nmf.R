@@ -134,7 +134,7 @@ nmf.report <- function(prefix, item, glyph=NULL, annotations=c('gene','product')
     
     for(j in 1:n) {
         p <- p.values[,j]
-        fdr <- p.adjust(p)
+        fdr <- p.adjust(p, method='BH')
     
         result <- data.frame(
             Feature = rownames(item$counts),

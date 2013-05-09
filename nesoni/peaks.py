@@ -417,6 +417,8 @@ class Peaks(Span_finder):
 
 @config.help(
     'Call transcripts.\n'
+    'Potential transcripts are chosen as runs having at least a given minimum depth, '
+    'then filtered on having at least a given median depth.'    
     )
 @config.Int_flag(
     'min_depth',

@@ -760,7 +760,7 @@ if ((MODE == 'glog' || MODE == 'voom') && ncol(coef) == 1) {
 
 result$p <- p
 
-result$FDR <- p.adjust(p)
+result$FDR <- p.adjust(p, method='BH')
 
 #for(i in (N_ALL_SAMPLES*2+2):ncol(data)) {
 #    result[,colnames(data)[i]] = data[,i]
@@ -885,7 +885,7 @@ library(goseq)
 
 report <- function(result,col, significant,direction,categories) {
     good <- result
-    good$fdr <- p.adjust(good[,col])    
+    good$fdr <- p.adjust(good[,col], method='BH')    
     good <- good[order(good[,col]),]
     
     good <- good[good$fdr < 0.5,,drop=FALSE]
