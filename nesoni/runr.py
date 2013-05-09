@@ -931,12 +931,21 @@ report <- function(result,col, significant,direction,categories) {
 }
 
 analyse <- function(significant,direction,length,categories) {
-    pwf <- nullp(significant, bias.data=length, plot.fit=FALSE)
-    result <- goseq(pwf,gene2cat=categories)
-    cat('\nOver-represented categories:\n\n')
-    report(result,'over_represented_pvalue', significant,direction,categories)
-    cat('\nUnder-represented categories:\n\n')
-    report(result,'under_represented_pvalue', significant,direction,categories)    
+    pwf <- tryCatch({
+            nullp(significant, bias.data=length, plot.fit=FALSE)
+        }, error=function(err) { 
+            NULL 
+        })
+    
+    if (is.null(pwf)) {
+        cat('\n\ngoseq function "nullp" failed.\n\n')
+    } else {
+        result <- goseq(pwf,gene2cat=categories)
+        cat('\nOver-represented categories:\n\n')
+        report(result,'over_represented_pvalue', significant,direction,categories)
+        cat('\nUnder-represented categories:\n\n')
+        report(result,'under_represented_pvalue', significant,direction,categories)    
+    }
 }
 
 
