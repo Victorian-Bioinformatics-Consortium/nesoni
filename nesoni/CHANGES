@@ -1,4 +1,6 @@
 
+0.104 - Improvements to peak calling tools.
+
 0.103 - "test-counts:" was incorrectly using Holm multiple testing correction rather than FDR in limma based analyses, fixed to use FDR
         "nmf:" was incorrectly using Holm multiple testing correction rather than FDR, fixed to use FDR
         Bugfix to "test-counts: --output-counts yes"

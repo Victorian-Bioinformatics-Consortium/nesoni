@@ -114,6 +114,7 @@ necessary to import a genome into IGV, if you only have a GENBANK file.
 @config.Bool_flag('delete_igv', 'Delete the ".igv" files after converting to ".tdf".')
 @config.Main_section('working_dirs', 'Working directories containing the results of "filter:" or "consensus:".')
 @config.String_flag('norm_file', 'File of normalizations produced by "norm-from-counts:". Defaults to equalizing the average unambiguous depth.')
+@config.String_flag('label_prefix', 'Prefix for plot names that will appear in IGV browser.')
 #@config.Float_section('norm_mult', 
 #    'Normalize by multiplying corresponding sample depths by these multipliers. Defaults to equalizing the average unambiguous depth. '
 #    'You might alternately use EdgeR\'s Trimmed Mean Normalization, eg in R: library(nesoni); read.counts(\'counts.txt\', min.total=10)$samples$normalizing.multiplier')
@@ -127,6 +128,8 @@ class IGV_plots(config.Action_with_prefix):
     working_dirs = [ ]
 
     norm_file = None    
+    
+    label_prefix = ''
     
     def iter_over(self, access_func, zeros=True):
         for name in self.chromosome_names:
@@ -240,7 +243,7 @@ class IGV_plots(config.Action_with_prefix):
         
         print >> f, '#track viewLimits=0:%(maximum)f autoScale=off scaleType=%(scale_type)s windowingFunction=%(windowing)s maxHeightPixels=200:%(height)d:1 color=%(color)s' % locals()
         print >> f, '\t'.join(
-            [ 'Chromosome', 'Start', 'End', 'Feature'] + plot_names
+            [ 'Chromosome', 'Start', 'End', 'Feature'] + [ self.label_prefix + item for item in plot_names ]
         )
         for name, pos, depths in iterator:
             print >> f, '\t'.join(

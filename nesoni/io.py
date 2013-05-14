@@ -705,8 +705,8 @@ class _Named_list(collections.Mapping):
             return self._value_type
 
         assert self.values, 'Trying to get the type of values in an empty Named_list.'
-        result = type(self.values[0])
-        for item in self.values:
+        result = type(self._values[0])
+        for item in self._values:
             assert type(item) == result, 'Trying to get the type of values in a Named_list containing several types of object.'
         return result
 

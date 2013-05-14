@@ -168,7 +168,7 @@ try:
     #                      'python setup.py install --home /bio/sw/python')
     
     os.system('sudo -H rm -r /bio/sw/python/env-pypy')
-    sh('sudo -H virtualenv -p pypy /bio/sw/python/env-pypy')
+    sh('sudo -H virtualenv -p /bio/sw/python/download/pypy/bin/pypy /bio/sw/python/env-pypy')
     sh('sudo -H ln -s pypy /bio/sw/python/env-pypy/bin/pypy-bio')
     sh('sudo -H /bio/sw/python/env-pypy/bin/pip install biopython')
     sh('sudo -H /bio/sw/python/env-pypy/bin/python setup.py install')

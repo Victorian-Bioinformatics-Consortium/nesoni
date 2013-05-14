@@ -131,13 +131,6 @@ def find_peaks(depth, power, moderation=5.0, width_power=1.0, min_initial_size=8
 
 
 
-@config.Int_flag(
-    'trim',
-    'Trim this many bases from each end of each fragment alignment when calculating depth, '
-    'then expanded called peaks by this much, back to original size. '
-    'This may allow calling of slightly overlapping transcripts, '
-    'and enhance calling of transcripts that are close together.'
-    )
 @config.String_flag(
     'filter',
     'Filtering mode:\n'
@@ -152,6 +145,20 @@ def find_peaks(depth, power, moderation=5.0, width_power=1.0, min_initial_size=8
 @config.Bool_flag(
     'strand_specific',
     'Are the reads strand specific?'
+    )
+@config.String_flag(
+    'what',
+    'fragment - Peaks based on entire fragment.\n'
+    '3prime - Peaks based on last base of fragment.\n'
+    '5prime - Peaks based on first base of fragment.\n'
+    )
+@config.Int_flag(
+    'lap',
+    'Add this many bases to the end of each fragment when calculating depth, '
+    'then subtract this many bases from called peaks, back to original size. '
+    'Positive values will tend to join up small gaps. '
+    'Negative values may allow calling of slightly overlapping transcripts, '
+    'and enhance calling of transcripts that are close together. '
     )
 @config.Float_flag(
     'crosstalk',
@@ -169,12 +176,14 @@ class Span_finder(config.Action_with_prefix):
     filter = 'poly'
     deduplicate = False
     strand_specific = True
-    trim = 0
+    what = 'fragment'
+    lap = 0
     crosstalk = 0.0
     type = 'peak'
     filenames = [ ]
     
     def run(self):
+        assert self.what in ('fragment','5prime','3prime'), 'Unknown option for --what.'
         #assert self.moderation > 0.0, '--moderation must be greater than zero.'
         #assert self.power > 0.0, '--power must be greater than zero.'
         #assert self.width_power >= 1.0, '--width-power must be greater than or equal to one.'
@@ -273,6 +282,8 @@ class Span_finder(config.Action_with_prefix):
             for start, end in self._find_spans(depth):
                 #pylab.axvspan(start-0.5,end-0.5,alpha=0.25)
                 
+                if end-self.lap-start <= 0: continue
+                
                 n += 1
                 
                 id = 'peak%d' % n
@@ -288,12 +299,15 @@ class Span_finder(config.Action_with_prefix):
                 ann.source = 'nesoni'
                 ann.type = self.type
                 ann.seqid = rname
-                ann.start = start - self.trim
-                ann.end = end + self.trim
+                ann.start = start
+                ann.end = end - self.lap
                 ann.strand = strand
                 ann.score = None
                 ann.phase = None
-                ann.attr = { 'id' : id }
+                ann.attr = { 
+                    'id' : id,
+                    'color' : '#00ff00' if strand > 0 else '#0000ff' if strand < 0 else '#008080',
+                    }
                 print >> f, ann.as_gff()
             f.flush()
             
@@ -352,12 +366,24 @@ class Span_finder(config.Action_with_prefix):
             
                 start = min(item.pos-1 for item in alignments)
                 end = max(item.pos+item.length-1 for item in alignments)
-                if end-start <= self.trim*2: continue
+                
+                if self.what == '5prime':
+                   if strand >= 0:
+                       end = start+1
+                   else:
+                       start = end-1
+                elif self.what == '3prime':
+                   if strand >= 0:
+                       start = end-1
+                   else:
+                       end = start+1
+                
+                if end-self.lap-start <= 0: continue
                 
                 rname = alignments[0].rname
                 if (rname,strand) not in spans: 
                     spans[(rname,strand)] = [ ]          
-                spans[(rname, strand)].append((start+self.trim,end-self.trim))
+                spans[(rname, strand)].append((start,end+self.lap))
                 
         if self.deduplicate:
             for key in spans:
@@ -403,7 +429,7 @@ class Span_finder(config.Action_with_prefix):
     'Larger values will encourage calling wider peaks. '
     'Smaller values will encourage calling shorter peaks.'
     )
-class Peaks(Span_finder):
+class Islands(Span_finder):
     #min_depth = 25
     moderation = 5.0
     power = 10.0
@@ -448,6 +474,41 @@ class Transcripts(Span_finder):
                 start = i+1                
         consider(start,len(depth))
         
+        return result
+
+@config.help(
+    'Call peaks that are higher than everything within "radius", '
+    'and higher than some minimum depth.'
+    )
+@config.Int_flag(
+    'min_depth',
+    'Minimum depth.'
+    )
+@config.Int_flag(
+    'radius',
+    'Smaller mode suppression radius.'
+    )
+class Modes(Span_finder):
+    min_depth = 5
+    radius = 20
+
+    def _find_spans(self, depth):
+        result = [ ]
+
+        i = 0
+        while i < len(depth):
+            j = i+1
+            while j < len(depth) and depth[j] == depth[i]:
+                j += 1
+            
+            if depth[i] >= self.min_depth:
+                for k in xrange(max(0,i-self.radius),min(len(depth),j+self.radius)):
+                    if depth[k] > depth[i]:
+                        break
+                else:
+                    result.append((i,j))                
+            i = j
+            
         return result
 
 
