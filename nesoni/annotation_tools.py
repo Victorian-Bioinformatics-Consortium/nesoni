@@ -3,6 +3,23 @@ import collections
 
 from nesoni import config, annotation, span_index, selection
 
+def decode_shift(expression):
+    absolute = 0.0
+    proportion = 0.0
+    i = 0
+    while i < len(expression):
+        j = i
+        while j < len(expression) and expression[j] not in '+-':
+            j += 1
+        chunk = expression[i:j]
+        if chunk.endswith('%'):
+            proportion += float(chunk[:-1])/100.0
+        else:
+            absolute += float(chunk)
+        i = j
+    return absolute, proportion
+
+
 def join_descriptions(seq):
     result = [ ]
     for item in seq:
@@ -28,8 +45,11 @@ STRAND_CHANGE = {
     '\n\n'
     'Note: Features without a strand will not be shifted.'
     )
-@config.Int_flag('shift_start', 'Bases to shift feature start.')
-@config.Int_flag('shift_end', 'Bases to shift feature end.')
+@config.String_flag('shift_start', 
+    'Bases to shift feature start. '
+    'Can be absolute or a percentage, or a combination, eg '
+    '5 50% 50%+20 10-100%')
+@config.String_flag('shift_end', 'Bases to shift feature end. Format as for --shift-start.')
 @config.String_flag(
     'change_strand',
     'no / flip / clear / forward / reverse\n'
@@ -41,8 +61,8 @@ STRAND_CHANGE = {
 @config.Main_section('filenames', 'Annotation files.',empty_is_ok=False)
 class Modify_features(config.Action_with_prefix):
     type = None
-    shift_start = 0
-    shift_end = 0
+    shift_start = '0'
+    shift_end = '0'
     change_strand = 'no'
     select = 'all'
     filenames = [ ]
@@ -50,6 +70,9 @@ class Modify_features(config.Action_with_prefix):
     def run(self):
         assert self.change_strand in STRAND_CHANGE, 'Unknown way to change strand.'
         strand_changer = STRAND_CHANGE[self.change_strand]
+        
+        shift_start_absolute, shift_start_proportion = decode_shift(self.shift_start)
+        shift_end_absolute, shift_end_proportion = decode_shift(self.shift_end)
     
         out_file = open(self.prefix+'.gff','wb')    
         annotation.write_gff3_header(out_file)
@@ -58,12 +81,16 @@ class Modify_features(config.Action_with_prefix):
             for item in annotation.read_annotations(filename):
                 if not selection.matches(self.select, [item.type]): continue
                 
+                length = item.end-item.start
+                shift_start = int(math.floor(0.5+shift_start_absolute+shift_start_proportion*length))
+                shift_end = int(math.floor(0.5+shift_end_absolute+shift_end_proportion*length))
+                
                 if item.strand == 1:
-                    item.start += self.shift_start
-                    item.end += self.shift_end
+                    item.start += shift_start
+                    item.end += shift_end
                 elif item.strand == -1:
-                    item.end -= self.shift_start
-                    item.start -= self.shift_end
+                    item.end -= shift_start
+                    item.start -= shift_end
                 
                 item.strand = strand_changer[item.strand]
             

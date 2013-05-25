@@ -378,7 +378,7 @@ class Span_finder(config.Action_with_prefix):
                    else:
                        end = start+1
                 
-                if end-self.lap-start <= 0: continue
+                if end+self.lap-start <= 0: continue
                 
                 rname = alignments[0].rname
                 if (rname,strand) not in spans: 
@@ -494,19 +494,23 @@ class Modes(Span_finder):
 
     def _find_spans(self, depth):
         result = [ ]
-
+        
         i = 0
         while i < len(depth):
             j = i+1
             while j < len(depth) and depth[j] == depth[i]:
                 j += 1
             
+            lap = max(0,self.lap-(j-i)+1)
+            lap_back = lap//2
+            lap_forward = lap-lap_back
+
             if depth[i] >= self.min_depth:
                 for k in xrange(max(0,i-self.radius),min(len(depth),j+self.radius)):
-                    if depth[k] > depth[i]:
+                    if depth[k] > depth[i] or (depth[k] == depth[i] and k < i): #Resolve ties arbitrarily
                         break
                 else:
-                    result.append((i,j))                
+                    result.append((i-lap_back,j+lap_forward))                
             i = j
             
         return result
