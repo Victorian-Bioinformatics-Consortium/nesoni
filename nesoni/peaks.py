@@ -478,7 +478,10 @@ class Transcripts(Span_finder):
 
 @config.help(
     'Call peaks that are higher than everything within "radius", '
-    'and higher than some minimum depth.'
+    'and higher than some minimum depth.\n'
+    '\n'
+    'Note: The --lap parameter can be used to apply some smoothing, '
+    'if you are looking for modes that have a bit of width as well as pure height.\n'
     )
 @config.Int_flag(
     'min_depth',

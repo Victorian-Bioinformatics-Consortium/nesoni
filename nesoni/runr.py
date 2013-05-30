@@ -1629,9 +1629,9 @@ hmap.elist(PREFIX, elist, min.sd=MIN_SD, min.span=MIN_SPAN, min.svd=MIN_SVD, svd
 @config.help("""\
 Produce a heatmap (and table) of log expression levels.
 
-The parameter --log-moderation controls how counts close to zero are treated. \
+The parameter --glog-moderation controls how counts close to zero are treated. \
 Counts close to zero are inherently noisier than larger counts. \
---log-moderation controls the degree to which this variation is squashed down.
+--glog-moderation controls the degree to which this variation is squashed down.
 
 Hierachical clustering and ordering of rows is performed using the "seriation" package in R+.
 

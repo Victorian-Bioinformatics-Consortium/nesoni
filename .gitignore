@@ -4,4 +4,5 @@ MANIFEST
 build/*
 dist/*
 test/.state/*
+doc/_*
 nesoni.egg-info
