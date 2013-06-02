@@ -120,7 +120,7 @@ then reducing the ploidy to 1 using "nesoni vcf-filter".
     'The read group should be set '
     '(nesoni\'s wrappers of read aligners do this as of version 0.87).'
     )
-@config.Int_flag('depth_limit', 'Limit depth of coverage of BAM files to this before running freebays. Use 0 for unlimited.')
+@config.Int_flag('depth_limit', 'Limit depth of coverage of BAM files to this before running freebayes. Use 0 for unlimited.')
 @config.Int_flag('ploidy', 'Ploidy of genotype calls.')
 @config.Float_flag('pvar', 'Probability of polymorphism.')
 @config.Section('freebayes_options', 'Flags to pass to FreeBayes.', allow_flags=True, append=False)

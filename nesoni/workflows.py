@@ -136,7 +136,7 @@ class Analyse_sample(config.Action_with_output_dir):
     ('snpeff', lambda obj: nesoni.Snpeff(), ''),
     ('none', lambda obj: None, 'Do not use snpeff'),
     ])
-@config.Configurable_section('analysis', '"analyse-sample:" optiont to use with "power-variant-call:". Does not affect actual results.', presets=[
+@config.Configurable_section('analysis', '"analyse-sample:" option to use with "power-variant-call:". Does not affect actual results.', presets=[
     ('shrimp', lambda obj: Analyse_sample(align='shrimp'), 'Align using SHRiMP 2'),
     ('bowtie', lambda obj: Analyse_sample(align='bowtie'), 'Align using Bowtie 2'),
     ('none', lambda obj: None, 'Don\'t test power'),

@@ -33,6 +33,10 @@ h1, h2, h3 { clear: both; }
 
 <h3>Download</h3>
 
+<div style="float: right; margin: 1em; margin-right: 20%%; border: 2px solid black; padding: 1em; font-size: 150%%;">
+    <a href="nesoni-cookbook/">Read the Nesoni Cookbook</a>
+</div>
+
 <p>%(date)s:
 
 <ul>
@@ -166,6 +170,11 @@ in nesoni reflect this.
 </pre>
 
 <h3>Documentation</h3>
+
+<ul>
+<li><a href="nesoni-cookbook/">Cookbook</a>
+</ul>
+
 <p>
 Nesoni provides the following specific usage information when run with no parameters:
 
@@ -254,11 +263,14 @@ try:
         print
         print
         
-        assert 0 == os.system('python setup.py sdist')
+        sh('python setup.py sdist')
         
-        assert 0 == os.system('cp dist/%s /home/websites/vicbioinformatics.com' % release_tarball_name)
-    
+        sh('cp dist/%s /home/websites/vicbioinformatics.com' % release_tarball_name)
+
     date = datetime.date.today().strftime('%e %B %Y')
+    
+    sh('cd doc && make html')
+    sh('cp -r doc/_build/html/* /home/websites/vicbioinformatics.com/nesoni-cookbook/')    
     
     f = open('/home/websites/vicbioinformatics.com/software.nesoni.shtml','wb')
     f.write(PAGE % locals())

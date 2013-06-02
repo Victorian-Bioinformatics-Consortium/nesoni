@@ -42,5 +42,6 @@ Contents
    analyse-sample
    rnaseq
    variants
+   polish
 
 
