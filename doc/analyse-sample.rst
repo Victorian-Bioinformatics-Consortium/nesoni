@@ -70,7 +70,7 @@ This creates what Nesoni refers to as a `working directory`.
   nesoni shrimp: mysample myref reads: myclipped-single.fq.gz
 
 ``bowtie:`` can be used instead of ``shrimp:``, 
-or a BAM file from another read aligner can be ``import:``ed.
+or a BAM file from another read aligner can be imported with ``import:``.
 
 Next, filter the read alignments and call SNPs and indels:
 ::
@@ -114,7 +114,8 @@ From python
 
 We can create an object representing the action of analysing the sample,
 and then tell it to "make".
-::
+
+.. code-block:: python
   
   import nesoni
   

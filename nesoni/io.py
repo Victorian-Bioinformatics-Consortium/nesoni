@@ -770,7 +770,7 @@ def named_matrix_type(row_keys, col_keys, value_type=None):
 
 class Table_reader(object):
     def __init__(self, filename, default_group='All'):
-        self.f = open(filename, 'rb')
+        self.f = open(filename, 'rU')
         line = self.f.readline()
         self.groups = [ ]
         self.comments = [ ]
@@ -859,7 +859,7 @@ class Grouped_table(collections.OrderedDict):
             for line in self.comments:
                 f.write('#%s\n' % line)
                 
-            writer = csv.writer(f)
+            writer = csv.writer(f, lineterminator='\n')
             if group_line:
                 writer.writerow(group_names)
             writer.writerow(column_names)
@@ -945,7 +945,7 @@ def write_grouped_csv(filename, groups, rowname_name='Name', comments=[], group_
     #    for line in comments:
     #        f.write('#%s\n' % line)
     #        
-    #    writer = csv.writer(f)
+    #    writer = csv.writer(f, lineterminator='\n')
     #    if group_line:
     #        writer.writerow(group_names)
     #    writer.writerow(column_names)
@@ -970,7 +970,7 @@ def write_csv(filename, iterable, comments=[]):
     for line in comments:
         f.write('#%s\n' % line)
     
-    writer = csv.writer(f)
+    writer = csv.writer(f, lineterminator='\n')
     keys = None
     
     for record in iterable:

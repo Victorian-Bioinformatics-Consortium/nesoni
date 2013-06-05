@@ -87,7 +87,7 @@ Heatmaps
 --------
 
 Heatmaps with hierarchical clustering provide a basic way to
-assess the quality of your data.
+assess the quality of your data, and the patterns of differential expression it contains.
 
 For example, 
 this will generate a heatmap of all genes
@@ -99,8 +99,8 @@ for which there is at least a 8-fold difference between two samples
 
 The colors in the heatmap are based on log2 transformed normalized counts,
 with moderation of values near zero 
-(the log transforms of which is necessarily noisy).
-The modation amount is controlled by the parameter ``--glog-moderation``,
+(the log transforms of which are necessarily noisy).
+The moderation amount is controlled by the parameter ``--glog-moderation``,
 we believe it has a reasonable default value and shouldn't need adjusting.
   
 Differential expression testing
@@ -120,8 +120,8 @@ Here we will test which genes in group bar differ from those in group foo.
 
   nesoni test-counts: mytest mycounts.csv bar
 
-Here ``bar`` is a selection expression on the tags we gave to the sample earlier,
-resulting in a term for the linear model that is 1 for samples tagged bar and 0 otherwise.
+Here ``bar`` is a selection expression on the tags we gave to samples earlier,
+resulting in a term for the linear model that is 1 for samples tagged as "bar" and 0 otherwise.
 The syntax for selection expression is described in Nesoni's main help blurb, 
 which is displayed by typing ``nesoni``.
 We are comparing the linear model containing this term and a constant term to the linear

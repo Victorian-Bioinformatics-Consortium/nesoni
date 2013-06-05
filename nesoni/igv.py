@@ -262,14 +262,19 @@ class IGV_plots(config.Action_with_prefix):
                 self.genome,
                 '-f', 'max,mean'
             ], stdin=None, stdout=None)
-            self.processes.append((p, filename))
+            #Hangs, not sure why:
+            #self.processes.append((p, filename))
+            #One at a time it is.
+            assert p.wait() == 0, 'igvtools tile failed'
+            if self.delete_igv:
+                os.unlink(filename)
             
     def wait_for_igv(self):
         while self.processes:
-           p, filename = self.processes.pop()
-           assert p.wait() == 0, 'igvtools tile failed'
-           if self.delete_igv:
-               os.unlink(filename)
+            p, filename = self.processes.pop()
+            assert p.wait() == 0, 'igvtools tile failed'
+            if self.delete_igv:
+                os.unlink(filename)
                 
     def iter_ambiguity(self):
         for (name, pos, depths), (name1, pos1, ambiguous_depths) in itertools.izip(

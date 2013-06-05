@@ -8,9 +8,19 @@ read.counts <- function(filename, min.total=0, min.max=0, keep=NULL, norm.file=N
     #counts <- as.matrix( data[,2:(n_samples+1), drop=FALSE] )
     #gene <-data[, (n_samples*2+2):ncol(data)]
     
-    data <- read.grouped.table(filename, require=c('Count','Annotation'))
+    data <- read.grouped.table(filename, require=c('Count'), default.group='Count')
     counts <- as.matrix( data$Count )
-    gene <- data$Annotation
+    
+    gene <- data.frame(row.names=rownames(counts))
+    
+    if (!is.null(data$Annotation)) { 
+        gene <- cbind(gene, data$Annotation)
+    }
+    if (!is.null(data$Alignment)) {
+        gene <- cbind(gene, 'Total reads'=rowSums(counts))
+        gene <- cbind(gene, data$Alignment)
+    }
+    
     n_samples <- ncol(counts)
     
     

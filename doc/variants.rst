@@ -23,7 +23,7 @@ either created using the ``analyse-samples:`` command we saw in
 :doc:`rnaseq`,
 or individually by ``analyse-sample:`` as in :doc:`analyse-sample`.
 
-By default the ``analyse-samples:`` command actuall already does variant calling!
+By default the ``analyse-samples:`` command actually already does variant calling!
 
 Variant calling in a single command
 -----------------------------------
@@ -40,7 +40,7 @@ to identify variants.
 By default Nesoni invokes FreeBayes with options that casts a wide net, 
 because the next step will be to filter what it finds using our own statistical method.
 This includes by default specifying an high ploidy, 4, to encourage FreeBayes to
-find more alelles.
+find more alleles.
 ::
 
    nesoni freebayes: rawvariants sample1 sample2 sample3

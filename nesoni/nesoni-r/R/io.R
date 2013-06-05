@@ -3,7 +3,7 @@
 # If it contains a line starting with #Groups, group columns as indicated
 # Returns a list group.name -> data.frame
 
-read.grouped.table <- function(filename, require=c()) {
+read.grouped.table <- function(filename, require=c(), default.group='All') {
     groups <- c()
     tab.separated <- FALSE
     
@@ -47,7 +47,7 @@ read.grouped.table <- function(filename, require=c()) {
         }
     }
     if (!length(groups)) {
-        groups <- c('All')
+        groups <- c(default.group)
     }
 
     
