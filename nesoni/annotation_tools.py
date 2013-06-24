@@ -1,5 +1,5 @@
 
-import collections
+import collections, math
 
 from nesoni import config, annotation, span_index, selection
 
@@ -9,18 +9,32 @@ def decode_shift(expression):
     i = 0
     while i < len(expression):
         j = i
+        while j < len(expression) and expression[j] in '+-':
+            j += 1
+        sign_chunk = expression[i:j]        
+
+        i = j 
         while j < len(expression) and expression[j] not in '+-':
             j += 1
         chunk = expression[i:j]
-        if chunk.endswith('%'):
-            proportion += float(chunk[:-1])/100.0
-        else:
-            absolute += float(chunk)
         i = j
+        
+        assert chunk, 'Couldn\'t parse shift'
+        if sign_chunk in ('+',''):
+            sign = 1
+        elif sign_chunk == '-':
+            sign = -1
+        else:
+            assert False, 'Couldn\'t parse shift'
+            
+        if chunk.endswith('%'):
+            proportion += sign*float(chunk[:-1])/100.0
+        else:
+            absolute += sign*float(chunk)
     return absolute, proportion
 
 
-def join_descriptions(seq):
+def join_descriptions(seq, joiner=', '):
     result = [ ]
     for item in seq:
         #parts = item.split('isoform')        
@@ -28,7 +42,7 @@ def join_descriptions(seq):
         #   item = parts[0].rstrip()
         if item not in result: 
             result.append(item)
-    return ', '.join(result)
+    return joiner.join(result)
 
 
 STRAND_CHANGE = {
@@ -109,11 +123,13 @@ class Modify_features(config.Action_with_prefix):
     )
 @config.String_flag('type', 'Output feature type.\nDefault: retain existing type.')
 @config.String_flag('select', 'What types of annotation to use (selection expression).')
+@config.String_flag('joiner', 'Separator for joined fields.')
 @config.Main_section('filenames', 'Annotation files.',empty_is_ok=False)
 class Collapse_features(config.Action_with_prefix):
     overlap = 0
     type = None
     select = 'all'
+    joiner = '/'
     filenames = [ ]
 
     def run(self):
@@ -164,7 +180,7 @@ class Collapse_features(config.Action_with_prefix):
             for item2 in group:
                 for key in item2.attr:
                     if key in item.attr: continue
-                    item.attr[key] = join_descriptions( item3.attr[key] for item3 in group if key in item3.attr )
+                    item.attr[key] = join_descriptions([ item3.attr[key] for item3 in group if key in item3.attr ], self.joiner )
             
             print >> out_file, item.as_gff()
             

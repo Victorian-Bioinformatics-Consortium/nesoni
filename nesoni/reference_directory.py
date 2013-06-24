@@ -2,7 +2,7 @@
 import sys, os
 
 import nesoni
-from nesoni import io, grace, config, annotation
+from nesoni import io, grace, config, annotation, legion
 
 class Reference(io.Workspace):
     def __init__(self, working_dir, must_exist):
@@ -77,7 +77,7 @@ class Reference(io.Workspace):
             return name2
         return None
 
-    def build_shrimp_mmap(self, cs=False, log_to=sys.stdout):
+    def build_shrimp_mmap(self, cs=False):
         suffix = '-cs' if cs else '-ls'
         
         grace.status('Building SHRiMP mmap')
@@ -86,17 +86,15 @@ class Reference(io.Workspace):
                 '--save', self.object_filename('reference' + suffix),
                 self.reference_fasta_filename(),            
                 ],
-            stdout=log_to
             )
         grace.status('')
 
-    def build_bowtie_index(self, log_to=sys.stdout):
+    def build_bowtie_index(self):
         io.execute([
                 'bowtie2-build',
                 self.reference_fasta_filename(),
                 self/'bowtie',
                 ],
-            stdout = log_to,
             )
     
     def get_bowtie_index_prefix(self):
@@ -174,20 +172,20 @@ the directory must already exist, \
 and files will be generated as requested \
 using existing sequences and annotations.
 """)
-@config.Bool_flag('ls', 'Generate gmapper-ls mmap (faster SHRiMP startup for base-space reads).')
-@config.Bool_flag('cs', 'Generate gmapper-cs mmap (faster SHRiMP startup for color-space reads).')
-@config.Bool_flag('bowtie', 'Generate bowtie2 index (necessary in order to use "nesoni bowtie:").')
+@config.Ifavailable_flag('ls', 'Generate gmapper-ls mmap (faster SHRiMP startup for base-space reads).')
+@config.Ifavailable_flag('cs', 'Generate gmapper-cs mmap (faster SHRiMP startup for color-space reads).')
+@config.Ifavailable_flag('bowtie', 'Generate bowtie2 index (necessary in order to use "nesoni bowtie:").')
 @config.Bool_flag('genome', 'Create .genome file and directory for use with IGV.')
 @config.String_flag('genome_select', 'What types of feature to use in IGV .genome (selection expression).')
-@config.Bool_flag('snpeff', 'Create snpEff files.')
+@config.Ifavailable_flag('snpeff', 'Create snpEff files.')
 @config.Main_section('filenames', 'Sequence and annotation files.')
 class Make_reference(config.Action_with_output_dir):
-    ls = False
-    cs = False
-    bowtie = False
-    genome = False
+    ls = 'ifavailable'
+    cs = 'ifavailable'
+    bowtie = 'ifavailable'
+    genome = True
     genome_select = '-source'
-    snpeff = False
+    snpeff = 'ifavailable'
     filenames = [ ]
 
     def run(self):
@@ -212,17 +210,17 @@ class Make_reference(config.Action_with_output_dir):
             reference.set_sequences(sequences)
             reference.set_annotations(annotations)
         
-        with open(self.log_filename(),'wb') as f:
-            if self.ls:
-                reference.build_shrimp_mmap(False, f)
-            if self.cs:
-                reference.build_shrimp_mmap(True, f)
-            if self.bowtie:
-                reference.build_bowtie_index(f)
+        with legion.Stage() as stage:
+            if config.apply_ifavailable_program(self.ls, 'gmapper-ls'):
+                stage.process(reference.build_shrimp_mmap, False)
+            if config.apply_ifavailable_program(self.cs, 'gmapper-cs'):
+                stage.process(reference.build_shrimp_mmap, True)
+            if config.apply_ifavailable_program(self.bowtie, 'bowtie2-build'):
+                stage.process(reference.build_bowtie_index)
             if self.genome:
-                reference.build_genome(self.genome_select)
-            if self.snpeff:
-                reference.build_snpeff()
+                stage.process(reference.build_genome, self.genome_select)
+            if config.apply_ifavailable_jar(self.snpeff, 'snpEff.jar'):
+                stage.process(reference.build_snpeff)
             
         
         

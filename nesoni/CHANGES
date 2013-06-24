@@ -1,4 +1,11 @@
 
+0.108 -
+
+0.107 - New flag type yes/ifavailable/no,
+          this will allow more features to be on by default, especially in pipelines.
+        make-reference: defaults to building as much as it can with available installed software.
+        Fix parsing of shift expressions in "modify-features:".
+
 0.106 - "test-counts:" Output ambiguous-alignment and alignment-on-same-fragment info.
         csv.writer outputs '\r\n'. Do not want. Fixed.
         Fix bug in grouped_table_reader that could result in final column being ignored due to spurious '\r'.

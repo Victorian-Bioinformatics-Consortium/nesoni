@@ -562,6 +562,18 @@ def is_sequence_file(filename):
     return True
 
 
+def is_colorspace(filename):
+    for name, seq in read_sequences(filename):
+        tail = seq[1:].upper()
+        for char in '0123.':
+            if char in tail:
+                return True
+        for char in 'ACGTN':
+            if char in tail:
+                return False
+    raise grace.Error('Couldn\'t determine if sequence file is colorspace: '+filename)
+
+
 def guess_quality_offset(filename):
     grace.status('Guessing quality offset')
     try:

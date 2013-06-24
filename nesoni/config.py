@@ -220,6 +220,60 @@ class Bool_flag(Flag):
         return describe_bool(value)
 
 
+class Ifavailable_flag(Flag):
+    """ A flag with possible values
+        False
+        True
+        'ifavailable'
+        
+        The intention is to allow more things to be on by default,
+        while still allowing a feature to be forced on or forced off
+        if absolute replicability is required.
+    """
+    def parse(self, obj, what, string):
+        string = string.lower()
+        if string in ('yes','y','t'):
+            return True
+        elif string in ('no','n','f'):
+            return False
+        elif string in ('ifavailable','if'):
+            return 'ifavailable'
+
+    def describe(self, value):
+        if value is None:
+            return 'yes/no/ifavailable'
+        elif value == 'ifavailable':
+            return 'ifavailable'
+        elif value:
+            return 'yes'
+        else:
+            return 'no'
+
+def apply_ifavailable(value, test):
+    from . import grace
+    if value == 'ifavailable':
+        return test()
+    else:
+        return value
+
+def apply_ifavailable_program(value, program):
+    from . import grace
+    if value == 'ifavailable':
+        return grace.can_execute(program)
+    else:
+        return value
+
+def apply_ifavailable_jar(value, jar):
+    from . import io
+    if value == 'ifavailable':
+        try: io.find_jar(jar)
+        except Error:
+            return False
+        return True
+    else:
+        return value
+
+
 class Int_flag(Flag):
     def parse(self, obj, what, string):
         return int(string)

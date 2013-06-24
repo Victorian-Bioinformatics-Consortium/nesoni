@@ -27,13 +27,12 @@ or FASTA sequences and a GFF file.
 
 ::
 
-  nesoni make-reference: myref ref-sequences.fa \
-      --ls yes --genome yes --snpeff yes
+  nesoni make-reference: myref ref-sequences.fa
 
-This says to generate a SHRiMP base-space index,
-so read alignment will start up faster,
+This will generate SHRiMP indicies if SHRiMP is installed
+(and a Bowtie2 index if Bowtie2 is installed),
 a .genome file for the IGV browser,
-and files needed to use snpEFF.
+and files needed to use snpEFF if snpEFF is installed.
 
 Analysis in one command
 -----------------------

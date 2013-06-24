@@ -248,10 +248,15 @@ def how_many_cpus():
     return 1
 
 
-def require_shrimp_1():
+def can_execute(command):
     try:
-        text = subprocess.Popen(['rmapper-ls'], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[1]
+        text = subprocess.Popen([command], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[1]
     except OSError:
+        return False
+    return True
+
+def require_shrimp_1():
+    if not can_execute('rmapper-ls'):
         raise Error("Couldn't run 'rmapper-ls'. SHRiMP 1 not installed?")
 
 def get_shrimp_2_version():
@@ -276,15 +281,11 @@ def require_shrimp_2():
         raise Error("SHRiMP version 2.1 or higher required")
 
 def require_samtools():
-    try:
-        text = subprocess.Popen(['samtools'], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[1]
-    except OSError:
+    if not can_execute('samtools'):
         raise Error("Couldn't run 'samtools'. Not installed?")
 
 def require_sff2fastq():
-    try:
-        text = subprocess.Popen(['sff2fastq'], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[1]
-    except OSError:
+    if not can_execute('sff2fastq'):
         raise Error("Couldn't run 'sff2fastq'. Not installed?")
 
 
