@@ -189,13 +189,13 @@ class IGV_plots(config.Action_with_prefix):
 
     def find_maximum_depth(self):
         grace.status('Finding maximum depth')        
-        if self.strand_specific:
-            iterator = legion.interleave([
-                self.iter_over(lambda item: item.ambiguous_depths[0], zeros=False),
-                self.iter_over(lambda item: item.ambiguous_depths[1], zeros=False),
-            ])
-        else:
-            iterator = self.iter_over_unstranded(lambda item: item.ambiguous_depths, zeros=False)
+        #if self.strand_specific:
+        #    iterator = itertools.chain(
+        #        self.iter_over(lambda item: item.ambiguous_depths[0], zeros=False),
+        #        self.iter_over(lambda item: item.ambiguous_depths[1], zeros=False),
+        #    )
+        #else:
+        #    iterator = self.iter_over_unstranded(lambda item: item.ambiguous_depths, zeros=False)
 
         maximum = 1
         norm_maximum = 1.0

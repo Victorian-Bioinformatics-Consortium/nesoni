@@ -71,12 +71,14 @@ STRAND_CHANGE = {
     '(Applied after shifting the feature.)'
     )
 @config.String_flag('type', 'Output feature type.\nDefault: retain existing type.')
+@config.String_flag('rename', 'Rename attributes. Comma separated list of newname=oldname.')
 @config.String_flag('select', 'What types of annotation to use (selection expression).')
 @config.Main_section('filenames', 'Annotation files.',empty_is_ok=False)
 class Modify_features(config.Action_with_prefix):
     type = None
     shift_start = '0'
     shift_end = '0'
+    rename = ''
     change_strand = 'no'
     select = 'all'
     filenames = [ ]
@@ -87,6 +89,13 @@ class Modify_features(config.Action_with_prefix):
         
         shift_start_absolute, shift_start_proportion = decode_shift(self.shift_start)
         shift_end_absolute, shift_end_proportion = decode_shift(self.shift_end)
+        
+        renames = [ ]
+        if self.rename:
+            for item in self.rename.split(','):
+                new, old = item.split('=')
+                if new != old:
+                    renames.append((new,old))
     
         out_file = open(self.prefix+'.gff','wb')    
         annotation.write_gff3_header(out_file)
@@ -94,6 +103,9 @@ class Modify_features(config.Action_with_prefix):
         for filename in self.filenames:
             for item in annotation.read_annotations(filename):
                 if not selection.matches(self.select, [item.type]): continue
+                
+                if self.type:
+                    item.type = self.type
                 
                 length = item.end-item.start
                 shift_start = int(math.floor(0.5+shift_start_absolute+shift_start_proportion*length))
@@ -107,6 +119,14 @@ class Modify_features(config.Action_with_prefix):
                     item.start -= shift_end
                 
                 item.strand = strand_changer[item.strand]
+                
+                old_attr = item.attr.copy()
+                for new,old in renames:
+                    if old in item.attr:
+                       del item.attr[old]
+                for new,old in renames:
+                    if old in old_attr:
+                       item.attr[new] = old_attr[old]
             
                 print >> out_file, item.as_gff()
 

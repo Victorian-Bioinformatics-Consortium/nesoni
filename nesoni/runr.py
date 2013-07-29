@@ -92,9 +92,11 @@ class R_action(config.Action):
 @config.help("""\
 Plot a grid of sample-sample scatter plots.
 """)
+@config.String_flag('spike_in', 'Comma separated list of spike-in control "genes".')
 @config.Positional('counts', 'Output from "count:"')
 class Plot_counts(config.Action_with_prefix, R_action):
     counts = None
+    spike_in = ''
 
     script = r"""
     library(nesoni)
@@ -105,6 +107,12 @@ class Plot_counts(config.Action_with_prefix, R_action):
     pngname <- sprintf('%s-count.png', prefix)
     png(pngname, width=n*300, height=n*300 )
     
+    if (nchar(spike_in) == 0) {
+        spikes = c()
+    } else {
+        spikes = strsplit(spike_in,',')[[1]]
+    }
+    
     not_first <- FALSE
     for(i in 1:n) {
         for(j in 1:n) {
@@ -113,6 +121,12 @@ class Plot_counts(config.Action_with_prefix, R_action):
                 plot(counts[,i], counts[,j], 
                      log='xy', pch=19, pty='s',
                      xlab=colnames(counts)[i], ylab=colnames(counts)[j])
+                
+                if (length(spikes)) {
+                    points(counts[spikes,i], counts[spikes,j], 
+                           pch=19, pty='s', col='red')
+                }
+                
                 not_first <- TRUE
             }
         }

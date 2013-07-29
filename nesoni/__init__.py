@@ -17,6 +17,7 @@ from fisher_diff import Fisher
 from core import Core
 from samcount import Count, Merge_counts
 from runr import Test_counts, Plot_counts, Test_power, Heatmap, Compare_tests, Norm_from_counts, NMF
+from normalize import Norm_from_samples
 from trivia import Test, As_fasta, As_gff, Sample, Stats
 from shred import Shred
 from igv import Make_genome, IGV_plots, As_userplots, Run_igv
@@ -101,9 +102,6 @@ These provide an alternative to consensus calling using "nesoni consensus:"
     fisher:       - Compare results of two runs of nesoni consensus using
                     Fisher's Exact Test for each site in the reference.
 
-    normalize:    - Create normalized Artemis depth plots.
-                    See also "igv-plots:".
-
     core:         - Infer core genome present in a set of strains.
 
     (consequences: 
@@ -126,7 +124,10 @@ These provide an alternative to consensus calling using "nesoni consensus:"
     plot-counts:  - Plot counts against each other.
     
     norm-from-counts:
-                  - Calculate normalizing multipliers from counts.
+                  - Calculate normalizing multipliers from counts using TMM.
+    
+    norm-from-samples:
+                  - Calculate normalizing multipliers from working directories.
     
     heatmap:      - Draw a heat map of counts.
     

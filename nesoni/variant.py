@@ -129,7 +129,7 @@ class Freebayes(config.Action_with_prefix):
     ploidy = 4
     pvar = 0.9
     samples = [ ]
-    freebayes_options = [ '--min-alternate-total', '2' ]
+    freebayes_options = [ '--min-alternate-total', '2', '--genotype-qualities' ]
 
     def run(self):
         bams = [ ]

@@ -1,5 +1,7 @@
 
-0.108 -
+0.108 - Added "norm-from-samples:".
+        Use flag "--genotype-qualities" in "freebayes:", so that there's a GQ to overwrite in "vcf-filter:" (ugh).
+        Fix test-analyse-samples.py test script, now up to date with nesoni and changed Entrez behaviour.
 
 0.107 - New flag type yes/ifavailable/no,
           this will allow more features to be on by default, especially in pipelines.

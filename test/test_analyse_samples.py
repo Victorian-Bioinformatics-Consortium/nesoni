@@ -29,7 +29,8 @@ class Fetch_genbank(config.Action_with_output_dir):
         
         Entrez.email = self.email
 
-        handle=Entrez.efetch(db='nucleotide',id=acc,rettype='gb')
+        #handle=Entrez.efetch(db='nucleotide',id=acc,rettype='gb')
+        handle=Entrez.efetch(db='nuccore',id=acc,rettype='gbwithparts')
         with open(work/(acc+'.gbk'),'wb') as f:
             f.write(handle.read())
         handle.close()
@@ -46,14 +47,15 @@ class Fetch_sra(config.Action_with_output_dir):
         acc = self.run_accession
         io.execute(
             'wget -c URL',
-            URL='http://ftp-private.ncbi.nlm.nih.gov/sra/sra-instant/reads/ByRun/sra/%s/%s/%s/%s.sra'
+            #URL='http://ftp-private.ncbi.nlm.nih.gov/sra/sra-instant/reads/ByRun/sra/%s/%s/%s/%s.sra'
+            URL='http://ftp-trace.ncbi.nlm.nih.gov/sra/sra-instant/reads/ByRun/sra/%s/%s/%s/%s.sra'
                 % (acc[:3],acc[:6],acc,acc),
             cwd=work.working_dir,
             )
         
         io.execute(
             'fastq-dump --split-files --bzip2 FILENAME',
-            FILENAME=acc+'.sra',
+            FILENAME='./'+acc+'.sra',
             cwd=work.working_dir,
             )
 
@@ -91,7 +93,7 @@ class Test_analyse_samples(config.Action_with_output_dir):
         analyser(
             work/'analysis',
             work/'TW20',
-            sample=[
+            samples=[
                 nesoni.Analyse_sample(
                     accession,
                     pairs=[[ work/('sra',accession+'_1.fastq.bz2'),work/('sra',accession+'_2.fastq.bz2') ]]
