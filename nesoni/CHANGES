@@ -1,5 +1,6 @@
 
-0.109 - Guessing of quality offset now copes with empty files.
+0.109 - Empty sequence files are now acceptable as sequence files that must have qualities.
+        Guessing of quality offset now copes with empty files.
 
 0.108 - Added "norm-from-samples:".
         Use flag "--genotype-qualities" in "freebayes:", so that there's a GQ to overwrite in "vcf-filter:" (ugh).

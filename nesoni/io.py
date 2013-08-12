@@ -516,6 +516,7 @@ def read_sequences(filename, qualities=False, genbank_callback=None):
     have_qualities = False
     
     if 'type-empty' in info:
+        have_qualities = True
         result = read_empty(parts[0])
     elif 'type-fasta' in info:
         result = read_fasta(parts[0])
