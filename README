@@ -41,7 +41,7 @@ External programs:
   * samtools
 * Required for VCF based variant calling:
   * Picard [2]
-  * Freebayes
+  * Freebayes (9.9.2 or higher)
 * Optional for VCF based variant calling:
   * SplitsTree4
 

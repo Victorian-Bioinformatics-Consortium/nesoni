@@ -1,4 +1,6 @@
 
+0.109 - Guessing of quality offset now copes with empty files.
+
 0.108 - Added "norm-from-samples:".
         Use flag "--genotype-qualities" in "freebayes:", so that there's a GQ to overwrite in "vcf-filter:" (ugh).
         Fix test-analyse-samples.py test script, now up to date with nesoni and changed Entrez behaviour.

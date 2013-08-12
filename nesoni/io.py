@@ -574,18 +574,23 @@ def is_colorspace(filename):
     raise grace.Error('Couldn\'t determine if sequence file is colorspace: '+filename)
 
 
-def guess_quality_offset(filename):
+def guess_quality_offset(*filenames):
     grace.status('Guessing quality offset')
     try:
         min_value = chr(255)
         #max_value = chr(0)
-        for i, item in enumerate(read_sequences(filename, qualities=True)):
-            if len(item) == 2: return 33 #Not fastq
-            
-            min_value = min(min_value, min(item[2]))
-            #max_value = max(max_value, max(item[2]))
-            
-            if i >= 100000: break
+        any_reads = False
+        for filename in filenames:
+            for i, item in enumerate(read_sequences(filename, qualities=True)):
+                if i > 100000: break
+                if len(item) == 2: continue
+                
+                any_reads = True
+                min_value = min(min_value, min(item[2]))
+                #max_value = max(max_value, max(item[2]))
+
+        if not any_reads: 
+            return 33
         
         low = ord(min_value)
         #high = ord(max_value)

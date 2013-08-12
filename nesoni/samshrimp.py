@@ -164,11 +164,12 @@ class Shrimp(config.Action_with_output_dir):
                 reads_parameters = [ '-1', filenames[0], '-2', filenames[1] ]
             
             if '--qv-offset' not in self.shrimp_options:
-                guesses = [ ]
-                for filename in filenames:
-                    guesses.append(io.guess_quality_offset(filename))
-                assert len(set(guesses)) == 1, 'Conflicting quality offset guesses, please specify --qv-offset manually.'
-                default_options['--qv-offset'] = str(guesses[0])
+                #guesses = [ ]
+                #for filename in filenames:
+                #    guesses.append(io.guess_quality_offset(filename))
+                #assert len(set(guesses)) == 1, 'Conflicting quality offset guesses, please specify --qv-offset manually.'
+                #default_options['--qv-offset'] = str(guesses[0])
+                default_options['--qv-offset'] = str( io.guess_quality_offset(*filenames) )
                 
             default_options['--read-group'] = '%s,%s' % (
                 workspace.name.replace(',','_'),

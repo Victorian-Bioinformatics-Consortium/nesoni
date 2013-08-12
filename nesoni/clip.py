@@ -392,9 +392,10 @@ class Clip(config.Action_with_prefix):
         io.check_name_uniqueness(self.reads, self.pairs, self.interleaved)
     
         if qoffset is None:
-            guesses = [ io.guess_quality_offset(filename) for filename in filenames ]
-            assert len(set(guesses)) == 1, 'Conflicting quality offset guesses, please specify manually.'
-            qoffset = guesses[0]
+            #guesses = [ io.guess_quality_offset(filename) for filename in filenames ]
+            #assert len(set(guesses)) == 1, 'Conflicting quality offset guesses, please specify manually.'
+            #qoffset = guesses[0]
+            qoffset = io.guess_quality_offset(*filenames)
             log.log('FASTQ offset seems to be %d\n' % qoffset)    
     
         quality_cutoff_char = chr(qoffset + quality_cutoff)
