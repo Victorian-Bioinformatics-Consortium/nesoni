@@ -167,7 +167,7 @@ class Reporter(object):
         if table:
             table = mine_logs(logs, filter, commas=True)
             
-            self.write('<table>\n')
+            self.write('<table style="font-size: 50%">\n')
             self.write('<tr>\n')
             for key in table[0].keys():
                 self.write('<th>'+key+'</th>')
@@ -189,15 +189,35 @@ class Reporter(object):
         )
     
     def report_test(self, action):
-        self.p(
-            self.get(action.prefix + '-heatmap.png', image=True, title='[heatmap]') +
-            (' &sdot; ' + self.get(action.prefix+'.png', image=True,title='[MA-plot]')
-                if os.path.exists(action.prefix+'.png') else '') +
-            ' &sdot; ' +
-            self.get(action.prefix + '.csv') +
-            ' &sdot; ' +
-            self.get(action.prefix+'-info.txt', title='[info]')
-        )
+        prefix = os.path.basename(action.prefix)
+        image = self.get(action.prefix + '-heatmap.png', image=True, title='')
+        sig_csv = self.get(action.prefix + '.csv', title='[DE genes table]')
+        all_csv = self.get(action.prefix + '-all.csv', title='[All genes table]')
+        maybe_maplot = (
+            (' &sdot; ' + self.get(action.prefix+'.png', image=True,title='[MA-plot]'))
+            if os.path.exists(action.prefix+'.png') else ''
+            )
+        info = self.get(action.prefix + '-info.txt', title='[Info]')        
+        
+        text = (
+            '<table><tr>\n'
+            '<td valign="top">%(image)s</td>\n'
+            '<td valign="top"><b>%(prefix)s</b>\n'
+            '<br/>%(sig_csv)s &sdot; %(all_csv)s &sdot; %(info)s %(maybe_maplot)s\n'
+            '</tr></table>'
+            ) % locals()
+        
+        self.write(text)
+        
+        #self.p(
+        #    self.get(action.prefix + '-heatmap.png', image=True, title='[heatmap]') +
+        #    (' &sdot; ' + self.get(action.prefix+'.png', image=True,title='[MA-plot]')
+        #        if os.path.exists(action.prefix+'.png') else '') +
+        #    ' &sdot; ' +
+        #    self.get(action.prefix + '.csv') +
+        #    ' &sdot; ' +
+        #    self.get(action.prefix+'-info.txt', title='[info]')
+        #)
 
 
 

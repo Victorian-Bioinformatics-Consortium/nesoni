@@ -365,10 +365,11 @@ describe <- function(vec) {
     vec <- vec[!is.nan(vec)]
     
     sprintf(
-         "mean %.2f  sd %.2f  min %.2f  max %.2f",
+         "mean %.2f  sd %.2f  min %.2f  median %.2f  max %.2f",
          mean(vec),
          sd(vec),
          min(vec),
+         median(vec),
          max(vec)
     );
 }
@@ -417,17 +418,26 @@ do.heatmap <- function(heatmap.features, heatmap.data, heatmap.labels, heatmap.v
 }           
 
 
-#data <- read.delim(FILENAME, check.names=FALSE)
-#rownames(data) <- data$Feature
-#
-#counts <- data[,2:(N_ALL_SAMPLES+1), drop=FALSE]
-#
-#counts <- counts[,KEEP, drop=FALSE]
-#
-#good   <- (rowSums(counts) >= MIN_COUNT)
-#
-#data   <- data[good,, drop=FALSE]
-#counts <- counts[good,, drop=FALSE]
+get.significant <- function(result) {
+    significant <- rep(TRUE, nrow(result))
+    if (LOG_FOLD_CUTOFF > 0.0) {
+        for(i in basic.seq(N_TO_TEST)) {
+            significant <- significant & (abs(result[,DESIGN_COLUMNS[i]]) >= LOG_FOLD_CUTOFF)
+        }
+    }
+    
+    significant <- significant & (result$FDR <= FDR_CUTOFF)
+    significant
+}
+
+describe.significant <- function() {
+    desc <- sprintf('a False Discovery Rate of %g', FDR_CUTOFF)
+    if (LOG_FOLD_CUTOFF > 0.0) {
+        desc <- sprintf('%s and an absolute log2 fold change of at least %g', desc, LOG_FOLD_CUTOFF)
+    }
+    desc
+}
+
 
 library(nesoni)
 dgelist <- read.counts(FILENAME, min.total=MIN_COUNT, keep=KEEP, norm.file=NORM_FILE)
@@ -479,13 +489,17 @@ if (nrow(dgelist$counts) == 0) {
     fit <- glmFit(d, design=design, dispersion=dispersion)
     
     cat('glmLRT\n')
-    if (USE_CONTRAST) {
-        contrast <- CONTRAST_WEIGHTS
-        print(contrast)
-        lrt <- glmLRT(d, fit, contrast=contrast)
-    } else {
-        lrt <- glmLRT(d, fit, coef=1:N_TO_TEST)
-    }
+    #if (USE_CONTRAST) {
+    #    contrast <- CONTRAST_WEIGHTS
+    #    print(contrast)
+    #    lrt <- glmLRT(d, fit, contrast=contrast)
+    #} else {
+    
+    #API changed in edgeR
+    # lrt <- glmLRT(d, fit, coef=1:N_TO_TEST)
+    lrt <- glmLRT(fit, coef=1:N_TO_TEST)
+    
+    #}
     
     # Construct result frame
     result <- data.frame(
@@ -496,13 +510,14 @@ if (nrow(dgelist$counts) == 0) {
     # 10/9/2012: logConc changed to logCPM (concentration per million?)
     result$"log2 average per million" <- lrt$table$logCPM
 
-    if (USE_CONTRAST) {
-        result$"log2 contrast" <- lrt$table$logFC
-    }
+    #if (USE_CONTRAST) {
+    #    result$"log2 contrast" <- lrt$table$logFC
+    #}
     
     for(i in 1:N_TO_TEST) {
-        result[, colnames(design)[i]] <- lrt$coefficients.full[,i] 
+        result[, colnames(design)[i]] <- lrt$coefficients[,i] 
         #10/9/2012: Coefficients full now appears to be in log2
+        #26/9/2013: Renamed coefficients.full -> coefficients
     }
                     
     #result$p <- lrt$table$p.value
@@ -526,14 +541,10 @@ if (nrow(dgelist$counts) == 0) {
     result <- result[ reordering,, drop=FALSE]
     rcounts <- dgelist$counts[ reordering,, drop=FALSE]
     
-    significant <- (result$FDR <= FDR_CUTOFF)
+    #significant <- (result$FDR <= FDR_CUTOFF)
+    significant <- get.significant(result)
         
-    if (OUTPUT_ALL) {
-        results_to_output <- result
-    } else {
-        results_to_output <- result[significant, ]
-    }
-
+    results_to_output <- result
     if (OUTPUT_COUNTS) {
         # Add raw counts
         results_to_output <- cbind(results_to_output, dgelist$counts[rownames(results_to_output),])
@@ -541,75 +552,85 @@ if (nrow(dgelist$counts) == 0) {
 
     blank <- mapply(function(i){ all(is.na(results_to_output[,i])) }, 1:ncol(results_to_output))
 
-    #write.table(results_to_output[,!blank], OUTPUT_FILENAME, sep='\t', na='', quote=FALSE, row.names=FALSE)
-
-    sink(OUTPUT_FILENAME)
+    sink(OUTPUT_FILENAME_ALL)
     write.csv(results_to_output[,!blank,drop=FALSE], na='', row.names=FALSE)
     sink()
+
+    sink(OUTPUT_FILENAME_SIGNIFICANT)
+    write.csv(results_to_output[significant,!blank,drop=FALSE], na='', row.names=FALSE)
+    sink()
     
-    if (USE_CONTRAST) {
-        pngname = sprintf('%s.png', OUTPUT_PLOT)
-        png(pngname, width=800, height=800 )
+    #if (USE_CONTRAST) {
+    #    pngname = sprintf('%s.png', OUTPUT_PLOT)
+    #    png(pngname, width=800, height=800 )
+    #
+    #    sane <- abs(result[,'log2 contrast']) < 1000.0
+    #
+    #    plot(result[sane,"log2 average per million"], 
+    #         result[sane,"log2 contrast"],
+    #         xlab="log2 average per million",
+    #         ylab="log2 contrast",
+    #         main='Contrast',
+    #         pch=19, cex=0.25) 
+    #    points(result[significant & sane,"log2 average per million"],
+    #           result[significant & sane,"log2 contrast"],
+    #           pch=19, cex=1.0,
+    #           col="red")
+    #    dev.off()
+    #} else {
 
-        sane <- abs(result[,'log2 contrast']) < 1000.0
-
-        plot(result[sane,"log2 average per million"], 
-             result[sane,"log2 contrast"],
-             xlab="log2 average per million",
-             ylab="log2 contrast",
-             main='Contrast',
-             pch=19, cex=0.25) 
-        points(result[significant & sane,"log2 average per million"],
-               result[significant & sane,"log2 contrast"],
-               pch=19, cex=1.0,
-               col="red")
-        dev.off()
-    } else {
-        if (N_TO_TEST == 1) # <-- Plots don't seem useful for ANOVA
-            for(i in 1:N_TO_TEST) {
-                if (N_TO_TEST == 1) {
-                    pngname = sprintf('%s.png', OUTPUT_PLOT)
-                } else {
-                    pngname = sprintf('%s-%s.png', OUTPUT_PLOT, TERM_NAMES[i]) 
-                }
-                
-                sane <- abs(result[,colnames(design)[i]]) < 1000.0
-            
-                png(pngname, width=800, height=800 )
-                plot(result[sane,"log2 average per million"], 
-                     result[sane,colnames(design)[i]],
-                     xlab="log2 average per million",
-                     ylab="log2 fold change",
-                     main=TERM_NAMES[i],
-                     pch=19, cex=0.25)
-                     
-                points(result[significant & sane,"log2 average per million"],
-                       result[significant & sane,colnames(design)[i]],
-                       pch=19, cex=1.0,
-                       col="red")
-            
-                #points((result$"log2 average per million"),
-                #       sqrt( dispersion[reordering] ),
-                #       pch=19,
-                #       col="blue")
-                
-                dev.off()
+    if (N_TO_TEST == 1) # <-- Plots don't seem useful for ANOVA
+        for(i in 1:N_TO_TEST) {
+            if (N_TO_TEST == 1) {
+                pngname = sprintf('%s.png', OUTPUT_PLOT)
+            } else {
+                pngname = sprintf('%s-%s.png', OUTPUT_PLOT, TERM_NAMES[i]) 
             }
-    }
-    
+            
+            sane <- abs(result[,colnames(design)[i]]) < 1000.0
+        
+            png(pngname, width=800, height=800 )
+            plot(result[sane,"log2 average per million"], 
+                 result[sane,colnames(design)[i]],
+                 xlab="log2 average per million",
+                 ylab="log2 fold change",
+                 main=TERM_NAMES[i],
+                 pch=19, cex=0.25)
+                 
+            points(result[significant & sane,"log2 average per million"],
+                   result[significant & sane,colnames(design)[i]],
+                   pch=19, cex=1.0,
+                   col="red")
+        
+            #points((result$"log2 average per million"),
+            #       sqrt( dispersion[reordering] ),
+            #       pch=19,
+            #       col="blue")
+            
+            dev.off()
+        }
+
+    #}
     
     heatmap.features <- rev(as.character(result$Feature[significant]))
     heatmap.data <- glog2.rpm.counts(dgelist, GLOG_MODERATION)$E[heatmap.features,,drop=FALSE]
        #voom(dgelist)$E[heatmap.features,,drop=FALSE]
     heatmap.labels <- list(heatmap.features)
     heatmap.values <- result[heatmap.features,colnames(design)[1:N_TO_TEST],drop=FALSE]    
-    for(i in basic.seq(ncol(heatmap.values))) {
-        heatmap.values[ heatmap.values[,i] < -10.0, i ] <- -10.0
-        heatmap.values[ heatmap.values[,i] > 10.0, i ] <- 10.0
-    }
+    
+    #if (nrow(heatmap.values) > 0) { #Hnnggrrrakkkaahnaaarrrrg flrup
+    #    for(i in basic.seq(ncol(heatmap.values))) {
+    #        heatmap.values[ heatmap.values[,i] < -10.0, i ] <- -10.0
+    #        heatmap.values[ heatmap.values[,i] > 10.0, i ] <- 10.0
+    #    }
+    #}
     
     for(i in basic.seq(ncol(dgelist$genes)-1)+1) {
-        heatmap.labels[[i]] <- dgelist$genes[heatmap.features,i]
+        if ( colnames(dgelist$genes)[i] != "Length" &&
+             colnames(dgelist$genes)[i] != "Total reads" &&
+             colnames(dgelist$genes)[i] != "On same fragment" &&
+             colnames(dgelist$genes)[i] != "Ambiguous alignment" )
+            heatmap.labels[[length(heatmap.labels)+1]] <- dgelist$genes[heatmap.features,i]
     }
     do.heatmap(heatmap.features,heatmap.data,heatmap.labels,heatmap.values)
     
@@ -632,8 +653,8 @@ if (nrow(dgelist$counts) == 0) {
         cat(dispersion, '\n')
     }
     
-    cat('\n\nWith a False Discovery Rate of', FDR_CUTOFF, '\n')
-    cat('\n',sum(significant), 'significantly differentially expressed tags\n')
+    cat('\n\nWith', describe.significant(), '\n')
+    cat('\n',sum(significant), 'genes called as differentially expressed\n')
     
     #if (N_TO_TEST == 1) {
     #    cat(sum(result[significant,colnames(design)[1]] > 0.0), 'up\n')
@@ -692,27 +713,32 @@ if (MODE == 'glog' || MODE == 'nullglog') {
 }
 
 fit <- lmFit(y, design)
-if (USE_CONTRAST) {
-    fit <- contrasts.fit(fit, CONTRAST_WEIGHTS)
-    coef <- data.frame('log2 contrast' = fit$coefficients[,1], check.names=FALSE)
-} else {
-    coef <- fit$coefficients[,1:N_TO_TEST, drop=FALSE]
-}
+
+#if (USE_CONTRAST) {
+#    fit <- contrasts.fit(fit, CONTRAST_WEIGHTS)
+#    coef <- data.frame('log2 contrast' = fit$coefficients[,1], check.names=FALSE)
+#} else {
+
+coef <- fit$coefficients[,1:N_TO_TEST, drop=FALSE]
+
+#}
 
 if (MODE != 'nullvoom' && MODE != 'nullglog') {
     fit <- eBayes(fit)
     
-    if (USE_CONTRAST) {
-        top <- topTable(fit, coef=1, sort.by='none', confint=TRUE, number=Inf)
-    } else {    
-        top <- topTable(fit, coef=1:N_TO_TEST, sort.by='none', confint=N_TO_TEST==1, number=Inf)
-    }
+    #if (USE_CONTRAST) {
+    #    top <- topTable(fit, coef=1, sort.by='none', confint=TRUE, number=Inf)
+    #} else {    
+    
+    top <- topTable(fit, coef=1:N_TO_TEST, sort.by='none', confint=N_TO_TEST==1, number=Inf)
+    
+    #}
      
     ordering <- order(top$P.Value)
     p <- top$P.Value
 
 } else {
-    stopifnot(!USE_CONTRAST) #Not supported.
+    #stopifnot(!USE_CONTRAST) #Not supported.
 
     fit <- lmFit(y, null.design)
     fit <- eBayes(fit)
@@ -776,31 +802,17 @@ result$p <- p
 
 result$FDR <- p.adjust(p, method='BH')
 
-#for(i in (N_ALL_SAMPLES*2+2):ncol(data)) {
-#    result[,colnames(data)[i]] = data[,i]
-#}
 for(i in basic.seq(ncol(y$genes))) {
     result[,colnames(y$genes)[i]] <- y$genes[,i]
 }
 
-#for(i in basic.seq(ncol(y$E))) {
-#    result[,sprintf('%s %s', colnames(y$E)[i], MODE)] <- y$E[,i]
-#}
-
-#for(i in 2:(N_ALL_SAMPLES*2+1)) {
-#    result[,colnames(data)[i]] = data[,i]
-#}
-
 #------------------------------------------------------
 result <- result[ordering,]
 
-significant <- (result$FDR <= FDR_CUTOFF)
-    
-if (OUTPUT_ALL) {
-    results_to_output <- result
-} else {
-    results_to_output <- result[significant,]
-}
+#significant <- (result$FDR <= FDR_CUTOFF)
+significant <- get.significant(result)
+
+results_to_output <- result
 
 if (OUTPUT_COUNTS) {
     # Add raw counts
@@ -809,10 +821,14 @@ if (OUTPUT_COUNTS) {
 
 blank <- mapply(function(i){ all(is.na(results_to_output[,i])) }, 1:ncol(results_to_output))
 
-#write.table(results_to_output[,!blank,drop=FALSE], OUTPUT_FILENAME, sep='\t', na='', quote=FALSE, row.names=FALSE)
-sink(OUTPUT_FILENAME)
+sink(OUTPUT_FILENAME_ALL)
 write.csv(results_to_output[,!blank,drop=FALSE], na='', row.names=FALSE)
 sink()
+
+sink(OUTPUT_FILENAME_SIGNIFICANT)
+write.csv(results_to_output[significant,!blank,drop=FALSE], na='', row.names=FALSE)
+sink()
+
 
 if (ncol(coef) == 1) { # <-- Plots don't seem useful for ANOVA
     i <- 1    
@@ -858,7 +874,11 @@ heatmap.data <- y$E[heatmap.features,,drop=FALSE]
 heatmap.labels <- list(heatmap.features)
 heatmap.values <- result[heatmap.features,colnames(coef),drop=FALSE]
 for(i in basic.seq(ncol(y$genes)-1)+1) {
-    heatmap.labels[[i+1]] <- y$genes[heatmap.features,i]
+    if ( colnames(y$genes)[i] != "Length" &&
+         colnames(y$genes)[i] != "Total reads" &&
+         colnames(y$genes)[i] != "On same fragment" &&
+         colnames(y$genes)[i] != "Ambiguous alignment" )
+        heatmap.labels[[length(heatmap.labels)+1]] <- y$genes[heatmap.features,i]
 }
 do.heatmap(heatmap.features,heatmap.data,heatmap.labels,heatmap.values)
 
@@ -882,8 +902,8 @@ cat('Kept', nrow(dgelist$counts), 'features\n')
 cat(fit$df.prior, 'prior df (the prior is like this many extra samples)\n')
 #}
 
-cat('With a False Discovery Rate of', FDR_CUTOFF, 'there are\n')
-cat(sum(significant), 'significantly differentially expressed tags\n\n')
+cat('\nWith', describe.significant(), '\n\n')
+cat(' ', sum(significant), 'genes called as differentially expressed\n\n')
 
 cat("Limma's convest function estimates that the true number of tags\n")
 cat("which are differentially expressed is around", (1.0-convest(p)) * length(p), "\n\n")
@@ -963,10 +983,12 @@ analyse <- function(significant,direction,length,categories) {
 }
 
 
-data <- read.grouped.table(INPUT_FILENAME)$All
+data <- read.grouped.table(INPUT_FILENAME_ALL)$All
+data.significant <- read.grouped.table(INPUT_FILENAME_SIGNIFICANT)$All
 categories <- read.csv(CATEGORY_FILENAME)
 
-significant <- data$FDR <= FDR_CUTOFF
+#significant <- data$FDR <= FDR_CUTOFF
+significant <- rownames(data) %in% rownames(data.significant)
 
 if (substr(colnames(data)[2],1,5) == 'log2 ' && substr(colnames(data)[3],1,5) != 'log2 ') {
     direction <- sign(data[,2])
@@ -990,16 +1012,6 @@ analyse(significant,direction,length,categories)
 """
 
 
-
-
-#cat('estimateCRDisp\n')
-#d <- estimateCRDisp(d, design=design, tagwise=%(tagwise_literal)s, prior.n=%(prior_n)f, trend=%(trend_literal)s)
-#
-#if (%(tagwise_literal)s) {
-#    dispersion <- d$CR.tagwise.dispersion
-#} else {
-#    dispersion <- d$CR.common.dispersion
-#}
 
 def term_specification(term):
     if '=' not in term: return term
@@ -1029,9 +1041,6 @@ experimental
 Hypothesis 0 is that all samples have the same log expression level. \
 Hypothesis 1 is that the control samples have a baseline log expression level, \
 and the experimental samples have that baseline plus a further amount.
-
-control experimental contrast: -1 1 --constant-term no
-- This is a different way to perform the same test.
 
 
 Example 2: Say we have two strains, "strain1" and "strain2" and two time points "time1" and "time2". \
@@ -1077,15 +1086,17 @@ This is an ANOVA style test that is potentially more sensitive than comparing ea
     )
 @config.String_flag('select', 'Selection expression. Which samples to use.')
 @config.Int_flag('min_count', 'Discard features with less than this total count.')
-@config.Float_flag('fdr', 'False Discovery Rate cutoff for statistics and plots.')
-@config.Bool_flag('output_all', 'List all genes in output, not just significant ones.')
+@config.Float_flag('fdr', 'False Discovery Rate cutoff.')
+@config.Float_flag('log_fold', 
+     'Absolute log2 fold change cutoff. '
+     'If there are several test terms, at least one must exceed the given fold change.')
 @config.Bool_flag('output_counts', 'Include raw read counts in output.')
 @config.Bool_flag('constant_term', 'Include a constant term in the model.')
 @config.String_flag('norm_file', 'Use normalization produced by "norm-from-counts:".')
 @config.Bool_flag('tell', 'Output R code instead of executing it.')
 @config.Positional('counts_file', 'The table of counts produced by "count:".')
 @config.Main_section('test', 'Terms to test.')
-@config.Float_section('contrast', 'Instead of doing an ANOVA on multiple terms, perform a contrast with the given weights.')
+#@config.Float_section('contrast', 'Instead of doing an ANOVA on multiple terms, perform a contrast with the given weights.')
 @config.Section('with_', 'Also include these terms in the model.')
 #@config.Section('use', 'Only use samples matching these regexes.')
 @config.Section('goseq', 
@@ -1104,266 +1115,163 @@ class Test_counts(config.Action_with_prefix):
     glog_moderation = 5.0
     quantile_norm = False
     fdr = 0.01
-    output_all = True
+    log_fold = 0.0
     output_counts = False
     tell = False
     counts_file = None
     norm_file = None
     
     test = [ ]
-    contrast = [ ]
+    #contrast = [ ]
     with_ = [ ]
     use = [ ] 
     goseq = [ ]
 
     def run(self):
-        test_counts_run(    
-            min_count=self.min_count, constant_term=self.constant_term, mode=self.mode, glog_moderation=self.glog_moderation,
-            quantile_norm=self.quantile_norm, fdr=self.fdr, output_all=self.output_all, 
-            only_tell=self.tell,
-            output_prefix=self.prefix, filename=self.counts_file, 
-            test_terms=self.test, with_terms=self.with_, contrast_weights=self.contrast, 
-            #use_terms=self.use,
-            select=self.select,
-            norm_file=self.norm_file,
-            goseq=self.goseq,
-            output_counts=self.output_counts,
-        )
-
-
-#def test_counts_main(args):
-#    #use_expr, args = grace.get_option_value(args, '--use', str, '')
-#    min_count, args = grace.get_option_value(args, '--min-count', int, 10)
-#    #tagwise, args = grace.get_option_value(args, '--tagwise', grace.as_bool, False)
-#    #trend, args = grace.get_option_value(args, '--trend', grace.as_bool, True)
-#    #prior_n, args = grace.get_option_value(args, '--prior', float, 0.0)
-#    constant_term, args = grace.get_option_value(args, '--constant-term', grace.as_bool, True)
-#    
-#    mode, args = grace.get_option_value(args, '--mode', str, 'voom')
-#    
-#    quantile_norm, args = grace.get_option_value(args, '--quantile-norm', grace.as_bool, False)
-#    
-#    fdr, args = grace.get_option_value(args, '--fdr', float, 0.01)
-#    output_all, args = grace.get_option_value(args, '--output-all', grace.as_bool, True)
-#    only_tell, args = grace.get_option_value(args, '--tell', grace.as_bool, False)
-#    
-#    if len(args) < 2:
-#        print >> sys.stderr, TEST_COUNTS_HELP
-#        
-#        for mode in ('voom', 'nullvoom', 'poisson', 'common', 'trend'):
-#            print >> sys.stderr, '='*20
-#            print >> sys.stderr, '--mode', mode
-#            print >> sys.stderr, MODE_HELP[mode]
-#        
-#        raise grace.Help_shown()
-#    
-#    output_prefix, filename, args = args[0], args[1], args[2:]
-#    
-#    test_terms = [ ]
-#    with_terms = [ ]
-#    contrast_weights = [ ]
-#    use_terms = [ ]
-#    def default(args):
-#        grace.expect_no_further_options(args)
-#        test_terms.extend(args)
-#    def with_(args):    
-#        grace.expect_no_further_options(args)
-#        with_terms.extend(args)
-#    def contrast(args):
-#        # -1 is not a flag... grace.expect_no_further_options(args)
-#        contrast_weights.extend([ float(item) for item in args ])
-#    def use(args):
-#        grace.expect_no_further_options(args)
-#        use_terms.extend(args)
-#    
-#    grace.execute(args, {'with': with_, 'contrast':contrast, 'use':use}, default)
-#
-#    test_counts_run(    
-#        min_count, constant_term, mode, quantile_norm, fdr, output_all, only_tell,
-#        output_prefix, filename, test_terms, with_terms, contrast_weights, use_terms,
-#        None
-#    )
-
-def test_counts_run(
-    min_count, constant_term, mode, glog_moderation, quantile_norm, fdr, output_all, only_tell,
-    output_prefix, filename, test_terms, with_terms, contrast_weights, 
-    #use_terms,
-    select,
-    norm_file,
-    goseq,
-    output_counts
-):
-    log = grace.Log()
-
-    assert mode in ('voom', 'glog', 'nullvoom', 'nullglog', 'poisson', 'common', 'trend')
+        min_count = self.min_count
+        constant_term = self.constant_term
+        mode = self.mode
+        glog_moderation = self.glog_moderation
+        quantile_norm = self.quantile_norm
+        fdr = self.fdr
+        log_fold = self.log_fold
+        only_tell = self.tell
+        output_prefix = self.prefix
+        filename = self.counts_file
+        test_terms = self.test
+        with_terms = self.with_
+        #contrast_weights = self.contrast
+        select = self.select
+        norm_file = self.norm_file
+        goseq = self.goseq
+        output_counts = self.output_counts
     
-    #if not use_terms:
-    #    use_terms = [''] #Default to all
+        log = grace.Log()
     
-    assert test_terms, 'No terms to test'
-    
-    use_contrast = bool(contrast_weights)
-    assert not use_contrast or len(contrast_weights) == len(test_terms), 'Need one contrast weight per term'
-    
-    all_terms = test_terms + with_terms 
-    if constant_term: all_terms += [ 'all' ]
-    n_to_test = len(test_terms)
-    
-    if use_contrast:
-        contrast_weights += [ 0.0 ] * (len(all_terms)-len(test_terms))
-    
-    #f = open(filename,'rb')
-    #header = f.readline()
-    #f.close()
-    #parts = header.rstrip('\n').split('\t')
-    #
-    #n_all_samples = parts.index('RPKM '+parts[1])-1    
-    #all_samples = parts[1:n_all_samples+1]
-    
-    #data = io.read_grouped_table(filename,{'Count':str,'Annotation':str})
-    #assert len(data['Count']), 'Count file is empty'    
-    #all_samples = data['Count'].values()[0].keys()
-    
-    reader = io.Table_reader(filename, 'Count')
-    reader.close()
-    all_samples = [ item for i, item in enumerate(reader.headings) if reader.groups[i] == 'Count' ]
-    tags = { }
-    for item in all_samples:
-        tags[item] = [ item ]
-    for line in reader.comments:
-        if line.startswith('#sampleTags='):
-            parts = line[len('#sampleTags='):].split(',')
-            tags[parts[0]] = parts
-    
-    n_all_samples = len(all_samples)
+        assert mode in ('voom', 'glog', 'nullvoom', 'nullglog', 'poisson', 'common', 'trend')
         
-    #keep = [ any( re.search(use_expr, item) for use_expr in use_terms ) for item in all_samples ]
-    keep = [ selection.matches(select, tags[item]) for item in all_samples ]
-    samples = [ all_samples[i] for i in xrange(n_all_samples) if keep[i] ]
-    n_samples = len(samples)
-    
-    assert n_samples, 'No samples selected'
-    assert n_samples > 1, 'Only one sample selected'
-    
-    model = [ ]
-    for term in all_terms:        
-        spec = term_specification(term)
-        model.append([ 1 if selection.matches(spec, tags[item]) else 0 for item in samples ])
-        #column = [ False ] * n_samples
-        #for expression in term_specification(term).split('^'):
-        #    for i in xrange(n_samples):
-        #        if re.search(expression, samples[i]):
-        #            column[i] = not column[i]
-        #model.append([ int(item) for item in column ])
-    model = zip(*model) #Transpose
-    
-    
+        assert test_terms, 'No terms to test'
         
-    log.log('Model matrix (terms being tested for significance shown in { }):\n')
-    for i in xrange(n_samples):
-        log.log('{ ')
-        j = 0
-        while True:
-            if j == n_to_test:
-                log.log('} ')
-            if j >= len(all_terms): 
-                break
-            log.log('%d ' % model[i][j])
-            j += 1
-        log.log(samples[i] + '\n')
-    log.log('\n')    
-    
-    
-    assert len(all_terms) <= n_all_samples, 'Can\'t have more linear model terms than samples.'
-    if mode not in ('poisson','nullvoom','nullglog'):
-        assert len(all_terms) < n_all_samples, (
-            'Can\'t have as many linear model terms as samples, within group variation can\'t be estimated. '
-            'I wouldn\'t recommend using --mode poisson or --mode nullvoom, '
-            'you should go and sequence some more samples.'
-        )
-    
-    
-    log.log('Analysis mode: %s\n%s\n'%(mode,MODE_HELP[mode]))
-    
-    log_filename = output_prefix + '-info.txt'
-    design_columns = [ 'log2 '+term_name(item) for item in all_terms ]
-    term_names = [ term_name(item) for item in all_terms ]
-
-    #filename_literal = R_literal(filename)
-    #mode_literal = R_literal(mode)
-    #quantile_norm_literal = R_literal(quantile_norm)
-    #keep_literal = R_literal(keep)
-    #output_filename_literal = R_literal(output_prefix + '.txt')
-    #log_filename_literal = R_literal(log_filename)
-    #output_plot_literal = R_literal(output_prefix)
-    #
-    #use_contrast_literal = R_literal(use_contrast)
-    #contrast_weights_literal = R_literal(contrast_weights)
-    #
-    ##tagwise_literal = R_literal(tagwise)
-    ##trend_literal = R_literal(trend)
-    #
-    #design_literal = 'matrix(%s, nrow=%d, byrow=TRUE)' % (
-    #    R_literal( sum(model, ()) ),
-    #    n_samples
-    #)
-    #
-    #design_columns_literal = R_literal(design_columns)
-    #terms_literal = R_literal(term_names)
-    
-    log.attach(open(log_filename,'wb'))
-    log.close()    
-    
-    if mode in ('voom', 'glog', 'nullvoom', 'nullglog'):
-        script = LIMMA
-    else:
-        script = EDGER
-    
-    if os.path.exists(output_prefix+'.png'):
-        os.unlink(output_prefix+'.png')
-    
-    run_script(
-        script,
+        #use_contrast = bool(contrast_weights)
+        #assert not use_contrast or len(contrast_weights) == len(test_terms), 'Need one contrast weight per term'
         
-        FILENAME = filename,
-        N_SAMPLES = n_samples,
-        N_ALL_SAMPLES = n_all_samples,
-        N_TO_TEST = n_to_test,
-        FDR_CUTOFF = fdr,
-        OUTPUT_ALL = output_all,
-        OUTPUT_COUNTS = output_counts,
-        MIN_COUNT = min_count,
-        MODE = mode,
-        GLOG_MODERATION = glog_moderation,
-        QUANTILE_NORM = quantile_norm,
-        KEEP = keep,
-        OUTPUT_FILENAME = output_prefix + '.csv',
-        LOG_FILENAME = log_filename,
-        OUTPUT_PLOT = output_prefix,
-        USE_CONTRAST = use_contrast,
-        CONTRAST_WEIGHTS = contrast_weights,
-        DESIGN = model,
-        DESIGN_COLUMNS = design_columns,
-        TERM_NAMES = term_names,
-        NORM_FILE = norm_file,
+        all_terms = test_terms + with_terms 
+        if constant_term: all_terms += [ 'all' ]
+        n_to_test = len(test_terms)
         
-        only_tell=only_tell
-        )
-    
-    for item in goseq:
-        run_script(
-            GOSEQ,
+        #if use_contrast:
+        #    contrast_weights += [ 0.0 ] * (len(all_terms)-len(test_terms))
+        
+        reader = io.Table_reader(filename, 'Count')
+        reader.close()
+        all_samples = [ item for i, item in enumerate(reader.headings) if reader.groups[i] == 'Count' ]
+        tags = { }
+        for item in all_samples:
+            tags[item] = [ item ]
+        for line in reader.comments:
+            if line.startswith('#sampleTags='):
+                parts = line[len('#sampleTags='):].split(',')
+                tags[parts[0]] = parts
+        
+        n_all_samples = len(all_samples)
             
-            INPUT_FILENAME= output_prefix + '.csv',
-            LOG_FILENAME = log_filename,
-            NAME = term_name(item),
-            CATEGORY_FILENAME = term_specification(item),
-            FDR_CUTOFF = fdr,
+        keep = [ selection.matches(select, tags[item]) for item in all_samples ]
+        samples = [ all_samples[i] for i in xrange(n_all_samples) if keep[i] ]
+        n_samples = len(samples)
         
+        assert n_samples, 'No samples selected'
+        assert n_samples > 1, 'Only one sample selected'
+        
+        model = [ ]
+        for term in all_terms:        
+            spec = term_specification(term)
+            model.append([ 1 if selection.matches(spec, tags[item]) else 0 for item in samples ])
+        model = zip(*model) #Transpose
+            
+        log.log('Model matrix (terms being tested for significance shown in { }):\n')
+        for i in xrange(n_samples):
+            log.log('{ ')
+            j = 0
+            while True:
+                if j == n_to_test:
+                    log.log('} ')
+                if j >= len(all_terms): 
+                    break
+                log.log('%d ' % model[i][j])
+                j += 1
+            log.log(samples[i] + '\n')
+        log.log('\n')    
+        
+        
+        assert len(all_terms) <= n_all_samples, 'Can\'t have more linear model terms than samples.'
+        if mode not in ('poisson','nullvoom','nullglog'):
+            assert len(all_terms) < n_all_samples, (
+                'Can\'t have as many linear model terms as samples, within group variation can\'t be estimated. '
+                'I wouldn\'t recommend using --mode poisson or --mode nullvoom, '
+                'you should go and sequence some more samples.'
+            )
+        
+        
+        log.log('Analysis mode: %s\n%s\n'%(mode,MODE_HELP[mode]))
+        
+        log_filename = output_prefix + '-info.txt'
+        design_columns = [ 'log2 '+term_name(item) for item in all_terms ]
+        term_names = [ term_name(item) for item in all_terms ]
+        
+        log.attach(open(log_filename,'wb'))
+        log.close()    
+        
+        if mode in ('voom', 'glog', 'nullvoom', 'nullglog'):
+            script = LIMMA
+        else:
+            script = EDGER
+        
+        if os.path.exists(output_prefix+'.png'):
+            os.unlink(output_prefix+'.png')
+        
+        run_script(
+            script,
+            
+            FILENAME = filename,
+            N_SAMPLES = n_samples,
+            N_ALL_SAMPLES = n_all_samples,
+            N_TO_TEST = n_to_test,
+            FDR_CUTOFF = fdr,
+            LOG_FOLD_CUTOFF = log_fold,
+            OUTPUT_COUNTS = output_counts,
+            MIN_COUNT = min_count,
+            MODE = mode,
+            GLOG_MODERATION = glog_moderation,
+            QUANTILE_NORM = quantile_norm,
+            KEEP = keep,
+            OUTPUT_FILENAME_ALL = output_prefix + '-all.csv',
+            OUTPUT_FILENAME_SIGNIFICANT = output_prefix + '.csv',
+            LOG_FILENAME = log_filename,
+            OUTPUT_PLOT = output_prefix,
+            #USE_CONTRAST = use_contrast,
+            #CONTRAST_WEIGHTS = contrast_weights,
+            DESIGN = model,
+            DESIGN_COLUMNS = design_columns,
+            TERM_NAMES = term_names,
+            NORM_FILE = norm_file,
+            
             only_tell=only_tell
             )
         
-    return fdr #test-power needs this
+        for item in goseq:
+            run_script(
+                GOSEQ,
+                
+                INPUT_FILENAME_ALL = output_prefix + '-all.csv',
+                INPUT_FILENAME_SIGNIFICANT = output_prefix + '.csv',
+                LOG_FILENAME = log_filename,
+                NAME = term_name(item),
+                CATEGORY_FILENAME = term_specification(item),
+                FDR_CUTOFF = fdr,
+            
+                only_tell=only_tell
+                )
+            
 
 
 #TEST_POWER_HELP = """\
@@ -1666,7 +1574,9 @@ You will need to use at least one of --min-sd, --min-span, or --min-svd.
 @config.String_flag('norm_file', 'Use normalization produced by "norm-from-counts:".')
 #@config.Bool_flag('quantile', 'Use quantile normalization.')
 @config.Positional('counts', 'File containing output from "nesoni count:"')
-@config.Section('order', 'Optionally, specify an order to show the columns in.')
+@config.String_flag('select', 'Selection expression (see main help text). Which samples to use.')
+@config.String_flag('sort', 'A sort expression to sort samples (see main help text).')
+#@config.Section('order', 'Optionally, specify an order to show the columns in.')
 class Heatmap(config.Action_with_prefix):
     glog_moderation = 5.0
     counts = None
@@ -1679,9 +1589,25 @@ class Heatmap(config.Action_with_prefix):
     reorder_columns = False
     norm_file = None
     #quantile = False
-    order = [ ]
+    select = 'all'
+    sort = ''
+    #order = [ ]
 
     def run(self):
+        reader = io.Table_reader(self.counts, 'Count')
+        reader.close()
+        all_samples = [ item for i, item in enumerate(reader.headings) if reader.groups[i] == 'Count' ]
+        tags = { }
+        for item in all_samples:
+            tags[item] = [ item ]
+        for line in reader.comments:
+            if line.startswith('#sampleTags='):
+                parts = line[len('#sampleTags='):].split(',')
+                tags[parts[0]] = parts
+            
+        samples = selection.select_and_sort(
+            self.select, self.sort, all_samples, lambda sample: tags[sample])
+
         run_script(HEATMAP_SCRIPT,
             PREFIX=self.prefix,
             GLOG_MODERATION=self.glog_moderation,
@@ -1695,7 +1621,7 @@ class Heatmap(config.Action_with_prefix):
             REORDER_COLUMNS=self.reorder_columns,
             NORM_FILE=self.norm_file,
             #QUANTILE=self.quantile,
-            ORDER=self.order,
+            ORDER=samples,
         )
 
 

@@ -28,10 +28,13 @@ class Reference(io.Workspace):
             any_genbank[0] = True
         
         lengths = [ ]
+        seen = set()
         f = open(reference_filename, 'wb')
         for filename in filenames:
             for name, seq in io.read_sequences(filename, genbank_callback=genbank_callback):
                 name = name.split()[0]
+                assert name not in seen, 'Duplicate chromosome name: ' + name
+                seen.add(name)
                 lengths.append( (name, len(seq)) )
                 io.write_fasta(f, name, seq)
         f.close()        

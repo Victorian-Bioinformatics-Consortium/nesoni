@@ -42,7 +42,7 @@ do.dendrogram <- function(mat, enable=TRUE) {
             order = basic.seq(nrow(mat)),
             paths = rep('',nrow(mat))
         )
-    } else if (nrow(mat) > 1000) {
+    } else if (nrow(mat) > 2000) {
         # Too many for seriation to deal with efficiently
         perm <- seriation::seriate(mat, method='PCA')[[1]]
         
@@ -193,8 +193,15 @@ multiplot <- function(plots, labels) {
             l <- trim.labels(labels[[i]])
         else
             l <- as.character(labels[[i]])
-        axis(4, at=basic.seq(length(l))-0.5, labels=l, las=2, tick=FALSE, line=line)
-        line <- line + 0.5 * (1+max(0,nchar(l)))
+        
+        if (length(l) > 0) {
+            cex <- min(1.0, 180.0 * (y2-y1)/length(l))
+            
+            axis(4, at=basic.seq(length(l))-0.5, labels=l, las=2, tick=FALSE, line=line,
+                 cex.axis = cex )
+        
+            line <- line + 0.5 * cex * (1+max(0,nchar(l)))
+        }
     }
 }
 

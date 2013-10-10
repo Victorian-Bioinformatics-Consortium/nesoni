@@ -1,4 +1,10 @@
 
+0.110 - "heatmap:" now has --select and --sort flags.
+        "make-reference:" now checks for duplicate chromosome names.
+        Invoke samtools sort with -@ option (requires samtools >= 0.1.19).
+        Fixes to R routine read.grouped.table.
+        Update "test-counts:" to work with (and require) latest edgeR (3.2.4)
+
 0.109 - Empty sequence files are now acceptable as sequence files that must have qualities.
         Guessing of quality offset now copes with empty files.
 

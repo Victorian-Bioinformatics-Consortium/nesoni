@@ -1,5 +1,5 @@
 
-from nesoni import config, legion, workspace, working_directory, reference_directory, io, grace, selection
+from nesoni import config, legion, workspace, working_directory, reference_directory, io, grace, selection, sam
 
 
 @config.help("""\
@@ -130,9 +130,11 @@ class Bowtie(config.Action_with_output_dir):
                                 f.write(line)
                     header_sent = True
 
-            io.execute([
-                'samtools', 'sort', '-n', temp_bam_name, working/'alignments'
-                ])
+            #io.execute([
+            #    'samtools', 'sort', '-n', temp_bam_name, working/'alignments'
+            #    ])
+            
+            sam.sort_bam(temp_bam_name, working/'alignments', by_name=True, cores=self.cores)
             
         log_file.close()
 

@@ -50,7 +50,10 @@ def matches(expression, tags):
 
 
 def select_and_sort(select_expression, sort_expression, items, get_tags=lambda item: item.get_tags()):
-    """ Select items based on select_expression then sort by sort_expression. """
+    """ Select items based on select_expression then sort by sort_expression. 
+        If group=True, return a list of lists being the distinct groups created by the sort expression.
+        Otherwise return a list.
+    """
     items = [ item for item in items
               if matches(select_expression, get_tags(item)) ]
 
@@ -65,6 +68,7 @@ def select_and_sort(select_expression, sort_expression, items, get_tags=lambda i
                  for part in parts ]
 
     items.sort(key=key)
+    
     return items
 
 

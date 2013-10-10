@@ -94,7 +94,7 @@ class Analyse_sample(config.Action_with_output_dir):
         if not self.count:
             context.count = None
         else:
-            context.count = self.count(os.path.join(self.output_dir,'counts'), self.output_dir)
+            context.count = self.count(os.path.join(self.output_dir,'counts'), filenames = self.count.filenames + [ self.output_dir ])
         
         return context
         
@@ -469,11 +469,12 @@ class Analyse_samples(config.Action_with_output_dir):
                 for sample in context.samples
                 if sample.clip
                 ] +
-            ([ sample.get_context().filter.log_filename() 
-                for sample in context.samples 
-                if sample.filter 
-                ] if not context.expression else [ ]) +
-            ([ context.space/('expression','counts_log.txt') ] if context.expression else [ ]),
+            [ sample.get_context().filter.log_filename() 
+               if not sample.count
+               else sample.get_context().count.log_filename()
+               for sample in context.samples 
+               if sample.filter or sample.count
+               ],
             filter=lambda sample,field: field != 'fragments',
             )
         

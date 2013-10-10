@@ -1,5 +1,5 @@
 
-from nesoni import io, bio, grace, sam, config, working_directory
+from nesoni import io, bio, grace, sam, config, working_directory, sam
 
 import os, sys
 
@@ -47,9 +47,10 @@ class Import(config.Action_with_output_dir):
         
         grace.status('Sort')
         
-        io.execute([
-            'samtools', 'sort', '-n', sort_input_filename, bam_prefix
-        ])
+        #io.execute([
+        #    'samtools', 'sort', '-n', sort_input_filename, bam_prefix
+        #])
+        sam.sort_bam(sort_input_filename, bam_prefix, by_name=True)
         
         if temp_filename is not None:
             os.unlink(temp_filename)

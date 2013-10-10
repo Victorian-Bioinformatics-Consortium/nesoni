@@ -38,7 +38,7 @@ Python libraries
 External programs:
 * Required:
   * SHRiMP or Bowtie2
-  * samtools
+  * samtools (0.1.19 or higher)
 * Required for VCF based variant calling:
   * Picard [2]
   * Freebayes (9.9.2 or higher)

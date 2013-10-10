@@ -26,25 +26,47 @@ class Depth(object):
         return self.size
     
     def __iter__(self):
-        value = 0
-        starts = self.starts
-        ends = self.ends
+        delta = [ 0 ] * (self.size+1)
+        for key, value in self.starts.iteritems():
+            delta[key] += value
+        for key, value in self.ends.iteritems():
+            delta[key] -= value
+        depth = 0
         for i in xrange(self.size):
-            value += starts.get(i,0)
-            value -= ends.get(i,0)
-            yield value
+            depth += delta[i]
+            yield depth
+        
+        #value = 0
+        #starts = self.starts
+        #ends = self.ends
+        #for i in xrange(self.size):
+        #    value += starts.get(i,0)
+        #    value -= ends.get(i,0)
+        #    yield value
 
     def iter_starts(self):
         """ How many start at this base position """
-        starts = self.starts
+        result = [ 0 ] * self.size
+        for key, value in self.starts.iteritems():
+            result[key] += value
         for i in xrange(self.size):
-            yield starts.get(i,0)
+            yield result[i]
+            
+        #starts = self.starts
+        #for i in xrange(self.size):
+        #    yield starts.get(i,0)
     
     def iter_ends(self):
         """ How many end at this base position """
-        ends = self.ends
+        result = [ 0 ] * (self.size+1)
+        for key, value in self.ends.iteritems():
+            result[key] += value
         for i in xrange(self.size):
-            yield ends.get(i+1,0)
+            yield result[i]
+            
+        #ends = self.ends
+        #for i in xrange(self.size):
+        #    yield ends.get(i+1,0)
 
     def total(self):
         total = 0
@@ -387,7 +409,7 @@ def filter(working_dir, infidelity_snps, is_monogamous, output_userplots, output
         log.datum(workspace.name, 's.d. fragment size', (var**0.5))
         log.log('\n')    
     
-    sam.sort_and_index(
+    sam.sort_and_index_bam(
         workspace.object_filename('alignments_filtered.bam'),
         workspace.object_filename('alignments_filtered_sorted')
     )

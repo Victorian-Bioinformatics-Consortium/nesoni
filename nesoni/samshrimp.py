@@ -201,9 +201,10 @@ class Shrimp(config.Action_with_output_dir):
         
         grace.status('Sort')
         
-        io.execute([
-            'samtools', 'sort', '-n', temp_filename, bam_prefix
-        ])
+        #io.execute([
+        #    'samtools', 'sort', '-n', temp_filename, bam_prefix
+        #])
+        sam.sort_bam(temp_filename, bam_prefix, by_name=True, cores=self.cores)
         
         os.unlink(temp_filename)
         

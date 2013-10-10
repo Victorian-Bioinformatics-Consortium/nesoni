@@ -193,12 +193,25 @@ class Bam_reader(object):
     
     def __iter__(self):
         return self
+    
+    def close(self):
+        if self.process is not None:
+            if self.file is None: #Done reading
+                assert self.process.wait() == 0, '"samtools view ..." failed'
+            else:
+                self.process.terminate()
+                self.process.wait()
+            self.process = None
+        if self.file is not None:
+            self.file.close()
+            self.file = None
         
     def next(self):
         line = self.file.readline()
         if not line:
-            if self.process is not None:
-                assert self.process.wait() == 0, '"samtools view ..." failed'
+            self.file.close()
+            self.file = None
+            self.close()
             raise StopIteration()
         
         return alignment_from_sam(line)
@@ -258,7 +271,7 @@ def bam_iter_fragments(filename, status_text='Processing'):
         
         if unused:
             print unused
-        assert not unused, 'Alignment pairing not even pretending to make sense'
+        assert not unused, 'Alignment pairing not even pretending to make sense. Is the BAM file sorted by read name?'
         
         yield read_name, pairs + unpaired, unmapped
     
@@ -298,14 +311,21 @@ class Bam_writer(object):
         self.writer.close()
 
 
-def sort_and_index(in_filename, out_prefix):
-    io.execute([
-        'samtools', 'sort', in_filename, out_prefix
-    ])
+def sort_bam(in_filename, out_prefix, by_name=False, cores=8):
+    cores = min(cores, legion.coordinator().get_cores())
+    megs = max(10, 800 // cores)
+    
+    io.execute(
+        [ 'samtools', 'sort', '-@', '%d' % cores, '-m', '%dM' % megs ] +
+        ([ '-n' ] if by_name else [ ]) +
+        [ in_filename, out_prefix ], cores=cores)
+
+def sort_and_index_bam(in_filename, out_prefix, cores=8):
+    sort_bam(in_filename, out_prefix, cores=cores)
     
     io.execute([
         'samtools', 'index', out_prefix + '.bam'
-    ])
+        ])
 
 
 @config.help("""\

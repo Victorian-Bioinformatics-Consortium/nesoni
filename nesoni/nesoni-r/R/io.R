@@ -28,9 +28,11 @@ read.grouped.table <- function(filename, require=c(), default.group='All') {
     else    
         data <- read.csv(filename, comment.char='#', check.names=FALSE)
     
-    rownames(data) <- data[,1]
-    data <- data[ ,2:ncol(data), drop=FALSE]
-
+    rows <- data[,1]
+    cols <- colnames(data)[basic.seq(ncol(data)-1)+1]    
+    data <- data[ ,basic.seq(ncol(data)-1)+1, drop=FALSE]
+    rownames(data) <- rows
+    colnames(data) <- cols
 
     # === Fallbacks if groups not given ===
         
