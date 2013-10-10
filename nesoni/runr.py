@@ -1625,6 +1625,107 @@ class Heatmap(config.Action_with_prefix):
         )
 
 
+
+
+SIMILARITY_SCRIPT = """
+
+library(nesoni)
+
+dgelist <- read.counts(COUNTS, norm.file=NORM_FILE)
+
+if (length(ORDER)) {
+    dgelist <- dgelist[, ORDER]
+}
+
+elist <- glog2.rpm.counts(dgelist, GLOG_MODERATION)
+mat <- elist$E
+
+sink(sprintf("%s.nex", PREFIX))
+cat("#NEXUS\n")
+cat("begin taxa;\n")
+cat(sprintf("dimensions ntax=%d;\n",ncol(mat)))
+cat("taxlabels\n")
+for(i in basic.seq(ncol(mat))) {
+    cat(sprintf("%s\n", colnames(mat)[i]));
+}
+cat(";\n")
+cat("end;\n")
+cat("begin distances;\n")
+cat("format triangle=lower diagonal nolabels;\n")
+cat("matrix\n")
+for(i in basic.seq(ncol(mat))) {
+    for(j in basic.seq(i)) {
+        diff <- mat[,j]-mat[,i]
+        dist <- sqrt(mean(diff*diff))
+        cat(sprintf("%f ",dist));
+    }
+    cat("\n")
+}
+cat(";\n")
+cat("end;\n")
+sink()
+
+library(limma)
+png(sprintf("%s-plotMDS.png",PREFIX),width=800,height=800)
+plotMDS(elist)
+dev.off()
+
+"""
+
+
+@config.help("""\
+""")
+@config.Float_flag('glog_moderation', 
+    'Amount of moderation used in log transformation.'
+    ' See "glog" mode in "test-counts:".'
+    )
+@config.String_flag('norm_file', 'Use normalization produced by "norm-from-counts:".')
+@config.Positional('counts', 'File containing output from "nesoni count:"')
+@config.String_flag('select', 'Selection expression (see main help text). Which samples to use.')
+#@config.String_flag('sort', 'A sort expression to sort samples (see main help text).')
+class Similarity(config.Action_with_prefix):
+    glog_moderation = 5.0
+    counts = None
+    norm_file = None
+    select = 'all'
+    sort = ''
+
+    def run(self):
+        reader = io.Table_reader(self.counts, 'Count')
+        reader.close()
+        all_samples = [ item for i, item in enumerate(reader.headings) if reader.groups[i] == 'Count' ]
+        tags = { }
+        for item in all_samples:
+            tags[item] = [ item ]
+        for line in reader.comments:
+            if line.startswith('#sampleTags='):
+                parts = line[len('#sampleTags='):].split(',')
+                tags[parts[0]] = parts
+            
+        samples = selection.select_and_sort(
+            self.select, self.sort, all_samples, lambda sample: tags[sample])
+
+        run_script(SIMILARITY_SCRIPT,
+            PREFIX=self.prefix,
+            GLOG_MODERATION=self.glog_moderation,
+            COUNTS=self.counts,
+            NORM_FILE=self.norm_file,
+            ORDER=samples,
+        )
+
+        io.execute(
+            'SplitsTree +g -i INPUT -x COMMAND',
+            INPUT=self.prefix + '.nex',
+            COMMAND='UPDATE; '
+                    'SAVE FILE=\'%s.nex\' REPLACE=yes; '
+                    'EXPORTGRAPHICS format=svg file=\'%s.svg\' REPLACE=yes TITLE=\'NeighborNet\'; ' 
+                    'QUIT' 
+                    % (self.prefix, self.prefix),
+            )
+
+
+
+
 COMPARE_TESTS_SCRIPT = """
 
 library(nesoni)

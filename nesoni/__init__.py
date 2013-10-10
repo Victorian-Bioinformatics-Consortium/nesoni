@@ -1,4 +1,4 @@
-VERSION='0.110'
+VERSION='0.111'
 #^ Note: this first line is read by the setup.py script to get the version
 
 import sys
@@ -16,7 +16,7 @@ from nway_diff import Nway
 from fisher_diff import Fisher
 from core import Core
 from samcount import Count, Merge_counts
-from runr import Test_counts, Plot_counts, Test_power, Heatmap, Compare_tests, Norm_from_counts, NMF
+from runr import Test_counts, Plot_counts, Test_power, Heatmap, Similarity, Compare_tests, Norm_from_counts, NMF
 from normalize import Norm_from_samples
 from trivia import Test, As_fasta, As_gff, Sample, Stats
 from shred import Shred
@@ -137,6 +137,9 @@ These provide an alternative to consensus calling using "nesoni consensus:"
     compare-tests:
                   - Compare the output from two runs of "test-counts:"
                     eg to compare the results of different "--mode"s
+    
+    similarity:
+                  - Compare samples in a counts file in various ways.
 
 An R+ module is included with nesoni which will help load the output from
 samcount, for analysis with BioConductor packages.

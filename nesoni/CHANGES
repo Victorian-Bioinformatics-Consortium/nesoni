@@ -1,4 +1,6 @@
 
+0.111 - Add "similarity:" tool.
+
 0.110 - "heatmap:" now has --select and --sort flags.
         "make-reference:" now checks for duplicate chromosome names.
         Invoke samtools sort with -@ option (requires samtools >= 0.1.19).
