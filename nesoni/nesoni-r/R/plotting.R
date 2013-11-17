@@ -380,7 +380,10 @@ hmap.elist <- function(filename.prefix, elist,
                        min.sd=0.0, min.span=0.0, min.svd=0.0, svd.rank=NULL,
                        annotation=c('gene', 'product'), 
                        res=150, row.labels=NA,
-                       reorder.columns = FALSE) {
+                       reorder.columns = FALSE) {    
+    # Don't die if missing annotation
+    annotation <- annotation[ annotation %in% colnames(elist$gene) ]
+
     keep <- rep(TRUE, nrow(elist$E))
 
     if (min.sd > 0.0) {

@@ -202,12 +202,17 @@ class Bam_reader(object):
                 self.process.terminate()
                 self.process.wait()
             self.process = None
+        
         if self.file is not None:
             self.file.close()
             self.file = None
         
     def next(self):
+        if self.file is None:
+            raise StopIteration()
+            
         line = self.file.readline()
+        
         if not line:
             self.file.close()
             self.file = None

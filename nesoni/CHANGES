@@ -1,4 +1,12 @@
 
+0.113 - Add "glog:" tool.
+        Small bugfix into sam file iterator.
+        "collapse-features:" now only merges features of the same type.
+
+0.112 - "similarity:" added to "analyse-expression:" workflow.
+        "heatmap:" no longer dies if "gene" or "product" annotations are missing.
+        Start adding .report(reporter) member-functions to tools.
+
 0.111 - Add "similarity:" tool.
 
 0.110 - "heatmap:" now has --select and --sort flags.
@@ -378,4 +386,5 @@
 
 0.4 - indicate impure insertions in lowercase
     - ignore impure insertions in nesoni consequences
+
 

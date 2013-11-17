@@ -1271,6 +1271,27 @@ class Test_counts(config.Action_with_prefix):
             
                 only_tell=only_tell
                 )
+
+    def report(self, reporter):
+        prefix = os.path.basename(self.prefix)
+        image = reporter.get(self.prefix + '-heatmap.png', image=True, title='')
+        sig_csv = reporter.get(self.prefix + '.csv', title='[DE genes table]')
+        all_csv = reporter.get(self.prefix + '-all.csv', title='[All genes table]')
+        maybe_maplot = (
+            (' &sdot; ' + reporter.get(self.prefix+'.png', image=True,title='[MA-plot]'))
+            if os.path.exists(self.prefix+'.png') else ''
+            )
+        info = reporter.get(self.prefix + '-info.txt', title='[Info]')        
+        
+        text = (
+            '<table><tr>\n'
+            '<td valign="top">%(image)s</td>\n'
+            '<td valign="top"><b>%(prefix)s</b>\n'
+            '<br/>%(sig_csv)s &sdot; %(all_csv)s &sdot; %(info)s %(maybe_maplot)s\n'
+            '</tr></table>'
+            ) % locals()
+        
+        reporter.write(text)
             
 
 
@@ -1674,6 +1695,13 @@ dev.off()
 
 
 @config.help("""\
+The similarity/difference between samples is visualized in several ways:
+
+- The plotMDS function from limma.
+
+- A SplitsTree4 generated NeighborNet based on root mean square difference in glog2 gene expression level between each pair of samples.
+
+These plots may be helpful in identifying contaminated or mislabeled samples.
 """)
 @config.Float_flag('glog_moderation', 
     'Amount of moderation used in log transformation.'
@@ -1718,11 +1746,35 @@ class Similarity(config.Action_with_prefix):
             INPUT=self.prefix + '.nex',
             COMMAND='UPDATE; '
                     'SAVE FILE=\'%s.nex\' REPLACE=yes; '
-                    'EXPORTGRAPHICS format=svg file=\'%s.svg\' REPLACE=yes TITLE=\'NeighborNet\'; ' 
+                    'EXPORTGRAPHICS format=svg file=\'%s.svg\' REPLACE=yes TITLE=\'NeighborNet of expression levels\'; ' 
                     'QUIT' 
                     % (self.prefix, self.prefix),
             )
 
+    def report(self, reporter):    
+        reporter.heading('Sample similarity')
+        
+        reporter.p(
+            'The following plots attempt to summarize the similarity/differences in expression patterns between samples, '
+            'based on the glog2-transformed normalized read counts. '
+            'Samples from the same experimental group should cluster together.'
+            )
+        
+        reporter.p(
+            reporter.get(self.prefix + '-plotMDS.png',
+                title = 'limma\'s "plotMDS" Multi-Dimensional Scaling plot of sample similarity',
+                image = True
+                )
+            )
+        
+        reporter.p(
+            reporter.get(self.prefix + '.svg',
+                title = 'Split Network visualization of sample similarity.',
+                image = True
+                ) +
+            '<br>(Visualization of euclidean distances as a split network. '
+            'Note: This is <i>not</i> a phylogenetic network.)'
+            )
 
 
 
@@ -1832,6 +1884,36 @@ class Norm_from_counts(config.Action_with_prefix):
             COUNTS_FILENAME=self.counts_filename,
             USE_TMM=self.tmm,
         )
+
+
+
+GLOG_SCRIPT = r"""
+library(nesoni)
+dgelist <- read.counts(COUNTS, norm.file=NORM_FILE)
+elist <- glog2.rpm.counts(dgelist, GLOG_MODERATION)
+
+write.grouped.table(list(glog2=data.frame(elist$E), Annotation=elist$gene), sprintf("%s.csv",PREFIX),comments=c('#glog2 reads-per-million expression levels'))
+"""
+
+@config.Float_flag('glog_moderation', 
+    'Amount of moderation used in log transformation.'
+    ' See "glog" mode in "test-counts:".'
+    )
+@config.String_flag('norm_file', 'Use normalization produced by "norm-from-counts:".')
+@config.Positional('counts', 'File containing output from "nesoni count:"')
+class Glog(config.Action_with_prefix):
+    prefix = None
+    glog_moderation = 5.0
+    norm_file = None
+    counts = None
+
+    def run(self):
+        run_script(GLOG_SCRIPT,
+            PREFIX=self.prefix,
+            GLOG_MODERATION=self.glog_moderation,
+            NORM_FILE=self.norm_file,
+            COUNTS=self.counts,
+            )
 
 
 

@@ -221,6 +221,8 @@ os.environ['PATH'] = '/bio/sw/python/bin:' + os.environ['PATH']
 os.system('rm MANIFEST')
 
 do_install = 'noinstall' not in sys.argv[1:]
+do_upload = 'noupload' not in sys.argv[1:]
+do_rebuild = 'norebuild' not in sys.argv[1:]
 
 release_tarball_name = 'nesoni-%s.tar.gz' % nesoni.VERSION
 if do_install:
@@ -240,23 +242,25 @@ try:
     #                      'python setup.py install --home /bio/sw/python')
     
     if do_install:
-        os.system('sudo -H rm -r /bio/sw/python/env-pypy')
-        sh('sudo -H virtualenv -p /bio/sw/python/download/pypy/bin/pypy /bio/sw/python/env-pypy')
-        sh('sudo -H ln -s pypy /bio/sw/python/env-pypy/bin/pypy-bio')
-        sh('sudo -H /bio/sw/python/env-pypy/bin/pip install --upgrade distribute')
-        sh('sudo -H /bio/sw/python/env-pypy/bin/pip install biopython')
+        if do_rebuild:
+            os.system('sudo -H rm -r /bio/sw/python/env-pypy')
+            sh('sudo -H virtualenv -p /bio/sw/python/download/pypy/bin/pypy /bio/sw/python/env-pypy')
+            sh('sudo -H ln -s pypy /bio/sw/python/env-pypy/bin/pypy-bio')
+            sh('sudo -H /bio/sw/python/env-pypy/bin/pip install --upgrade distribute')
+            sh('sudo -H /bio/sw/python/env-pypy/bin/pip install --upgrade biopython')
         sh('sudo -H /bio/sw/python/env-pypy/bin/python setup.py install')
-        sh('sudo -H /bio/sw/python/env-pypy/bin/pip install tail-tools')
-        
-        os.system('sudo -H rm -r /bio/sw/python/env-python')
-        sh('sudo -H virtualenv -p python /bio/sw/python/env-python')
-        sh('sudo -H ln -s python /bio/sw/python/env-python/bin/python-bio')
-        sh('sudo -H /bio/sw/python/env-python/bin/pip install --upgrade distribute')
-        sh('sudo -H /bio/sw/python/env-python/bin/pip install numpy')
-        sh('sudo -H /bio/sw/python/env-python/bin/pip install matplotlib')
-        sh('sudo -H /bio/sw/python/env-python/bin/pip install biopython')
+        sh('sudo -H /bio/sw/python/env-pypy/bin/pip install --upgrade tail-tools')
+
+        if do_rebuild:        
+            os.system('sudo -H rm -r /bio/sw/python/env-python')
+            sh('sudo -H virtualenv -p python /bio/sw/python/env-python')
+            sh('sudo -H ln -s python /bio/sw/python/env-python/bin/python-bio')
+            sh('sudo -H /bio/sw/python/env-python/bin/pip install --upgrade distribute')
+            sh('sudo -H /bio/sw/python/env-python/bin/pip install --upgrade numpy')
+            sh('sudo -H /bio/sw/python/env-python/bin/pip install --upgrade matplotlib')
+            sh('sudo -H /bio/sw/python/env-python/bin/pip install --upgrade biopython')
         sh('sudo -H /bio/sw/python/env-python/bin/python setup.py install')        
-        sh('sudo -H /bio/sw/python/env-python/bin/pip install tail-tools')
+        sh('sudo -H /bio/sw/python/env-python/bin/pip install --upgrade tail-tools')
         
         sh('sudo -H R CMD INSTALL --library=/bio/sw/R nesoni/nesoni-r')
         
@@ -286,7 +290,7 @@ except:
     os.system('rm dist/%s' % release_tarball_name)
     raise    
 
-if do_install:
+if do_install and do_upload:
     os.system('python setup.py sdist upload')        
 
 

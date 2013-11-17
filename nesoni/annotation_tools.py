@@ -134,7 +134,7 @@ class Modify_features(config.Action_with_prefix):
 
 
 @config.help(
-    'Merge overlapping features.'
+    'Merge overlapping features. Only features of the same type are merged. "Parent" relationships are preserved.'
     )
 @config.Int_flag(
     'overlap', 
@@ -161,7 +161,7 @@ class Collapse_features(config.Action_with_prefix):
                     item.type = self.type
                 annotations.append(item)
         
-        annotations.sort(key=lambda item: (item.seqid, item.strand, item.start))
+        annotations.sort(key=lambda item: (item.type, item.seqid, item.strand, item.start))
         
         group = [ ]
         groups = [ ]
@@ -169,12 +169,14 @@ class Collapse_features(config.Action_with_prefix):
             if not group: return
             groups.append(group[:])
             del group[:]        
+        type = None
         seqid = None
         strand = None
         end = 0
         for item in annotations:
-            if item.seqid != seqid or item.strand != strand or item.start >= end:
+            if item.type != type or item.seqid != seqid or item.strand != strand or item.start >= end:
                 emit()
+                type = item.type
                 seqid = item.seqid
                 strand = item.strand
                 end = item.end-self.overlap
@@ -182,13 +184,15 @@ class Collapse_features(config.Action_with_prefix):
             end = max(item.end-self.overlap, end)
         emit()
 
-        out_file = open(self.prefix+'.gff','wb')
-        annotation.write_gff3_header(out_file)
+
+        items = [ ]
+        
+        id_map = { }
 
         for group in groups:
             item = annotation.Annotation()
             item.source = group[0].source
-            item.type = join_descriptions( item2.type for item2 in group )
+            item.type = group[0].type
             item.seqid = group[0].seqid
             item.strand = group[0].strand
             item.start = min( item2.start for item2 in group )
@@ -201,10 +205,25 @@ class Collapse_features(config.Action_with_prefix):
                 for key in item2.attr:
                     if key in item.attr: continue
                     item.attr[key] = join_descriptions([ item3.attr[key] for item3 in group if key in item3.attr ], self.joiner )
+
+            item.parents = [ ]
+            for item2 in group:
+                if 'ID' in item2.attr:
+                    assert item2.attr['ID'] not in id_map, 'Duplicate ID: '+item2.attr['ID']
+                    id_map[item2.attr['ID']] = item.attr['ID']
+                if 'Parent' in item2.attr:
+                    item.parents.append(item2.attr['Parent'])
             
-            print >> out_file, item.as_gff()
-            
-        out_file.close()
+            items.append(item)
+        
+        for item in items:
+            if item.parents:
+                item.attr['Parent'] = join_descriptions([ id_map.get(parent,parent) for parent in item.parents ], ',')
+        
+        with open(self.prefix+'.gff','wb') as out_file:
+            annotation.write_gff3_header(out_file)
+            for item in items:
+                print >> out_file, item.as_gff()
 
 
 class _Related_feature(collections.namedtuple(

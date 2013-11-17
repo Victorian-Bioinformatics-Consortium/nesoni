@@ -271,6 +271,12 @@ class Analyse_expression(config.Action_with_output_dir):
             space / 'counts.csv'
             ).make()
         
+        similarity = nesoni.Similarity(
+            space / 'similarity',
+            space / 'counts.csv',
+            norm_file = space / 'norm.csv',
+            )
+        
         heatmaps = [
             heatmap(
                 space / 'heatmap-'+heatmap.prefix,
@@ -283,19 +289,45 @@ class Analyse_expression(config.Action_with_output_dir):
             test(
                 space / 'test-'+test.prefix,
                 space / 'counts.csv',
-                norm_file = space / 'norm.csv'
+                norm_file = space / 'norm.csv',
                 )
             for test in self.test ]
-        
+
         with nesoni.Stage() as stage:
+            similarity.process_make(stage)
             for heatmap in heatmaps: 
                 heatmap.process_make(stage)            
             for test in tests: 
-                test.process_make(stage)        
-        
+                test.process_make(stage)       
         
         reporter = reporting.Reporter(space / 'report', 'Expression analysis')
         
+        similarity.report(reporter)
+
+        #reporter.heading('Sample similarity')
+        #
+        #reporter.p(
+        #    'The following plots attempt to summarize the similarity/differences in expression patterns between samples, '
+        #    'based on the glog2-transformed normalized read counts. '
+        #    'Samples from the same experimental group should cluster together.'
+        #    )
+        #
+        #reporter.p(
+        #    reporter.get(space / 'similarity-plotMDS.png',
+        #        title = 'limma\'s "plotMDS" Multi-Dimensional Scaling plot of sample similarity',
+        #        image = True
+        #        )
+        #    )
+        #
+        #reporter.p(
+        #    reporter.get(space / 'similarity.svg',
+        #        title = 'Split Network visualization of sample similarity.',
+        #        image = True
+        #        ) +
+        #    '<br>(Visualization of euclidean distances as a split network. '
+        #    'Note: This is <i>not</i> a phylogenetic network.)'
+        #    )
+                
         if heatmaps:
             reporter.heading('Heatmaps')
             for heatmap in heatmaps:
@@ -304,7 +336,8 @@ class Analyse_expression(config.Action_with_output_dir):
         if tests:
             reporter.heading('Differential expression analysis')
             for test in tests:
-                reporter.report_test(test)
+                #reporter.report_test(test)
+                test.report(reporter)
         
         reporter.heading('Raw data')
         

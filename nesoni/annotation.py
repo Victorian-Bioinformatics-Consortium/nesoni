@@ -31,6 +31,17 @@ class Annotation(object):
         attr    - { 'key':'value',... }
     """
     
+    def __init__(self, seqid='', source='nesoni', type='feature', start=0, end=0, strand=0, score=None, phase=None, attr={}):
+        self.seqid = seqid
+        self.source = source
+        self.type = type
+        self.start = start
+        self.end = end
+        self.strand = strand
+        self.score = score
+        self.phase = phase        
+        self.attr = dict(attr)
+    
     def __repr__(self):
         return '%s%s[%d,%d) %s %s' % (
              self.seqid,
@@ -172,8 +183,17 @@ def split_keyvals(keyval_str):
     return quals
 
 
+def quote(s):
+    result = []
+    for char in s:
+        if char in '=;' or char < ' ':
+            result.append('%%%02X' % ord(char))
+        else:
+            result.append(char)
+    return ''.join(result)
+
 def encode_keyvals(quals):
-    return ';'.join( key+'='+urllib.quote(val) for key,val in quals.items() )
+    return ';'.join( key+'='+quote(val) for key,val in quals.items() )
 
 
 

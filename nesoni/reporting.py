@@ -116,7 +116,7 @@ class Reporter(object):
                title += ' (%.1fkb)' % (float(size)/(1<<10))
         
         if image:
-           thumb_name = 'thumb-'+relative 
+           thumb_name = 'thumb-'+os.path.splitext(relative)[0]+'.png'
            thumb_filename = self.workspace/thumb_name
            io.execute(['convert', '-thumbnail', '50x50', filename, thumb_filename])
            title = ('<span style="display: inline-block; width: 50px;"><img src="%s"/></span> ' % thumb_name) + title 
@@ -188,26 +188,26 @@ class Reporter(object):
             (' &sdot; ' +self.get(action.prefix + '.csv', title='[spreadsheet]') if has_csv else '')
         )
     
-    def report_test(self, action):
-        prefix = os.path.basename(action.prefix)
-        image = self.get(action.prefix + '-heatmap.png', image=True, title='')
-        sig_csv = self.get(action.prefix + '.csv', title='[DE genes table]')
-        all_csv = self.get(action.prefix + '-all.csv', title='[All genes table]')
-        maybe_maplot = (
-            (' &sdot; ' + self.get(action.prefix+'.png', image=True,title='[MA-plot]'))
-            if os.path.exists(action.prefix+'.png') else ''
-            )
-        info = self.get(action.prefix + '-info.txt', title='[Info]')        
-        
-        text = (
-            '<table><tr>\n'
-            '<td valign="top">%(image)s</td>\n'
-            '<td valign="top"><b>%(prefix)s</b>\n'
-            '<br/>%(sig_csv)s &sdot; %(all_csv)s &sdot; %(info)s %(maybe_maplot)s\n'
-            '</tr></table>'
-            ) % locals()
-        
-        self.write(text)
+    #def report_test(self, action):
+    #    prefix = os.path.basename(action.prefix)
+    #    image = self.get(action.prefix + '-heatmap.png', image=True, title='')
+    #    sig_csv = self.get(action.prefix + '.csv', title='[DE genes table]')
+    #    all_csv = self.get(action.prefix + '-all.csv', title='[All genes table]')
+    #    maybe_maplot = (
+    #        (' &sdot; ' + self.get(action.prefix+'.png', image=True,title='[MA-plot]'))
+    #        if os.path.exists(action.prefix+'.png') else ''
+    #        )
+    #    info = self.get(action.prefix + '-info.txt', title='[Info]')        
+    #    
+    #    text = (
+    #        '<table><tr>\n'
+    #        '<td valign="top">%(image)s</td>\n'
+    #        '<td valign="top"><b>%(prefix)s</b>\n'
+    #        '<br/>%(sig_csv)s &sdot; %(all_csv)s &sdot; %(info)s %(maybe_maplot)s\n'
+    #        '</tr></table>'
+    #        ) % locals()
+    #    
+    #    self.write(text)
         
         #self.p(
         #    self.get(action.prefix + '-heatmap.png', image=True, title='[heatmap]') +
