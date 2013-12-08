@@ -40,7 +40,7 @@ def join_descriptions(seq, joiner=', '):
         #parts = item.split('isoform')        
         #if len(parts) == 2 and len(parts[1].strip()) <= 1:
         #   item = parts[0].rstrip()
-        if item not in result: 
+        if item and item not in result: 
             result.append(item)
     return joiner.join(result)
 

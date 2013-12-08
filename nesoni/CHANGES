@@ -1,4 +1,6 @@
 
+0.114 - Minor changes for the benefit of tail-tools.
+
 0.113 - Add "glog:" tool.
         Small bugfix into sam file iterator.
         "collapse-features:" now only merges features of the same type.

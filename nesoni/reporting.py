@@ -68,7 +68,7 @@ STYLE = """
 body { font-family: sans-serif; margin-left: 5em; margin-right: 5em; }
 img { vertical-align: middle; }
 a { text-decoration: none; }
-h1,h2,h3,h4,h5,h6 { margin-top: 2em; }
+h1,h2,h3,h4,h5,h6 { margin-top: 1em; }
 td,th { padding: 0.5em; }
 """
 

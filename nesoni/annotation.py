@@ -57,7 +57,7 @@ class Annotation(object):
             if key in self.attr:
                 return self.attr[key]
 
-        return '%s/%d..%d' % (self.seqid,self.start+1,self.end)
+        return '%s:%s%s%d..%d' % (self.type,self.seqid,strand_to_gff[self.strand],self.start+1,self.end)
 
     def overlaps(self, other, allowance=0, check_strand=True):
         return (
@@ -90,20 +90,22 @@ class Annotation(object):
 
 
 def link_up_annotations(annotations):
+    """ Link up GFF3 annotations using parent/child relationships """
     index = { }
-    for item in annnotations:
-        id = item.get_id()
-        assert id not in index, 'Annotations contain a duplicated ID.'
-        index[id] = item
+    for item in annotations:
         item.children = [ ]
+        if 'ID' not in item.attr: continue
+        ID = item.attr['ID']
+        assert ID not in index, 'Annotations contain a duplicated ID: '+ID
+        index[ID] = item
         
     for item in annotations:
         if 'Parent' not in item.attr:
             item.parents = [ ]
         else:
-            item.parents = [ index[parent] for parent in item.attr['Parent'].split(',') ]
+            item.parents = [ index[parent_id] for parent_id in item.attr['Parent'].split(',') ]
             for parent in item.parents:
-                index[parent].children.append(item)
+                parent.children.append(item)
                 
     for item in annotations:
         if item.strand == -1:
@@ -186,7 +188,7 @@ def split_keyvals(keyval_str):
 def quote(s):
     result = []
     for char in s:
-        if char in '=;' or char < ' ':
+        if char in '=;%' or char < ' ':
             result.append('%%%02X' % ord(char))
         else:
             result.append(char)
