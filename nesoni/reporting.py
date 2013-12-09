@@ -25,11 +25,10 @@ def mine_logs(filenames, filter=lambda sample, field: True, commas=False):
             data[ (sample,field) ] = value
         f.close()
     
-    records = [ ]
-    for field in fields:
-        records.append(collections.OrderedDict(
-           [ ('', field) ] + [ (item, data.get((item,field),'')) for item in samples ]
-        ))
+    records = collections.OrderedDict()
+    for sample in samples:
+        records[sample] = collections.OrderedDict(
+            [ (field, data.get((sample,field),'')) for field in fields ])
     return records
 
 @config.String_flag('dest')
@@ -69,7 +68,8 @@ body { font-family: sans-serif; margin-left: 5em; margin-right: 5em; }
 img { vertical-align: middle; }
 a { text-decoration: none; }
 h1,h2,h3,h4,h5,h6 { margin-top: 1em; }
-td,th { padding: 0.5em; }
+td,th { padding: 0.5em; text-align: left; }
+th { vertical-align: bottom; }
 """
 
 class Reporter(object):
@@ -161,22 +161,22 @@ class Reporter(object):
         
         if name:
             filename = self.workspace / (self.file_prefix + name + '.csv')        
-            io.write_csv(filename, table)
+            io.write_csv_2(filename, table)
             self.p(self.href(filename))
         
         if table:
             table = mine_logs(logs, filter, commas=True)
             
-            self.write('<table style="font-size: 50%">\n')
+            self.write('<table style="font-size: 75%">\n')
             self.write('<tr>\n')
-            for key in table[0].keys():
+            self.write('<th>Sample</th>\n')
+            for key in table.values()[0].keys():
                 self.write('<th>'+key+'</th>')
             self.write('</tr>\n')
-            for row in table:
+            for sample, row in table.items():
                 self.write('<tr>\n')
-                for i,value in enumerate(row.values()):
-                    if i == 0:
-                        value = renaming.get(value,value)
+                self.write('<td>'+renaming.get(sample,sample)+'</td>\n')
+                for value in row.values():
                     self.write('<td>'+value+'</td>')
                 self.write('</tr>\n')
             self.write('</table>\n')

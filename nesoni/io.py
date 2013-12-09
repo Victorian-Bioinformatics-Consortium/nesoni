@@ -1017,6 +1017,44 @@ def write_csv(filename, iterable, comments=[]):
     f.close()
 
 
+def write_csv_2(filename, iterable, comments=[], rowname_name='Name'):
+    """ Write an OrderedDict of OrderedDicts of strings as a CSV 
+    
+        Keys may be either simply a string or tuples of (group, column_name)
+        The first item is the row name, and can't have a group
+    """
+    f = open(filename, 'wb')
+    
+    for line in comments:
+        f.write('#%s\n' % line)
+    
+    writer = csv.writer(f, lineterminator='\n')
+    keys = None
+    
+    for record_name, record in iterable.items():
+        if keys is None:
+           keys = record.keys()
+           
+           groups = [ ]
+           names = [ ]
+           any_groups = False
+           for item in keys:
+               if isinstance(item,tuple):
+                   group, name = item
+                   groups.append(group)
+                   names.append(name)
+                   any_groups = True
+               else:
+                   groups.append('All')
+                   names.append(item)
+           
+           if any_groups:
+               print >> f, '#Groups,' + ','.join(groups)
+           
+           writer.writerow([rowname_name] + names)
+        assert record.keys() == keys
+        writer.writerow([record_name] + record.values())
+    f.close()
 
 
 

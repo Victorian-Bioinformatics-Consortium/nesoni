@@ -1,4 +1,4 @@
-VERSION='0.113'
+VERSION='0.114'
 #^ Note: this first line is read by the setup.py script to get the version
 
 import sys
