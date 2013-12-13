@@ -1,4 +1,6 @@
 
+0.115 - Unset DISPLAY variable when running SplitsTree (crashes if DISPLAY is present and invalid).
+
 0.114 - Minor changes for the benefit of tail-tools.
 
 0.113 - Add "glog:" tool.

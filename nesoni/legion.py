@@ -316,6 +316,7 @@ class My_coordinator:
         os.system(command)
 
 
+
 # The coordinator in the manager-process
 _SERVER = None
 _COORDINATOR = None
@@ -356,7 +357,7 @@ def manager(address=('127.0.0.1',0),authkey=None,connect=False):
             _MANAGER.connect()
         else:
             _MANAGER.start()        
-            atexit.register( coordinator().kill_all )
+            atexit.register( lambda: coordinator().kill_all() )
     return _MANAGER
 
 
@@ -371,7 +372,6 @@ def coordinator():
     if _COORDINATOR_PROXY is None:
         _COORDINATOR_PROXY = manager().get_coordinator()
     return _COORDINATOR_PROXY
-
 
 # =======================================
 

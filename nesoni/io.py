@@ -42,7 +42,7 @@ def _interpret_args(args, kwargs):
 def _describe_args(args, kwargs):
     return ' '.join(_interpret_args(args,kwargs))
 
-def run(args, stdin=None, stdout=PIPE, stderr=None, cwd=None, **kwargs):
+def run(args, stdin=None, stdout=PIPE, stderr=None, cwd=None, no_display=False, **kwargs):
     """ Start a process using subprocess.Popen    
         
         Set close_fds=True so process doesn't inherit any other pipes we might be using.
@@ -55,7 +55,15 @@ def run(args, stdin=None, stdout=PIPE, stderr=None, cwd=None, **kwargs):
         
         stderr may also be nesoni.io.STDOUT
     """
-    args = _interpret_args(args, kwargs)    
+    args = _interpret_args(args, kwargs)
+    
+    if not no_display:
+        env = None
+    else:
+        env = dict(os.environ)
+        if 'DISPLAY' in env:
+            del env['DISPLAY']
+    
     return subprocess.Popen(
         args,
         bufsize=1<<24,
@@ -63,8 +71,9 @@ def run(args, stdin=None, stdout=PIPE, stderr=None, cwd=None, **kwargs):
         stdout=stdout,
         stderr=stderr,
         cwd=cwd,
+        env=env,
         close_fds=True,
-    )
+        )
     
 
 @contextlib.contextmanager

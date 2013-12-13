@@ -540,6 +540,7 @@ class Vcf_nway(config.Action_with_prefix):
             
             io.execute(
                 'SplitsTree +g -i INPUT -x COMMAND',
+                no_display=True,
                 INPUT=self.prefix + '.nex',
                 COMMAND='UPDATE; '
                         'SAVE FILE=\'%s.nex\' REPLACE=yes; '
