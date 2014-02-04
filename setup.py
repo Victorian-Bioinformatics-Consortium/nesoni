@@ -17,6 +17,7 @@ with open(join(directory,'nesoni','nesoni-r','R','nesoni_version.R'),'wb') as f:
 setup(
     name='nesoni',
     version=VERSION,
+    description = 'Collection of tools for processing high-throughput sequencing data, with an emphasis on bacterial data.',
     author = 'Paul Harrison',
     author_email = 'paul.harrison@monash.edu',
     url = 'http://bioinformatics.net.au/software.nesoni.shtml',

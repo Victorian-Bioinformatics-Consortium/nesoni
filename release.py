@@ -225,7 +225,7 @@ do_upload = 'noupload' not in sys.argv[1:]
 do_rebuild = 'norebuild' not in sys.argv[1:]
 
 release_tarball_name = 'nesoni-%s.tar.gz' % nesoni.VERSION
-if do_install:
+if do_upload:
     assert 'force' in sys.argv[1:] or not os.path.exists('dist/'+release_tarball_name), release_tarball_name + ' already exists'
 
 def sh(cmd): assert 0 == os.system(cmd)
@@ -290,7 +290,7 @@ except:
     os.system('rm dist/%s' % release_tarball_name)
     raise    
 
-if do_install and do_upload:
+if do_upload:
     os.system('python setup.py sdist upload')        
 
 

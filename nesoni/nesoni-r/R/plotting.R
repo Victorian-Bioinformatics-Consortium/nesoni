@@ -378,11 +378,13 @@ svd.gene.picker <- function(mat, svd.rank=NULL, min.svd=2.0) {
 
 hmap.elist <- function(filename.prefix, elist, 
                        min.sd=0.0, min.span=0.0, min.svd=0.0, svd.rank=NULL,
-                       annotation=c('gene', 'product'), 
+                       annotation1=c('gene'),
+                       annotation2=c('product'), 
                        res=150, row.labels=NA,
                        reorder.columns = FALSE) {    
     # Don't die if missing annotation
-    annotation <- annotation[ annotation %in% colnames(elist$gene) ]
+    annotation1 <- annotation1[ annotation1 %in% colnames(elist$gene) ]
+    annotation2 <- annotation2[ annotation2 %in% colnames(elist$gene) ]
 
     keep <- rep(TRUE, nrow(elist$E))
 
@@ -417,9 +419,15 @@ hmap.elist <- function(filename.prefix, elist,
 
     data <- t(scale(t(elist$E), center=TRUE,scale=FALSE))
 
-    labels <- list(rownames(data))
+    labels <- list()
+
+    for(colname in annotation1)
+        if (!all(is.na(elist$gene[,colname])))
+            labels[[ length(labels)+1 ]] <- elist$gene[,colname]
+
+    labels[[ length(labels)+1 ]] <- rownames(data)
     
-    for(colname in annotation)
+    for(colname in annotation2)
         if (!all(is.na(elist$gene[,colname])))
             labels[[ length(labels)+1 ]] <- elist$gene[,colname]
         
@@ -444,7 +452,7 @@ hmap.elist <- function(filename.prefix, elist,
     cat('#\n')
 
     frame <- data.frame(name=rownames(shuffled.elist$E), row.names=rownames(shuffled.elist$E), check.names=FALSE) 
-    for(colname in annotation) {
+    for(colname in c(annotation1,annotation2)) {
         frame[,colname] <- shuffled.elist$gene[,colname]
     }     
     #frame[,'cluster hierarchy'] <- rev(dendrogram.paths(heatmap$rowDendrogram))

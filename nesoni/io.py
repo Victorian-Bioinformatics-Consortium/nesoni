@@ -312,7 +312,10 @@ class Pipe_writer(object):
 
 
 def open_gzip_writer(filename):
-    return Pipe_writer(filename, ['gzip'])
+    try:
+        return Pipe_writer(filename, ['pigz'])
+    except OSError:
+        return Pipe_writer(filename, ['gzip'])
 
 def open_bzip2_writer(filename):    
     return Pipe_writer(filename, ['bzip2'])
@@ -900,7 +903,7 @@ class Grouped_table(collections.OrderedDict):
                 )
 
 
-def read_grouped_table(filename, group_cast=[('All',str)], default_group='All'):
+def read_grouped_table(filename, group_cast=[], default_group='All'):
     """ 
     Read some groups of columns from a grouped-column table file.
     
@@ -918,8 +921,11 @@ def read_grouped_table(filename, group_cast=[('All',str)], default_group='All'):
     group_cast = collections.OrderedDict(group_cast)
 
     reader = Table_reader(filename, default_group)
+    
+    for group in reader.groups:
+        if group not in group_cast:
+            group_cast[group] = str
 
-    group_types = { }
     groups = { }
     group_columns = { }
     group_column_names = { }
@@ -941,7 +947,7 @@ def read_grouped_table(filename, group_cast=[('All',str)], default_group='All'):
 
     result = Grouped_table(reader.headings[0])
     result.comments = reader.comments
-    for group in groups:
+    for group in group_cast:
         result[group] = named_matrix_type(names,group_column_names[group])(groups[group])
     return result
 

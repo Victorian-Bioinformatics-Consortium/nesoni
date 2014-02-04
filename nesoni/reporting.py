@@ -53,14 +53,15 @@ class Tar(config.Action_with_prefix):
         return super(Tar,self).ident() + '--' + (self.dest or '')
     
     def run(self):
-        tarf = tarfile.open(self.prefix+'.tar.gz', 'w:gz')
-        for filename in self.files:
-            if isinstance(filename, tuple):
-                filename, destname = filename
-            else:
-                destname = os.path.split(filename)[1]            
-            tarf.add(filename, os.path.join(os.path.split(self.prefix)[1],destname))
-        tarf.close()
+        with io.open_gzip_writer(self.prefix+'.tar.gz') as f:
+            tarf = tarfile.open(mode='w|', fileobj = f)
+            for filename in self.files:
+                if isinstance(filename, tuple):
+                    filename, destname = filename
+                else:
+                    destname = os.path.split(filename)[1]            
+                tarf.add(filename, os.path.join(os.path.split(self.prefix)[1],destname))
+            tarf.close()
 
 
 STYLE = """

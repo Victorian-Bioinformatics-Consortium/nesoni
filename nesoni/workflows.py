@@ -219,6 +219,7 @@ class Analyse_variants(config.Action_with_output_dir):
         
 
 
+@config.String_flag('title', 'Title for report')
 #@config.Positional('reference',
 #    'Reference directory created with "make-reference:".'
 #    )
@@ -252,6 +253,8 @@ class Analyse_expression(config.Action_with_output_dir):
     heatmap = [ ]
     test = [ ]
     
+    title = ''
+    
     def run(self):
         #assert self.reference is not None, 'No reference directory given.'
         space = self.get_workspace()
@@ -263,7 +266,10 @@ class Analyse_expression(config.Action_with_output_dir):
         
         nesoni.Merge_counts(
             space / 'counts',
-            filenames = [ os.path.join(item,'counts.csv') for item in self.samples ]
+            filenames = [ 
+                (os.path.join(item,'counts.csv') if os.path.isdir(item) else item)
+                for item in self.samples 
+                ]
             ).make()
         
         self.norm_from_counts(
@@ -300,7 +306,7 @@ class Analyse_expression(config.Action_with_output_dir):
             for test in tests: 
                 test.process_make(stage)       
         
-        reporter = reporting.Reporter(space / 'report', 'Expression analysis')
+        reporter = reporting.Reporter(space / 'report', self.title)
         
         similarity.report(reporter)
 

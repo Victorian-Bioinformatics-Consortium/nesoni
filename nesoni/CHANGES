@@ -1,5 +1,6 @@
 
 0.115 - Unset DISPLAY variable when running SplitsTree (crashes if DISPLAY is present and invalid).
+        Heatmap lists gene symbol before locus tag.
 
 0.114 - Minor changes for the benefit of tail-tools.
 

@@ -445,6 +445,8 @@ class Run_igv(config.Action):
         with workspace.tempspace() as temp:
             with open(temp/'batch.txt','wb') as f:
                 print >> f, 'new'
+                print >> f, 'preference LAST_TRACK_DIRECTORY', os.getcwd()
+                print >> f, 'preference LAST_GENOME_IMPORT_DIRECTORY', os.getcwd()
                 print >> f, 'genome '+os.path.abspath(self.genome)
                 for filename in self.files:
                     print >> f, 'load '+os.path.abspath(filename)
