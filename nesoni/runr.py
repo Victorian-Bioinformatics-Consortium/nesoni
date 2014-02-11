@@ -16,7 +16,9 @@ def R_literal(item):
         return '%d' % item
     elif isinstance(item, list) or isinstance(item, tuple):
         if not len(item) or not (isinstance(item[0], list) or isinstance(item[0], tuple)):
-            return 'c(' + ','.join( R_literal(subitem) for subitem in item ) + ')'
+            return 'c(' + ',\n'.join( R_literal(subitem) for subitem in item ) + ')'
+        # Note: newline because R will eventually barf if fed a long enough single line.
+        
         
         #Matrix
         ncol = len(item[0])
@@ -241,8 +243,9 @@ Smyth, G. K. (2004). Linear models and empirical Bayes methods for assessing
 differential expression in microarray experiments. Statistical Applications 
 in Genetics and Molecular Biology 3, No. 1, Article 3.
 
-Law, CW, Chen, Y, Shi, W, and Smyth, GK (2011). Voom! Variance modelling 
-powers an empirical Bayes linear modelling pipeline for RNA-Seq data. Submitted.
+Law, CW, Chen, Y, Shi, W, and Smyth, GK (2014). Voom: precision weights
+unlock linear model analysis tools for RNA-seq read counts. Genome Biology,
+Vol 15(2).
 """,  
 'nullvoom' : """    
 Uses BioConductor package limma, with voom, to fit the null model 
