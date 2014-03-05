@@ -61,7 +61,7 @@ class Depth(object):
         result = [ 0 ] * (self.size+1)
         for key, value in self.ends.iteritems():
             result[key] += value
-        for i in xrange(self.size):
+        for i in xrange(1,self.size+1):
             yield result[i]
             
         #ends = self.ends

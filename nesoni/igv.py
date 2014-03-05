@@ -451,7 +451,10 @@ class Run_igv(config.Action):
                 for filename in self.files:
                     print >> f, 'load '+os.path.abspath(filename)
             
-            io.execute(['java','-jar',io.find_jar('igv.jar'),'-b',temp/'batch.txt'])
+            io.execute(['java','-Xmx32000m',
+                        #Flags from igb.sh script:
+                        '-Dproduction=true','-Dapple.laf.useScreenMenuBar=true','-Djava.net.preferIPv4Stack=true',
+                        '-jar',io.find_jar('igv.jar'),'-b',temp/'batch.txt'])
         
         #igv_dir = os.path.join(os.environ['HOME'],'igv')
         #if not os.path.exists(igv_dir):
