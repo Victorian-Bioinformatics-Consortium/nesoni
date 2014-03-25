@@ -1,4 +1,6 @@
 
+0.117 - Fix to R module: read.counts included locus_tag in genes information
+
 0.116 - Add some newlines to R vector literals, to stop R barfing on huge values.
         Fix out-by-one in IGV plots of 5' and 3' ends.
 

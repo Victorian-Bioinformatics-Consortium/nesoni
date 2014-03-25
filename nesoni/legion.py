@@ -820,6 +820,7 @@ def _run_and_save_state(action, timestamp):
     LOCAL.time = max(LOCAL.time, timestamp)
     action.timestamp = timestamp
     action.timestamp_for = filename 
+    action.timestamp_cwd = os.getcwd()
     #timestamp_for is used to ensure the action is being 
     # run from the same (relative) current directory as previously
 

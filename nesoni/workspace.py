@@ -81,13 +81,14 @@ class Workspace(object):
         if os.path.isabs(path):
             return path
 
-        assert os.path.sep == '/' #Someone else can work this out on windows and mac   
-        me = os.path.abspath(self.working_dir).strip('/').split('/')
-        it = os.path.abspath(path).strip('/').split('/')
+        #assert os.path.sep == '/' #Someone else can work this out on windows and mac   
+        sep = os.path.sep
+        me = os.path.abspath(self.working_dir).strip(sep).split(sep)
+        it = os.path.abspath(path).strip(sep).split(sep)
         n_same = 0
         while n_same < len(me) and n_same < len(it) and me[n_same] == it[n_same]:
             n_same += 1        
-        return os.path.normpath( '/'.join( ['..']*(len(me)-n_same) + it[n_same:] ) )
+        return os.path.normpath( sep.join( ['..']*(len(me)-n_same) + it[n_same:] ) )
 
     def relative_path_as_path(self, path):
         if os.path.isabs(path):

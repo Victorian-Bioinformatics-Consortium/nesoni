@@ -36,6 +36,19 @@ def R_literal(item):
 
 def run_script(script, only_tell=False, silent=False, **kwargs):
     script = (
+            ''.join([
+            key + ' <- ' + R_literal(kwargs[key]) + '\n'
+            for key in kwargs
+        ]) + 
+        '\n' +
+        script
+        )
+               
+    if only_tell:
+        print script
+        return
+
+    script = (
         '{\n'
         "options(warn=1,error=function() {\n"
         " dump.frames(); cat(names(last.dump),sep='\n'); q('no',1);\n"
@@ -45,19 +58,10 @@ def run_script(script, only_tell=False, silent=False, **kwargs):
         "  options(bitmapType='cairo');\n"
         "}\n"
         '\n' +
-        ''.join([
-            key + ' <- ' + R_literal(kwargs[key]) + '\n'
-            for key in kwargs
-        ]) + 
-        '\n' +
         script +
         '\ninvisible();\n'   #Rscript prints the return value of top level expressions. No thanks.
         '}\n'        
     )
-       
-    if only_tell:
-        print script
-        return
         
     if silent:
         stdout = subprocess.PIPE

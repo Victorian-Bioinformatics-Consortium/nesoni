@@ -1,7 +1,7 @@
 
 # Functions for dealing with table created by "nesoni count:"
 
-read.counts <- function(filename, min.total=0, min.max=0, keep=NULL, norm.file=NULL, use.tmm=TRUE) {    
+read.counts <- function(filename, min.total=0, min.max=0, keep=NULL, norm.file=NULL, use.tmm=TRUE, quiet=FALSE) {    
     #data <- read.delim(filename, check.names=FALSE)
     #rownames(data) <- data$Feature
     #n_samples <- grep('^RPKM', colnames(data))[1] - 2
@@ -11,7 +11,7 @@ read.counts <- function(filename, min.total=0, min.max=0, keep=NULL, norm.file=N
     data <- read.grouped.table(filename, require=c('Count'), default.group='Count')
     counts <- as.matrix( data$Count )
     
-    gene <- data.frame(row.names=rownames(counts))
+    gene <- data.frame(row.names=rownames(counts), locus_tag=rownames(counts))
     
     if (!is.null(data$Annotation)) { 
         gene <- cbind(gene, data$Annotation)
@@ -23,8 +23,8 @@ read.counts <- function(filename, min.total=0, min.max=0, keep=NULL, norm.file=N
     
     n_samples <- ncol(counts)
     
-    
-    cat(sprintf("%d genes\n", nrow(counts)))
+    if (!quiet)
+        cat(sprintf("%d genes\n", nrow(counts)))
     
     have.norm <- !is.null(norm.file)
     if (have.norm) {
@@ -48,7 +48,8 @@ read.counts <- function(filename, min.total=0, min.max=0, keep=NULL, norm.file=N
     maximums <- mapply(function(i) max(counts[i,]), 1:nrow(counts))    
     good <- totals >= min.total & maximums >= min.max
 
-    cat(sprintf("%d genes after filtering\n", sum(good)))
+    if (!quiet)
+        cat(sprintf("%d genes after filtering\n", sum(good)))
     
     result <- DGEList(counts=counts[good,], gene=gene[good,])
 
@@ -71,12 +72,14 @@ read.counts <- function(filename, min.total=0, min.max=0, keep=NULL, norm.file=N
     
     result$original.number.of.genes <- nrow(counts)    
 
-    cat('                        Sample    Library size   Further         Normalizing\n')
-    cat('                                                 norm factor     multiplier\n')
-    for(i in 1:n_samples) {
-        cat(sprintf("%30s %15d %10.2f %15.2f\n", colnames(result$counts)[i], result$samples$lib.size[i], result$samples$norm.factors[i], result$samples$normalizing.multiplier[i]))
+    if (!quiet) {
+        cat('                        Sample    Library size   Further         Normalizing\n')
+        cat('                                                 norm factor     multiplier\n')
+        for(i in 1:n_samples) {
+            cat(sprintf("%30s %15d %10.2f %15.2f\n", colnames(result$counts)[i], result$samples$lib.size[i], result$samples$norm.factors[i], result$samples$normalizing.multiplier[i]))
+        }
+        cat('\n\n')
     }
-    cat('\n\n')
     
     result
 }
