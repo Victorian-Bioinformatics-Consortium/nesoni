@@ -7,7 +7,9 @@ include CHANGES
 include COPYING
 include MANIFEST
 include MANIFEST.in
-include test/data/*
+exclude test
+exclude test/*
+exclude test/data/*
 exclude test/output/*
 include nesoni/nesoni-r/*
 include nesoni/nesoni-r/R/*

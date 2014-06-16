@@ -4,9 +4,9 @@ Some code taken from https://github.com/chapmanb/bcbb
 
 """
 
-from nesoni import grace, io
+from nesoni import grace, io, bio
 
-import sys, re, urllib, os, os.path
+import sys, re, urllib, os, os.path, copy
 
 strand_to_gff = { 1:'+', -1:'-', 0:'.', None:'?' }
 strand_from_gff = { '+':1, '-':-1, '.':0, '?':None }
@@ -87,6 +87,67 @@ class Annotation(object):
             '.' if self.phase is None else str(self.phase),
             encode_keyvals(self.attr),
         ])
+    
+    def shifted(self, shift_5prime, shift_3prime):
+        result = copy.deepcopy(self)
+        if self.strand < 0:
+            result.end -= shift_5prime
+            result.start -= shift_3prime
+        else:
+            result.start += shift_5prime
+            result.end += shift_3prime
+        return result
+    
+    def five_prime(self):
+        result = copy.deepcopy(self)
+        if result.strand < 0:
+            result.start = result.end
+        else:
+            result.end = result.start
+        return result
+
+    def three_prime(self):
+        result = copy.deepcopy(self)
+        if result.strand < 0:
+            result.end = result.start
+        else:
+            result.start = result.end
+        return result
+    
+    def span_with(self, other):
+        assert self.seqid == other.seqid
+        assert self.strand * other.strand >= 0
+        result = copy.deepcopy(self)
+        result.start = min(self.start, other.start)
+        result.end = max(self.end, other.end)
+        return result
+    
+    def relative_to(self, other):
+        assert self.seqid == other.seqid
+        result = copy.deepcopy(self)
+        result.seqid = other.get_id()
+        if other.strand >= 0:
+            result.start = self.start - other.start
+            result.end = self.end - other.start
+        else:
+            result.strand *= -1
+            result.start = self.end - other.end
+            result.end = self.start - other.end
+        return result
+    
+    def get_seq(self, seq_dict):
+        seq = seq_dict[self.seqid]
+        if self.end <= 0 or self.start >= len(seq):
+            extract = 'N' * (self.end-self.start)
+        else:
+            extract = seq[max(self.start,0):min(self.end,len(seq))]
+            if self.start < 0:
+                extract = 'N' * -self.start + extract
+            if self.end > len(seq):
+                extract = extract + 'N' * (self.end-len(seq))
+        if self.strand < 0:
+            extract = bio.reverse_complement(extract)
+        return extract
 
 
 def link_up_annotations(annotations):

@@ -7,6 +7,8 @@ read.grouped.table <- function(filename, require=c(), default.group='All') {
     groups <- c()
     tab.separated <- FALSE
     
+    skip <- 0
+    
     f <- file(filename,'r')
     repeat {
         line <- readLines(f,1)
@@ -16,6 +18,8 @@ read.grouped.table <- function(filename, require=c(), default.group='All') {
             break;
         }
         
+        skip <- skip + 1
+        
         parts <- strsplit(line,',')[[1]]
         if (parts[1] == '#Groups') {
             groups <- parts[basic.seq(length(parts)-1)+1]
@@ -24,9 +28,9 @@ read.grouped.table <- function(filename, require=c(), default.group='All') {
     close(f)
 
     if (tab.separated)
-        data <- read.delim(filename, comment.char='#', check.names=FALSE)    
+        data <- read.delim(filename, skip=skip, check.names=FALSE)    
     else    
-        data <- read.csv(filename, comment.char='#', check.names=FALSE)
+        data <- read.csv(filename, skip=skip, check.names=FALSE)
     
     rows <- data[,1]
     cols <- colnames(data)[basic.seq(ncol(data)-1)+1]    

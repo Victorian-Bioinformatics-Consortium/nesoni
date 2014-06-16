@@ -110,6 +110,7 @@ necessary to import a genome into IGV, if you only have a GENBANK file.
 @config.Bool_flag('strand_specific', 'Output strand-specific plots.') 
 @config.Bool_flag('raw', 'Output un-normalized plots.')
 @config.Bool_flag('norm', 'Output normalized plots.') 
+@config.Bool_flag('three_prime', 'Output individual 3\' end plots.') 
 @config.String_flag('genome', 'IGV ".genome" file. If specified, igvtools will be used to create ".tdf" files.')
 @config.Bool_flag('delete_igv', 'Delete the ".igv" files after converting to ".tdf".')
 @config.Main_section('working_dirs', 'Working directories containing the results of "filter:" or "consensus:".')
@@ -122,6 +123,7 @@ class IGV_plots(config.Action_with_prefix):
     strand_specific = True
     raw = True
     norm = True
+    three_prime = False
     genome = None
     delete_igv = True
 
@@ -371,6 +373,12 @@ class IGV_plots(config.Action_with_prefix):
                 self.make_plot('-reads-normalized', self.sample_names, self.normalize_iter(self.iter_over_unstranded(lambda item: item.ambiguous_depths)), self.norm_maximum, '0,128,128')
                 if self.any_pairs:
                     self.make_plot('-fragments-normalized', self.sample_names, self.normalize_iter(self.iter_over_unstranded(lambda item: item.ambiguous_pairspan_depths)), self.norm_maximum, '0,128,128')
+        
+        if self.three_prime:
+            if self.strand_specific:
+                self.make_plot('-reads-3prime-fwd', names_fwd, self.iter_over(lambda item: item.ambiguous_depths[0].iter_ends()), self.maximum, '0,128,0')        
+                self.make_plot('-reads-3prime-rev', names_rev, self.iter_over(lambda item: item.ambiguous_depths[1].iter_starts()), self.maximum, '0,0,128')                
+        
         
         self.make_plot('-mapping-ambiguity', ['Ambiguity'], self.iter_ambiguity(), 1.0, '196,0,0', scale_type='linear', windowing='mean')
 

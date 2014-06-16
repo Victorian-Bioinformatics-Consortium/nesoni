@@ -7,6 +7,7 @@ Read and write various types of file / directory
 from nesoni import grace, legion, selection
 
 import os, sys, re, collections, csv, subprocess, gzip, bz2, itertools, contextlib
+csv.field_size_limit(1<<30)
 
 from nesoni.workspace import Workspace
 

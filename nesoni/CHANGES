@@ -1,4 +1,8 @@
 
+0.118 - Better text sizing in heatmaps.
+        --three-prime option in igv-plots.
+        R: fix read.grouped.table, don't treat # as comment in body of table
+
 0.117 - Fix to R module: read.counts included locus_tag in genes information
 
 0.116 - Add some newlines to R vector literals, to stop R barfing on huge values.

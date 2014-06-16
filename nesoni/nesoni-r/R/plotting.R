@@ -1,4 +1,9 @@
 
+unsigned.col <- hsv(h=seq(0.95,1.15, length.out=256)%%1.0, v=seq(0,1, length.out=256)**0.5,s=seq(1,0,length.out=256)**0.5)
+
+signed.col <- hsv(h=(sign(seq(-1.0,1.0, length.out=256))*0.2+0.8)%%1.0, v=1,s=abs(seq(-1,1,length.out=256)))
+
+
 aspect.ratio <- function() { par()$fin[1] / par()$fin[2] }
 
 put.plot <- function(px1,px2,py1,py2) {
@@ -67,7 +72,7 @@ do.dendrogram <- function(mat, enable=TRUE) {
 
 trim.labels <- function(labels) {
     labels <- as.character(labels)
-    n <- max(10, ceiling( mean(nchar(labels)) * 3.0 ))
+    n <- max(10, min(30, ceiling( mean(nchar(labels)) * 2.0 )))
     
     for(i in basic.seq(length(labels)))
         if (nchar(labels[i]) > n) {
@@ -195,7 +200,7 @@ multiplot <- function(plots, labels) {
             l <- as.character(labels[[i]])
         
         if (length(l) > 0) {
-            cex <- min(1.0, 180.0 * (y2-y1)/length(l))
+            cex <- min(1.0, 6.0 * height.inches*(y2-y1)/length(l))
             
             axis(4, at=basic.seq(length(l))-0.5, labels=l, las=2, tick=FALSE, line=line,
                  cex.axis = cex )
@@ -361,9 +366,6 @@ nesoni.heatmap <- function(mat,
     #invisible(result)
 #}    
 
-unsigned.col <- hsv(h=seq(0.95,1.15, length.out=256)%%1.0, v=seq(0,1, length.out=256)**0.5,s=seq(1,0,length.out=256)**0.5)
-signed.col <- hsv(h=(sign(seq(-1.0,1.0, length.out=256))*0.2+0.8)%%1.0, v=1,s=abs(seq(-1,1,length.out=256)))
-
 
 svd.gene.picker <- function(mat, svd.rank=NULL, min.svd=2.0) {
     if (is.null(svd.rank))
@@ -415,7 +417,7 @@ hmap.elist <- function(filename.prefix, elist,
     averages <- rowMeans(elist$E)
     
     if (is.na(row.labels))
-        row.labels <- (nrow(elist) <= 300)
+        row.labels <- (nrow(elist) <= 600)
 
     data <- t(scale(t(elist$E), center=TRUE,scale=FALSE))
 
@@ -431,7 +433,7 @@ hmap.elist <- function(filename.prefix, elist,
         if (!all(is.na(elist$gene[,colname])))
             labels[[ length(labels)+1 ]] <- elist$gene[,colname]
         
-    height <- if(row.labels) (25*nrow(data)+800)*res/150 else 2500*res/150    
+    height <- if(row.labels) (10*nrow(data)+1500)*res/150 else 2500*res/150
     png(sprintf('%s.png',filename.prefix), width=2000*res/150, height=height, res=res)
     
     #heatmap <- nesoni.heatmap(data, col=signed.col, symkey=TRUE,symbreaks=TRUE, labRow=(if(row.labels) NULL else NA), margins=margins, main=main, ...)
