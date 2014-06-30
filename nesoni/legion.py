@@ -349,8 +349,7 @@ def manager(address=('127.0.0.1',0),authkey=None,connect=False):
     global _MANAGER, _AUTHKEY
     if _MANAGER is None:
         if authkey is None:
-            with open('/dev/urandom','rb') as f:
-                authkey = base64.b16encode(f.read(256))
+            authkey = base64.b16encode(os.urandom(256))
         _MANAGER = My_manager(address=address, authkey=authkey)
         _AUTHKEY = authkey
         if connect:

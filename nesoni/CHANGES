@@ -1,4 +1,7 @@
 
+0.120 - Use os.urandom rather than file /dev/urandom
+        Strip color escape codes on non-posix OS
+
 0.119 - Allow None as value in config.Section.
 
 0.118 - Better text sizing in heatmaps.

@@ -41,7 +41,7 @@ def strip_color(text):
     return re.sub(r'\x1b\[\d*m','',text)
 
 def write_colored_text(file, text):
-    if not file.isatty():
+    if not file.isatty() or not os.name == 'posix':
         text = strip_color(text)
     file.write(text)
 
