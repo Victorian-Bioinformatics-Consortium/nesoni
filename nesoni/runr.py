@@ -334,11 +334,10 @@ expression data. Bioinformatics 26, 139-140
 """,
 'common' : """      
 Uses BioConductor package EdgeR to look for differential expression
-using a negative binomial model, with the assumption that overdispersion 
-is the same for all tags.
+using a negative binomial model. A global estimate of overdispersion
+is blended with a per-gene estimate.
 
-This mode is unable to distinguish differentially expressed gene from 
-genes with high variability between samples.
+Uses the default EdgeR df.prior (10).
 
 
 References:
@@ -349,11 +348,11 @@ expression data. Bioinformatics 26, 139-140
 """,
 'trend' : """       
 Uses BioConductor package EdgeR to look for differential expression
-using a negative binomial model, with the assumption that overdispersion 
-is a smoothly varying function of overall intensity.
+using a negative binomial model, with a global model of overdispersion 
+is a smoothly varying function of overall intensity. This overall model
+is blended with a per-gene estimate of overdispersion.
 
-This mode is unable to distinguish differentially expressed gene from 
-genes with high variability between samples.
+Uses the default EdgeR df.prior (10).
 
 
 References:

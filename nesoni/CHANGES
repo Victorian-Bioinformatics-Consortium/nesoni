@@ -1,4 +1,6 @@
 
+0.119 - Allow None as value in config.Section.
+
 0.118 - Better text sizing in heatmaps.
         --three-prime option in igv-plots.
         R: fix read.grouped.table, don't treat # as comment in body of table

@@ -1091,22 +1091,35 @@ def run_toolbox(action_classes, script_name='', show_make_flags=True):
     
     commands = { }
 
-    help = [ '\n' ]
-
     for item in action_classes:
         if isinstance(item, str):
-            help.append(config.wrap(item, 70) + '\n\n')
             continue
         name = item.shell_name()
         commands[ name ] = item
-        help.append('    %s\n' % config.colored(1,name+':'))
-        help.append(config.wrap(item.help_short, 70, '        ') + '\n\n')
 
-    if show_make_flags:
+    if args == [ '--help-make' ]:
+        help = [ '\n' ]
         help.append('\nMake options:\n'+Make().describe('', show_help=True, escape_newlines=False)+'\n')
 
-    if not args:
         config.write_colored_text(sys.stdout, ''.join(help)+'\n\n')
+        sys.exit(1)
+
+    if not args or args == ['-h'] or args == ['--help']:
+        help = [ '\n' ]
+        
+        for item in action_classes:
+            if isinstance(item, str):
+                help.append(config.wrap(item, 70) + '\n\n')
+                continue
+            name = item.shell_name()
+            help.append('    %s\n' % config.colored(1,name+':'))
+            help.append(config.color_as_comment(config.wrap(item.help_short, 70, '        ')) + '\n\n')
+
+        if show_make_flags:
+            #help.append('\nMake options:\n'+Make().describe('', show_help=True, escape_newlines=False)+'\n')
+            help.append('\nFor workflow make options type "%s --help-make".\n' % script_name)
+
+        config.write_colored_text(sys.stdout, ''.join(help))
         sys.exit(1)
         
     try:        

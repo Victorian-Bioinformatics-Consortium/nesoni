@@ -310,7 +310,7 @@ class Section(Parameter):
         if not self.allow_flags:
             expect_no_further_flags(args)
         if self.append:
-            return self.get(obj) + args
+            return (self.get(obj) or []) + args
         else:
             return args
 
@@ -321,12 +321,15 @@ class Section(Parameter):
         return [ self.shell_name() ]
 
     def describe_each(self, value):
+        if not value: return [ ]
         return [ str(item) for item in value ]
 
     def describe(self, value):
+        if value is None: return '...'
         return ' '.join(self.describe_each(value))
     
     def describe_quoted(self, value):
+        if value is None: return '...'
         return ' '.join([ pipes.quote(item) for item in self.describe_each(value) ])
 
     def describe_shell(self, obj, verbose=True):
