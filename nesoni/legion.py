@@ -13,6 +13,7 @@ if __name__ == '__main__':
         sys.path = python_path
         
         from nesoni import legion
+            
         legion.manager(address, authkey, connect=True)
         
         if main_file is not None: # so unpickling functions in __main__ works
@@ -331,8 +332,10 @@ class My_manager(managers.SyncManager):
             signal.signal(signal.SIGINT, signal.SIG_IGN)
             managers.SyncManager._Server.serve_forever(self)
     
+def _get_coordinator():
+    return _COORDINATOR
+My_manager.register('get_coordinator', callable=_get_coordinator)
 
-My_manager.register('get_coordinator', callable=lambda: _COORDINATOR)
 
 _MANAGER = None
 _AUTHKEY = None
