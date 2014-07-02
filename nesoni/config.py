@@ -888,12 +888,15 @@ class Action_with_log(Action):
         self._log_level = self._log_level - 1
         if self._log_level == 0:
             now = datetime.datetime.now()
-            self.log.quietly_log(
-                '\n' +
-                ' started '+ self._log_start.strftime('%_d %B %Y %_I:%M %p') + '\n'
-                'finished '+ now.strftime('%_d %B %Y %_I:%M %p') + '\n'
-                'run time '+ str( datetime.timedelta(seconds=int((now-self._log_start).total_seconds())) ) + '\n'
-            )
+            
+            if os.name == 'posix':
+                # Broken on Windows, unsure why
+                self.log.quietly_log(
+                    '\n' +
+                    ' started '+ self._log_start.strftime('%_d %B %Y %_I:%M %p') + '\n'
+                    'finished '+ now.strftime('%_d %B %Y %_I:%M %p') + '\n'
+                    'run time '+ str( datetime.timedelta(seconds=int((now-self._log_start).total_seconds())) ) + '\n'
+                )
 
             filename = self.log_filename()
             if filename is not None and os.path.exists(os.path.split(filename)[0] or '.'):
