@@ -130,6 +130,29 @@ def _deprecated(text):
 def substitute(text, **args):
     return re.sub('|'.join(args), lambda match: args[match.group(0)], text)
 
+def _init_globals():
+    global _SERVER,_COORDINATOR,_MANAGER,_AUTHKEY,_COORDINATOR_PROXY
+    # The coordinator in the manager-process
+    _SERVER = None
+    _COORDINATOR = None
+    # Connection to manager-process
+    _MANAGER = None
+    _AUTHKEY = None
+    # Local proxy of the coordinator in the manager-process
+    _COORDINATOR_PROXY = None
+
+def _run_job(address, authkey, mail_number):
+    _init_globals()
+    manager(address, authkey, connect=True)
+    func, args, kwargs = coordinator().get_mail(mail_number)
+    func(*args,**kwargs) 
+
+#DEFAULT_JOB_COMMAND = '__command__ &'
+DEFAULT_JOB_COMMAND = ''
+DEFAULT_KILL_COMMAND = 'pkill -f __jobname__' if os.name == 'posix' else ''
+
+_init_globals()
+
     
 class My_coordinator:
     """ LIFO allocation of cores
@@ -159,15 +182,8 @@ class My_coordinator:
         
         self.job_name = 'nesoni_%d_' % os.getpid()
         
-        if sys.platform == 'nt':
-            self.job_command = 'start __command__'
-        else:
-            self.job_command = '__command__ &'
-        
-        if sys.platform == 'posix':
-            self.kill_command = 'pkill -f __jobname__'
-        else:
-            self.kill_command = ''
+        self.job_command = DEFAULT_JOB_COMMAND
+        self.kill_command = DEFAULT_KILL_COMMAND
 
     def set(self, **kwargs):
         for key in kwargs:
@@ -293,32 +309,36 @@ class My_coordinator:
 
     def job(self, func, *args, **kwargs):
         number = self.set_mail((func,args,kwargs))
-
-        main = sys.modules['__main__']
-        if hasattr(main,'__file__'):
-            main_file = main.__file__
-        else:
-            main_file = None
-    
-        address = _SERVER.address
-        authkey = _SERVER.authkey        
-        token = base64.b64encode(repr((
-            os.getcwd(),
-            sys.path,
-            main_file,
-            address,
-            authkey,
-            number
-        )))
         
-        command = substitute(self.job_command,
-            __command__ = '%s %s %s %s' % ('"'+sys.executable+'"', '"'+__file__+'"', token, self.job_name),
-            __token__ = token,
-            __jobname__ = self.job_name
-        )
-
-        retval = os.system(command)
-        assert retval == 0, 'Failed to run job with: '+command
+        if not self.job_command:
+            multiprocessing.Process(target=_run_job, args=(_SERVER.address, _SERVER.authkey, number,)).start()
+        
+        else:
+            main = sys.modules['__main__']
+            if hasattr(main,'__file__'):
+                main_file = main.__file__
+            else:
+                main_file = None
+            
+            address = _SERVER.address
+            authkey = _SERVER.authkey        
+            token = base64.b64encode(repr((
+                os.getcwd(),
+                sys.path,
+                main_file,
+                address,
+                authkey,
+                number
+            )))
+            
+            command = substitute(self.job_command,
+                __command__ = '%s %s %s %s' % (sys.executable, __file__, token, self.job_name),
+                __token__ = token,
+                __jobname__ = self.job_name
+            )
+            
+            retval = os.system(command)
+            assert retval == 0, 'Failed to run job with: '+command
         
     def kill_all(self):
         if self.kill_command:
@@ -327,9 +347,6 @@ class My_coordinator:
 
 
 
-# The coordinator in the manager-process
-_SERVER = None
-_COORDINATOR = None
 
 class My_manager(managers.SyncManager):
     class _Server(managers.SyncManager._Server):
@@ -346,8 +363,6 @@ def _get_coordinator():
 My_manager.register('get_coordinator', callable=_get_coordinator)
 
 
-_MANAGER = None
-_AUTHKEY = None
 def manager(address=('127.0.0.1',0),authkey=None,connect=False):
     """ Get manager, starting it if necessary.
         Note: the manager should be started before doing anything
@@ -372,8 +387,6 @@ def manager(address=('127.0.0.1',0),authkey=None,connect=False):
     return _MANAGER
 
 
-# Local proxy of the coordinator in the manager-process
-_COORDINATOR_PROXY = None
 def coordinator():
     """ Get a proxy of the coordinator object in the manager process.     
     """
@@ -1013,8 +1026,8 @@ class Make(config.Action):
     make_done = ''
     
     make_address = os.environ.get('NESONI_ADDRESS') or socket.gethostbyname(socket.gethostname())
-    make_job = os.environ.get('NESONI_JOB') or '__command__ &'
-    make_kill = os.environ.get('NESONI_KILL') or 'pkill -f __jobname__'
+    make_job = os.environ.get('NESONI_JOB') or DEFAULT_JOB_COMMAND
+    make_kill = os.environ.get('NESONI_KILL') or DEFAULT_KILL_COMMAND
     
     def _before_run(self):
         manager((self.make_address, 0))
