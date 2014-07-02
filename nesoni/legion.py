@@ -158,8 +158,16 @@ class My_coordinator:
         self.future_count = 0
         
         self.job_name = 'nesoni_%d_' % os.getpid()
-        self.job_command = '__command__ &'
-        self.kill_command = 'pkill -f __jobname__'
+        
+        if sys.platform == 'nt':
+            self.job_command = 'start __command__'
+        else:
+            self.job_command = '__command__ &'
+        
+        if sys.platform == 'posix':
+            self.kill_command = 'pkill -f __jobname__'
+        else:
+            self.kill_command = ''
 
     def set(self, **kwargs):
         for key in kwargs:
@@ -304,7 +312,7 @@ class My_coordinator:
         )))
         
         command = substitute(self.job_command,
-            __command__ = '%s %s %s %s' % (sys.executable, __file__, token, self.job_name),
+            __command__ = '%s %s %s %s' % ('"'+sys.executable+'"', '"'+__file__+'"', token, self.job_name),
             __token__ = token,
             __jobname__ = self.job_name
         )
@@ -313,8 +321,9 @@ class My_coordinator:
         assert retval == 0, 'Failed to run job with: '+command
         
     def kill_all(self):
-        command = substitute(self.kill_command, __jobname__ = self.job_name)
-        os.system(command)
+        if self.kill_command:
+            command = substitute(self.kill_command, __jobname__ = self.job_name)
+            os.system(command)
 
 
 
