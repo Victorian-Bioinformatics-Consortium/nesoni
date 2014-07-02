@@ -1,6 +1,7 @@
 
-0.120 - Use os.urandom rather than file /dev/urandom
-        Strip color escape codes on non-posix OS
+0.120 - Use os.urandom rather than file /dev/urandom.
+        Strip color escape codes on non-posix OS.
+        Windows compatability fix for legion.py.
 
 0.119 - Allow None as value in config.Section.
 

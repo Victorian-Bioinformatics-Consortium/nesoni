@@ -222,7 +222,7 @@ os.system('rm MANIFEST')
 
 do_install = 'noinstall' not in sys.argv[1:]
 do_upload = 'noupload' not in sys.argv[1:]
-do_rebuild = 'norebuild' not in sys.argv[1:]
+do_rebuild = 'rebuild' in sys.argv[1:]
 
 release_tarball_name = 'nesoni-%s.tar.gz' % nesoni.VERSION
 if do_upload:
