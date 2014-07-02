@@ -818,7 +818,10 @@ class Configurable(object):
         desc = [ colored(1, invocation) ]
         
         if escape_newlines:
-            suffix = ' \\'
+            if os.name == 'nt':
+                suffix = '^'
+            else:
+                suffix = ' \\'
         else:
             suffix = ''
         
