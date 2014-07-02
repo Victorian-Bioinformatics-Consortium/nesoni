@@ -147,8 +147,7 @@ def _run_job(address, authkey, mail_number):
     func, args, kwargs = coordinator().get_mail(mail_number)
     func(*args,**kwargs) 
 
-#DEFAULT_JOB_COMMAND = '__command__ &'
-DEFAULT_JOB_COMMAND = ''
+DEFAULT_JOB_COMMAND = '__command__ &' if os.name == 'posix' else ''
 DEFAULT_KILL_COMMAND = 'pkill -f __jobname__' if os.name == 'posix' else ''
 
 _init_globals()
