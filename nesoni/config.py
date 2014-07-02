@@ -819,7 +819,7 @@ class Configurable(object):
         
         if escape_newlines:
             if os.name == 'nt':
-                suffix = '^'
+                suffix = ' ^'
             else:
                 suffix = ' \\'
         else:
