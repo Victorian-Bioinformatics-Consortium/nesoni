@@ -1,4 +1,8 @@
 
+0.123 - Add fitnoise.R
+
+0.122 - Revert back to starting new processes manually on posix systems (something seems to be broken).
+
 0.121 - More Windows compatability:
         Default to using multiprocessing to start new processes.
 
