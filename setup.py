@@ -31,10 +31,10 @@ setup(
     
     package_data = {
         'nesoni' : [
-            'nesoni-r/DESCRIPTION',
+            'nesoni-r/*',
             'nesoni-r/R/*',
             'CHANGES',
-            ],            
+            ],
         },
     
     entry_points = {

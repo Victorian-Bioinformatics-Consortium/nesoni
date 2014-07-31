@@ -143,6 +143,7 @@ in nesoni reflect this.
   
   </div>
 
+<!--
 <div class="box">
   <h3>k-mer and De Bruijn graph tools</h3>
   
@@ -155,6 +156,7 @@ in nesoni reflect this.
   </ul>
   
   </div>
+-->
 
 <div style="clear: both"/>
 <br/><br/>

@@ -26,47 +26,47 @@ class Depth(object):
         return self.size
     
     def __iter__(self):
-        delta = [ 0 ] * (self.size+1)
-        for key, value in self.starts.iteritems():
-            delta[key] += value
-        for key, value in self.ends.iteritems():
-            delta[key] -= value
-        depth = 0
-        for i in xrange(self.size):
-            depth += delta[i]
-            yield depth
-        
-        #value = 0
-        #starts = self.starts
-        #ends = self.ends
+        #delta = [ 0 ] * (self.size+1)
+        #for key, value in self.starts.iteritems():
+        #    delta[key] += value
+        #for key, value in self.ends.iteritems():
+        #    delta[key] -= value
+        #depth = 0
         #for i in xrange(self.size):
-        #    value += starts.get(i,0)
-        #    value -= ends.get(i,0)
-        #    yield value
+        #    depth += delta[i]
+        #    yield depth
+        
+        value = 0
+        starts = self.starts
+        ends = self.ends
+        for i in xrange(self.size):
+            if i in starts: value += starts[i]
+            if i in ends:   value -= ends[i]
+            yield value
 
     def iter_starts(self):
         """ How many start at this base position """
-        result = [ 0 ] * self.size
-        for key, value in self.starts.iteritems():
-            result[key] += value
-        for i in xrange(self.size):
-            yield result[i]
-            
-        #starts = self.starts
+        #result = [ 0 ] * self.size
+        #for key, value in self.starts.iteritems():
+        #    result[key] += value
         #for i in xrange(self.size):
-        #    yield starts.get(i,0)
+        #    yield result[i]
+            
+        starts = self.starts
+        for i in xrange(self.size):
+            yield starts.get(i,0)
     
     def iter_ends(self):
         """ How many end at this base position """
-        result = [ 0 ] * (self.size+1)
-        for key, value in self.ends.iteritems():
-            result[key] += value
-        for i in xrange(1,self.size+1):
-            yield result[i]
+        #result = [ 0 ] * (self.size+1)
+        #for key, value in self.ends.iteritems():
+        #    result[key] += value
+        #for i in xrange(1,self.size+1):
+        #    yield result[i]
             
-        #ends = self.ends
-        #for i in xrange(self.size):
-        #    yield ends.get(i+1,0)
+        ends = self.ends
+        for i in xrange(1,self.size+1):
+            yield ends.get(i,0)
 
     def total(self):
         total = 0
@@ -75,6 +75,38 @@ class Depth(object):
         for pos, value in self.ends.iteritems():
             total -= value*(self.size-pos)
         return total
+
+
+#class Depth_v2(object):
+#    def __init__(self, size, allocator):
+#        self.size = size
+#        self.starts = allocator.zeros(size+1,'int32')
+#        self.ends = allocator.zeros(size+1,'int32')
+#        self._total = 0
+#
+#    def increment(self, start, end):
+#        self.starts[start] += 1
+#        self.ends[end] += 1
+#        self._total += end-start
+#    
+#    def __iter__(self):
+#        depth = 0
+#        for i in xrange(self.size):
+#            depth += self.starts[i] - self.ends[i]
+#            yield depth
+#
+#    def iter_starts(self):
+#        return iter(self.starts[0:self.size])
+#    
+#    def iter_ends(self):
+#        return iter(self.ends[1:self.size+1])
+#
+#    def __len__(self):
+#        return self.size
+#    
+#    def total(self):
+#        return self._total
+
 
 
 class Ref_depth(object): pass
@@ -202,6 +234,21 @@ def filter(working_dir, infidelity_snps, is_monogamous, output_userplots, output
     #    calc_cutoff = samshrimp.cutoff_interpreter(workspace.param['shrimp_cutoff'])
     #else:
     #    calc_cutoff = lambda length: -1
+    
+    ###from . import storage
+    #### Delete legacy form depths if they exist
+    ###if os.path.exists(workspace/'depths.pickle.gz'):
+    ###    os.unlink(workspace/'depths.pickle.gz')
+    ###store = storage.Storage(workspace/'depths.store', clear=True)
+    ###
+    ###depths = { }
+    ###store.data = depths
+    ###for name, length in reference.get_lengths():
+    ###    depths[name] = Ref_depth()
+    ###    depths[name].ambiguous_depths = [ Depth_v2(length, store) for direction in (0,1) ]
+    ###    depths[name].ambiguous_pairspan_depths = [ Depth_v2(length, store) for direction in (0,1) ]
+    ###    depths[name].depths = [ Depth_v2(length, store) for direction in (0,1) ]
+    ###    depths[name].pairspan_depths = [ Depth_v2(length, store) for direction in (0,1) ]
 
     depths = { }
     for name, length in reference.get_lengths():
@@ -210,6 +257,7 @@ def filter(working_dir, infidelity_snps, is_monogamous, output_userplots, output
         depths[name].ambiguous_pairspan_depths = [ Depth(length) for direction in (0,1) ]
         depths[name].depths = [ Depth(length) for direction in (0,1) ]
         depths[name].pairspan_depths = [ Depth(length) for direction in (0,1) ]
+
 
     input_filename = workspace.object_filename('alignments.bam')
     
@@ -414,11 +462,9 @@ def filter(working_dir, infidelity_snps, is_monogamous, output_userplots, output
         workspace.object_filename('alignments_filtered_sorted')
     )
     
-    # Write depths
-    grace.status('Write depth pickle')
     workspace.set_object(depths, 'depths.pickle.gz')
+    ####store.save()
     workspace.update_param(any_pairs = any_pairs)
-    grace.status('')
     
     if output_userplots:
         for name in depths:
@@ -456,6 +502,8 @@ def filter(working_dir, infidelity_snps, is_monogamous, output_userplots, output
                 )
             
             grace.status('')
+
+    ####store.close()
 
 
 # ===================================================================================

@@ -1,10 +1,15 @@
 #
 # This is a generalized but slow replacement for limma
 #
+# Running multi-core may require running R with:
+#
+#     OPENBLAS_NUM_THREADS=1 R
+#
+#
 
 library(Matrix)
 library(limma)  # EList class, p.adjust
-
+library(parallel)
 
 ##################################
 # Utility functions
@@ -241,7 +246,7 @@ conditional.mvt <- function(self, i1, i2, x2) {
 #
 # Some dist may not be all(good( ))
 #
-fit.noise <- function(data, design, get.dist, initial) {
+fit.noise <- function(data, design, get.dist, initial, cores=1) {
     #decomp <- qr(design)
     #i2 <- ncol(design)+seq_len(nrow(design)-ncol(design))
     #Q <- qr.Q(decomp, complete=TRUE)
@@ -293,19 +298,34 @@ fit.noise <- function(data, design, get.dist, initial) {
                 tQ2s[[i]] <- tQ2
             }
         }
-        
-        scorer <- function(param) {
-            total <- 0.0
-            for(i in indicies) {
-                dist <- transformed(
-                    marginal(
-                        get.dist(i, param), 
-                        retains[[i]]), 
-                    tQ2s[[i]])
-                total <- total + log.density(dist, z2s[[i]])
-            }
-            -total
-        }     
+
+        if (cores <= 1) {
+            scorer <- function(param) {
+                total <- 0.0
+                for(i in indicies) {
+                    dist <- transformed(
+                        marginal(
+                            get.dist(i, param), 
+                            retains[[i]]), 
+                        tQ2s[[i]])
+                    total <- total + log.density(dist, z2s[[i]])
+                }
+                -total
+            }     
+        } else {
+            scorer <- function(param) {
+                score.one <- function(i) {
+                    dist <- transformed(
+                        marginal(
+                            get.dist(i, param), 
+                            retains[[i]]), 
+                        tQ2s[[i]])
+                    log.density(dist, z2s[[i]])
+                }
+                
+                -sum(unlist(mclapply(indicies, score.one, mc.cores=cores)))
+            }        
+        }
         
         result <- optim.positive(initial, scorer)
     }    
@@ -349,8 +369,6 @@ fit.coef <- function(fit, design) {
     
     coef <- matrix(as.double(NA),nrow=nrow(data),ncol=ncol(design))
     colnames(coef) <- colnames(design)
-
-    #coef.check <- matrix(as.double(NA),nrow=nrow(data),ncol=ncol(design))
     
     for(i in seq_len(nrow(data))) {        
         retain <- seq_len(ncol(data))[ is.finite(data[i,]) & good(dist[[i]]) ]
@@ -366,7 +384,7 @@ fit.coef <- function(fit, design) {
             i2 <- ncol(design)+seq_len(length(retain)-ncol(design))
             Q <- qr.Q(decomp, complete=TRUE)
             R <- qr.R(decomp)
-            Rinv <- solve(R)
+            Rinv <- .solve(R)
             tQ <- t(Q)
             Q2 <- Q[, i2, drop=FALSE]
             tQ2 <- t(Q2)
@@ -376,14 +394,10 @@ fit.coef <- function(fit, design) {
             cond.dist <- conditional(transformed(this.dist,tQ), i1, i2, z[i2])
             coef.dist[[i]] <- transformed(cond.dist, -Rinv, Rinv %*% z[i1])
             coef[i,] <- expect(coef.dist[[i]])
-            
-            #cond.z <- z[i1] - expect(cond.dist)
-            #coef.check[i,] <- backsolve(R, cond.z)
         }
     }
 
     fit$coef <- coef
-    #fit$coef.check <- coef.check
     fit$coef.dist <- coef.dist
     
     fit
@@ -391,11 +405,11 @@ fit.coef <- function(fit, design) {
 
 
 
-fit <- function(data, design, get.dist, initial, noise.design=NULL) {
+fit <- function(data, design, get.dist, initial, noise.design=NULL, cores=1) {
     if (is.null(noise.design))
         noise.design <- design
     
-    fit.coef(fit.noise(data, noise.design, get.dist, initial), design)
+    fit.coef(fit.noise(data, noise.design, get.dist, initial, cores=cores), design)
 }
 
 
@@ -426,6 +440,25 @@ p.values.contrasts <- function(fit, contrasts) {
                 )
         }
     p.values
+}
+
+p.values.coefs <- function(fit, coefs) {
+    contrasts <- matrix(0, nrow=ncol(fit$coef), ncol=length(coef))
+    for(i in seq_len(length(coefs)))
+        contrasts[coefs[i],i] <- 1
+
+    p.values.contrasts(fit, contrasts)
+}
+
+
+weights.matrix <- function(fit) {
+    weights <- matrix(0, nrow=nrow(fit$data), ncol=ncol(fit$data))
+
+    for(i in seq_len(nrow(fit$data)))
+        if (!is.null(fit$dist[[i]]))
+            weights[i,] <- weights.vector(fit$dist[[i]])
+    
+    weights
 }
 
 
@@ -507,41 +540,21 @@ model.t.patseq <- normal.model.to.t(model.normal.pat)
 
 
 ##################################
-# Convenience
+# Convenience functions for EList objects
 ##################################
-
-
-p.values.coefs <- function(fit, coefs) {
-    contrasts <- matrix(0, nrow=ncol(fit$coef), ncol=length(coef))
-    for(i in seq_len(length(coefs)))
-        contrasts[coefs[i],i] <- 1
-
-    p.values.contrasts(fit, contrasts)
-}
-
-
-weights.matrix <- function(fit) {
-    weights <- matrix(0, nrow=nrow(fit$data), ncol=ncol(fit$data))
-
-    for(i in seq_len(nrow(fit$data)))
-        if (!is.null(fit$dist[[i]]))
-            weights[i,] <- weights.vector(fit$dist[[i]])
-    
-    weights
-}
-
-
 
 
 fit.elist <- function(
         elist, design, model=model.t.standard, 
-        noise.design=NULL) {
+        noise.design=NULL,
+        cores=1) {
     result <- fit(
         data = elist$E,
         design = design,
         get.dist = function(i,param) model$get.dist(elist,i,param),
         initial = model$initial(elist),
-        noise.design = noise.design
+        noise.design = noise.design,
+        cores = cores
     )
     
     result$noise.description <- model$describe(elist, result$param)    
@@ -549,7 +562,15 @@ fit.elist <- function(
     result
 }
 
-
+#
+# Input:
+#
+# Specify either coefs or contrasts
+#
+# Output:
+#
+# Intended to match the output of limma's topTableF
+#
 test.fit <- function(fit, coefs=NULL, contrasts=NULL, sort=TRUE) {
     stopifnot(is.null(coefs) + is.null(contrasts) == 1)
     

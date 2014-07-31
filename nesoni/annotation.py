@@ -49,7 +49,8 @@ class Annotation(object):
              self.start,
              self.end,
              self.type,
-             ' '.join( key+'='+val for key,val in self.attr.items() )
+             self.get_id()
+             #' '.join( key+'='+val for key,val in self.attr.items() )
         ) 
 
     def get_id(self):
@@ -131,8 +132,8 @@ class Annotation(object):
             result.end = self.end - other.start
         else:
             result.strand *= -1
-            result.start = self.end - other.end
-            result.end = self.start - other.end
+            result.start = other.end - self.end
+            result.end = other.end - self.start
         return result
     
     def get_seq(self, seq_dict):
@@ -357,6 +358,10 @@ def is_annotation_file(filename):
 def write_gff3_header(f):    
     print >> f, '##gff-version 3'
 
-
+def write_gff3(filename, items):
+    with io.open_possibly_compressed_writer(filename) as f:
+        write_gff3_header(f)
+        for item in items:
+            print >> f, item.as_gff()
 
 

@@ -11,7 +11,7 @@ Metainformation about tools will hopefully allow
 """
 
 
-import sys, os, pickle, traceback, textwrap, re, copy, functools, types, datetime, pipes
+import sys, os, pickle, traceback, textwrap, re, copy, functools, types, datetime, pipes, platform
 
 from nesoni import workspace
 
@@ -886,6 +886,10 @@ class Action_with_log(Action):
                'nesoni '+nesoni.VERSION+'\n\n'
             )
         self._log_level = self._log_level + 1
+
+        if os.name == 'posix':
+            import resource 
+            self._memory_before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     
     def _after_run(self):
         self._log_level = self._log_level - 1
@@ -900,6 +904,17 @@ class Action_with_log(Action):
                     'finished '+ now.strftime('%_d %B %Y %_I:%M %p') + '\n'
                     'run time '+ str( datetime.timedelta(seconds=int((now-self._log_start).total_seconds())) ) + '\n'
                 )
+            
+                # Can only see peak memory usage
+                # so only report it if we increased it
+                import resource 
+                memory_after = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+                if memory_after > self._memory_before:
+                    self.log.quietly_log(
+                        '\npeak memory used ' + str(memory_after) + 
+                        (' kb' if platform.system() == 'Linux' else ' units') +
+                        '\n')
+                del self._memory_before
 
             filename = self.log_filename()
             if filename is not None and os.path.exists(os.path.split(filename)[0] or '.'):

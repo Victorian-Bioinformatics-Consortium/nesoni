@@ -211,26 +211,39 @@ class IGV_plots(config.Action_with_prefix):
         #    maximum = max(maximum,max(depths))
         #    norm_maximum = max(norm_maximum,max(normalize(depths)))
 
-        futures = [ ]        
+        #futures = [ ]        
+        #for name in self.chromosome_names:
+        #    for i, depth in enumerate(self.depths):
+        #        if self.strand_specific:
+        #            #this = futures.append(max(
+        #            #    max(depth[name].ambiguous_depths[0]),
+        #            #    max(depth[name].ambiguous_depths[1])
+        #            #)
+        #            
+        #            futures.append( (name,i,legion.future(max, depth[name].ambiguous_depths[0])) )
+        #            futures.append( (name,i,legion.future(max, depth[name].ambiguous_depths[1])) )
+        #        else:
+        #            #this = max(iter_add(depth[name].ambiguous_depths[0],depth[name].ambiguous_depths[1]))
+        #            futures.append( (name,i,legion.future(lambda item: max(iter_add(item[0],item[1])), depth[name].ambiguous_depths)) )
+        #
+        #for name, i, future in futures:
+        #    grace.status('Finding maximum depth %s %s' % (name, self.sample_names[i]))
+        #    this = future()
+        #    maximum = max(maximum, this)
+        #    norm_maximum = max(maximum, self.norm_mult[i] * this)
+
         for name in self.chromosome_names:
             for i, depth in enumerate(self.depths):
+                grace.status('Finding maximum depth %s %s' % (name, self.sample_names[i]))
                 if self.strand_specific:
-                    #this = futures.append(max(
-                    #    max(depth[name].ambiguous_depths[0]),
-                    #    max(depth[name].ambiguous_depths[1])
-                    #)
-                    
-                    futures.append( (name,i,legion.future(max, depth[name].ambiguous_depths[0])) )
-                    futures.append( (name,i,legion.future(max, depth[name].ambiguous_depths[1])) )
+                    this = max(
+                        max(depth[name].ambiguous_depths[0]),
+                        max(depth[name].ambiguous_depths[1])
+                        )
                 else:
-                    #this = max(iter_add(depth[name].ambiguous_depths[0],depth[name].ambiguous_depths[1]))
-                    futures.append( (name,i,legion.future(lambda item: max(iter_add(item[0],item[1])), depth[name].ambiguous_depths)) )
-
-        for name, i, future in futures:
-            grace.status('Finding maximum depth %s %s' % (name, self.sample_names[i]))
-            this = future()
-            maximum = max(maximum, this)
-            norm_maximum = max(maximum, self.norm_mult[i] * this)
+                    this = max(iter_add(depth[name].ambiguous_depths[0],depth[name].ambiguous_depths[1]))
+                maximum = max(maximum, this)
+                norm_maximum = max(maximum, self.norm_mult[i] * this)
         
         self.maximum = maximum
         self.norm_maximum = norm_maximum
@@ -314,7 +327,7 @@ class IGV_plots(config.Action_with_prefix):
         self.sample_names = [ os.path.split(dirname)[1] for dirname in self.working_dirs ]
         self.workspaces = [ working_directory.Working(dirname, must_exist=True) for dirname in self.working_dirs ]
         
-        self.depths = [ item.get_object('depths.pickle.gz') for item in self.workspaces ]
+        self.depths = [ item.get_depths() for item in self.workspaces ]
         #self.depths = list(legion.imap(lambda item: item.get_object('depths.pickle.gz'), self.workspaces, local=True))
         
         self.any_pairs = any(item.param['any_pairs'] for item in self.workspaces)
@@ -450,12 +463,28 @@ class Run_igv(config.Action):
     files = [ ]
 
     def run(self):
+        genome = self.genome
+        if os.path.isdir(genome):
+            genome = os.path.join(genome, os.path.split(genome)[1]+'.genome')
+            print genome
+        
+        #pref_filename = os.path.join(os.path.expanduser('~'),'igv','prefs.properties')
+        #if os.path.exists(pref_filename):
+        #    with open(pref_filename,'rb') as f:
+        #        lines = f.readlines()
+        #    with open(pref_filename,'wb') as f:
+        #        for line in lines:
+        #            if line.startswith('DEFAULT_GENOME_KEY='):
+        #                #line = 'DEFAULT_GENOME_KEY=\n'
+        #                continue
+        #            f.write(line)
+        
         with workspace.tempspace() as temp:
             with open(temp/'batch.txt','wb') as f:
                 print >> f, 'new'
                 print >> f, 'preference LAST_TRACK_DIRECTORY', os.getcwd()
                 print >> f, 'preference LAST_GENOME_IMPORT_DIRECTORY', os.getcwd()
-                print >> f, 'genome '+os.path.abspath(self.genome)
+                print >> f, 'genome '+os.path.abspath(genome)
                 for filename in self.files:
                     print >> f, 'load '+os.path.abspath(filename)
             

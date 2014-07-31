@@ -1,5 +1,11 @@
 
 0.123 - Add fitnoise.R
+        Fix bug in annotation.Annotation.relative_to for strand==-1
+        Report memory use in log files
+        Fix to "power-variant-call:"
+        Slightly reduced memory usage in igv-plots and filter 
+          (changed iterator implementation in samconsensus.Depth)
+        "storage" module added, provides convenient collections of memory mapped numpy arrays, not currently in use
 
 0.122 - Revert back to starting new processes manually on posix systems (something seems to be broken).
 

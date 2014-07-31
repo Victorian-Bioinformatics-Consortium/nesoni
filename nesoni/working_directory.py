@@ -39,6 +39,13 @@ class Working(io.Workspace):
 
     def matches(self, expression):
         return selection.matches(expression, self.get_tags())
+    
+    def get_depths(self):
+        #if os.path.exists(self/'depths.store'):
+        #    from . import storage
+        #    return storage.Storage(self/'depths.store').data
+        #else:
+        return self.get_object('depths.pickle.gz')
 
 
 

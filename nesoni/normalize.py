@@ -14,7 +14,7 @@ class Norm_from_samples(config.Action_with_prefix):
     def run(self):
         sample_names = [ os.path.split(dirname)[1] for dirname in self.working_dirs ]
         workspaces = [ working_directory.Working(dirname, must_exist=True) for dirname in self.working_dirs ]        
-        depths = [ item.get_object('depths.pickle.gz') for item in workspaces ]
+        depths = [ item.get_depths() for item in workspaces ]
 
         lengths = workspaces[0].get_reference().get_lengths()
         chromosome_names = [ name for name, length in lengths ]

@@ -32,8 +32,8 @@ Python libraries
 * Recommended:
   * BioPython [1]
 * Optional (used by non-core nesoni tools):
-  * matplotlib
   * numpy
+  * matplotlib
 
 External programs:
 * Required:
@@ -51,11 +51,9 @@ R libraries required by R-based tools (mostly for RNA-seq):
   * seriation
 * Optional:
   * goseq from BioConductor
-  * NMF
 
 
 [1] BioPython is used for reading GenBank files.
-    Compiled modules may need to be disabled when installing in PyPy.
 
 [2] There does not seem to be a standard way to install .jar files. 
     Nesoni will search for .jar files in directories listed in 
@@ -90,6 +88,7 @@ For PyPy it seems to be currently easiest to install nesoni in
 a virtualenv:
 
     virtualenv -p pypy my-pypy-env
+    my-pypy-env/bin/pip install -I git+https://bitbucket.org/pypy/numpy.git
     my-pypy-env/bin/pip install -I biopython 
     my-pypy-env/bin/pip install -I nesoni
 

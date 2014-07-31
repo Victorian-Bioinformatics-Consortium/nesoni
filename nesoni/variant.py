@@ -858,7 +858,8 @@ class Power_variant_call(config.Action_with_prefix):
             job = self.template(temp.working_dir, ref=ref, variants=variants)            
             job.run()            
             
-            result = dict( tuple(item.values()) for item in reporting.mine_logs([job.log_filename()]) )
+            #result = dict( tuple(item.values()) for item in reporting.mine_logs([job.log_filename()]) )
+            [ result ] = reporting.mine_logs([job.log_filename()]).values()
             nesoni_count = int(result['changes found by "nesoni consensus:"'])
             nesoni_good = {'yes':True,'no':False}[result['is correctly patched by "nesoni consensus:"']]
             vcf_count = int(result['variants after filtering'])

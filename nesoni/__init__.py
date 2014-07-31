@@ -131,9 +131,6 @@ These provide an alternative to consensus calling using "nesoni consensus:"
     
     heatmap:      - Draw a heat map of counts.
     
-    nmf:          - Perform a Non-negative Matrix Factorization of counts.
-                    NMF is a type of fuzzy clustering.
-    
     compare-tests:
                   - Compare the output from two runs of "test-counts:"
                     eg to compare the results of different "--mode"s
@@ -169,14 +166,6 @@ samcount, for analysis with BioConductor packages.
     as-gff:       - Output an annotation in GFF format,
                     optionally filtering by annotation type.
 
-    
-%(BOLD)sk-mer tools:%(END)s (experimental)
-
-    bag:          - Create an index of kmers in a read set for analysis with
-                    nesoni graph.
-    
-    graph:        - Use a bag or bags to lay out a deBruijn graph.
-                    Interact with the graph in various ways.
 
 
 %(BOLD)sUtility tools:%(END)s
@@ -273,6 +262,21 @@ Example:
              - Sort, grouping by strain, then by time, then by replicate
 
 """ % { 'BOLD' : '\x1b[1m', 'END' : '\x1b[m', 'VERSION' : VERSION, 'MAKE' : Make().describe('', show_help=True, escape_newlines=False) }
+
+
+    
+#%(BOLD)sk-mer tools:%(END)s (experimental)
+#
+#    bag:          - Create an index of kmers in a read set for analysis with
+#                    nesoni graph.
+#    
+#    graph:        - Use a bag or bags to lay out a deBruijn graph.
+#                    Interact with the graph in various ways.
+
+    
+#    nmf:          - Perform a Non-negative Matrix Factorization of counts.
+#                    NMF is a type of fuzzy clustering.
+
 
 def get_actions():
     for item in globals().values():
