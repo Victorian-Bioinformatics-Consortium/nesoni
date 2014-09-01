@@ -293,7 +293,7 @@ class My_coordinator:
             del self.statuses[identity]
         
         if sys.stderr.isatty() and not os.environ.get('NESONI_NOTITLE'):
-            items = [ self.statuses[item] for item in sorted(self.statuses) ]
+            items = [ self.statuses[item] for item in sorted(self.statuses,reverse=True) ]
             alloc = 200 / max(1,len(items))
             status = ''
             for item in items:

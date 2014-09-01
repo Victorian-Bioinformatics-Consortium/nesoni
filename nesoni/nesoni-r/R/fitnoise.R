@@ -24,6 +24,12 @@ optim.positive <- function(initial, func) {
 
 as.diagonal.matrix <- function(vec) diag(vec, length(vec))
 
+invert.matrix <- function(A) {
+    if (length(A)) 
+        solve(A)
+    else
+        A #Empty matrix. As usual R+ fails to handle an edge case correctly.
+}
 
 ##################################
 # Multivariate distribution classes
@@ -32,7 +38,7 @@ as.diagonal.matrix <- function(vec) diag(vec, length(vec))
 
 good <- function(x, ...) UseMethod('good') #Which dimensions are usable (non-Inf covariance)
 expect <- function(x, ...) UseMethod('expect')
-p.value <- function(x, ...) UseMethod('pvalue')
+p.value <- function(x, ...) UseMethod('p.value')
 log.density <- function(x, ...) UseMethod('log.density')
 random <- function(x, ...) UseMethod('random')
 transformed <- function(x, ...) UseMethod('transformed')
@@ -82,7 +88,7 @@ random.mvnormal <- function(self) {
     c(self$mean + t(A) %*% rnorm(ncol(A)))
 }
 
-pvalue.mvnormal <- function(self, x) {
+p.value.mvnormal <- function(self, x) {
    offset <- as.matrix(x) - self$mean
    df <- nrow(self$covar)
    q <- t(offset) %*% solve(self$covar, offset)
@@ -123,8 +129,8 @@ conditional.mvnormal <- function(self, i1, i2, x2) {
     covar12 <- self$covar[i1,i2,drop=FALSE]
     covar21 <- self$covar[i2,i1,drop=FALSE]
     covar22 <- self$covar[i2,i2,drop=FALSE]
-    covar22inv <- solve(covar22)
-    covar12xcovar22inv <- covar12 %*% solve(covar22)
+    covar22inv <- invert.matrix(covar22)
+    covar12xcovar22inv <- covar12 %*% covar22inv
     
     mvnormal(
         mean1 + covar12xcovar22inv %*% offset2,
@@ -166,7 +172,7 @@ random.mvt <- function(self) {
     c( self$mean + (t(A)%*%rnorm(ncol(A))) * sqrt(self$df/rchisq(1,df=self$df)) )
 }
 
-pvalue.mvt <- function(self, x) {
+p.value.mvt <- function(self, x) {
    offset <- as.matrix(x) - self$mean
    p <- nrow(self$covar)
    q <- (t(offset) %*% solve(self$covar, offset)) / p
@@ -213,8 +219,8 @@ conditional.mvt <- function(self, i1, i2, x2) {
     covar12 <- self$covar[i1,i2,drop=FALSE]
     covar21 <- self$covar[i2,i1,drop=FALSE]
     covar22 <- self$covar[i2,i2,drop=FALSE]
-    covar22inv <- solve(covar22)
-    covar12xcovar22inv <- covar12 %*% solve(covar22)
+    covar22inv <- invert.matrix(covar22)
+    covar12xcovar22inv <- covar12 %*% covar22inv
     df <- self$df
     
     mvt(
@@ -272,33 +278,33 @@ fit.noise <- function(data, design, get.dist, initial, cores=1) {
     #}     
     #
     #result <- optim.positive(initial, scorer)
-    
+        
+    indicies <- c()
+    retains <- list()
+    z2s <- list()
+    tQ2s <- list()    
+
+    for(i in seq_len(nrow(data))) {
+        retain <- seq_len(ncol(data))[ is.finite(data[i,]) & good(get.dist(i, initial)) ]
+        
+        # Does enough data remain?
+        if (length(retain) > ncol(design)) {
+            decomp <- qr(design[retain,,drop=FALSE])
+            i2 <- ncol(design)+seq_len(length(retain)-ncol(design))
+            Q <- qr.Q(decomp, complete=TRUE)
+            tQ2 <- t(Q[, i2, drop=FALSE])            
+            z2 <- tQ2 %*% data[i,retain]
+        
+            indicies[length(indicies)+1] <- i
+            retains[[i]] <- retain
+            z2s[[i]] <- z2
+            tQ2s[[i]] <- tQ2
+        }
+    }
+
     if (length(initial) == 0) {
         result <- list(par=initial)
     } else {
-        indicies <- c()
-        retains <- list()
-        z2s <- list()
-        tQ2s <- list()    
-        
-        for(i in seq_len(nrow(data))) {
-            retain <- seq_len(ncol(data))[ is.finite(data[i,]) & good(get.dist(i, initial)) ]
-            
-            # Does enough data remain?
-            if (length(retain) >= ncol(design)) {
-                decomp <- qr(design[retain,,drop=FALSE])
-                i2 <- ncol(design)+seq_len(length(retain)-ncol(design))
-                Q <- qr.Q(decomp, complete=TRUE)
-                tQ2 <- t(Q[, i2, drop=FALSE])            
-                z2 <- tQ2 %*% data[i,retain]
-            
-                indicies[length(indicies)+1] <- i
-                retains[[i]] <- retain
-                z2s[[i]] <- z2
-                tQ2s[[i]] <- tQ2
-            }
-        }
-
         if (cores <= 1) {
             scorer <- function(param) {
                 total <- 0.0
@@ -319,25 +325,51 @@ fit.noise <- function(data, design, get.dist, initial, cores=1) {
                         marginal(
                             get.dist(i, param), 
                             retains[[i]]), 
-                        tQ2s[[i]])
+                        tQ2s[[i]]
+                        )
                     log.density(dist, z2s[[i]])
                 }
                 
                 -sum(unlist(mclapply(indicies, score.one, mc.cores=cores)))
             }        
         }
-        
+
         result <- optim.positive(initial, scorer)
     }    
     
     dist <- lapply(seq_len(nrow(data)), function(i) get.dist(i, result$par))
+
+    
+    noise.p.values <- rep(NA,nrow(data))
+    for(i in indicies) {
+        this.dist <- transformed(
+            marginal(dist[[i]], retains[[i]]), 
+            tQ2s[[i]]
+            )
+        noise.p.values[i] <- p.value(this.dist, z2s[[i]])
+    }
+    
+    good.noise.p.values <- noise.p.values[!is.na(noise.p.values)]
+    
+    #Bonferroni combined p value
+    noise.combined.p.value <- min(1, min(good.noise.p.values) * length(good.noise.p.values))
+    
+    #Stouffer combined p value
+    #noise.combined.p.value <- pnorm(sum(qnorm(good.noise.p.values)) / sqrt(length(good.noise.p.values)), lower.tail=T)
+    
+    
+    noise.description <- sprintf('noise p-value = %g  (small is bad)', noise.combined.p.value)
+
     
     object <- list(
         design = design,
         optim.output = result,
         param = result$par,
         data = data,
-        dist = dist
+        dist = dist,
+        noise.p.values = noise.p.values,
+        noise.combined.p.value = noise.combined.p.value,
+        noise.description = noise.description
     )
     class(object) <- 'fitnoise'
     
@@ -375,6 +407,7 @@ fit.coef <- function(fit, design) {
         
         # Does enough data remain?
         if (length(retain) >= ncol(design) &&
+            ncol(design) > 0 &&
             rankMatrix(design[retain,,drop=FALSE]) >= ncol(design)) {
             
             this.dist <- marginal(dist[[i]], retain)
@@ -384,7 +417,7 @@ fit.coef <- function(fit, design) {
             i2 <- ncol(design)+seq_len(length(retain)-ncol(design))
             Q <- qr.Q(decomp, complete=TRUE)
             R <- qr.R(decomp)
-            Rinv <- .solve(R)
+            Rinv <- invert.matrix(R)
             tQ <- t(Q)
             Q2 <- Q[, i2, drop=FALSE]
             tQ2 <- t(Q2)
@@ -443,11 +476,15 @@ p.values.contrasts <- function(fit, contrasts) {
 }
 
 p.values.coefs <- function(fit, coefs) {
-    contrasts <- matrix(0, nrow=ncol(fit$coef), ncol=length(coef))
+    contrasts <- matrix(0, nrow=ncol(fit$coef), ncol=length(coefs))
     for(i in seq_len(length(coefs)))
         contrasts[coefs[i],i] <- 1
 
     p.values.contrasts(fit, contrasts)
+}
+
+p.values.noise <- function(fit) {
+    fit$noise.p.values
 }
 
 
@@ -476,7 +513,7 @@ normal.model.to.t <- function(model) list(
     
     describe = function(elist, param) {
         normal.desc <- model$describe(elist, param[-1])
-        sprintf('prior df = %f\n%s', param[1], normal.desc)
+        sprintf('prior df = %g\n%s', param[1], normal.desc)
     }
 )
 
@@ -496,9 +533,9 @@ model.normal.standard <- list(
     
     describe = function(elist, param) {
         if (is.null(elist$weights))
-            sprintf('variance = %f', param[1])
+            sprintf('variance = %g', param[1])
         else
-            sprintf('variance = %f / weight', param[1])
+            sprintf('variance = %g / weight', param[1])
     }
 )
 
@@ -532,11 +569,32 @@ model.normal.patseq <- list(
     initial = function(elist) { c(250.0, 0.001) },
     
     describe = function(elist, param) {
-        sprintf('variance = %.1f / polya_read_count + %.6f * tail_length^2\n',param[1],param[2])
+        sprintf('variance = %.1f / polya_read_count + %.6f * tail_length^2',param[1],param[2])
     }
 )
 
-model.t.patseq <- normal.model.to.t(model.normal.pat)
+model.t.patseq <- normal.model.to.t(model.normal.patseq)
+
+
+model.normal.quadratic <- list(
+    # variance as a quadratic function of elist$other$x
+    # Note: setting elist$other$x = elist$E will result in overfitting,
+    #       in particular the constant term will be too small
+    
+    get.dist = function(elist, i, param) {
+        expr <- elist$other$x[i,]
+        var <- pmax(1e-10, expr*expr*param[1] + expr*param[2] + param[3] )
+        mvnormal(rep(0,ncol(elist)), as.diagonal.matrix(var))
+    },
+    
+    initial = function(elist) { c(1.0,1.0,1.0) },
+    
+    describe = function(elist, param) {
+        sprintf('variance = %g x^2 + %g x + %g', param[1],param[2],param[3])
+    }
+)
+
+model.t.quadratic <- normal.model.to.t(model.normal.quadratic)
 
 
 ##################################
@@ -555,29 +613,37 @@ fit.elist <- function(
         initial = model$initial(elist),
         noise.design = noise.design,
         cores = cores
-    )
-    
-    result$noise.description <- model$describe(elist, result$param)    
+    )    
+    result$elist <- elist    
+    result$noise.description <- sprintf(
+        "%s\n%s", 
+        model$describe(elist, result$param), 
+        result$noise.description
+        )
     
     result
 }
 
+
 #
 # Input:
 #
-# Specify either coefs or contrasts
+# Specify either coefs or contrasts or neither.
+# If neither is given, this tests the fit of the noise!
 #
 # Output:
 #
 # Intended to match the output of limma's topTableF
 #
 test.fit <- function(fit, coefs=NULL, contrasts=NULL, sort=TRUE) {
-    stopifnot(is.null(coefs) + is.null(contrasts) == 1)
+    stopifnot(is.null(coefs) + is.null(contrasts) <= 1)
     
     if (!is.null(coefs))
         p.values <- p.values.coefs(fit, coefs)
-    else
+    else if (!is.null(contrasts))
         p.values <- p.values.contrasts(fit, contrasts)
+    else
+        p.values <- fit$noise.p.values
     
     fdrs <- p.adjust(p.values, method='fdr')
     
@@ -588,12 +654,14 @@ test.fit <- function(fit, coefs=NULL, contrasts=NULL, sort=TRUE) {
     table <- data.frame(matrix(nrow=length(p.values),ncol=0))
     
     for(i in seq_len(ncol(fit$coef)))
-        table[,colnames(fit$coef)] <- fit$coef[,i]
+        table[,colnames(fit$coef)[i]] <- fit$coef[,i]
     
     table[,'AveExpr'] <- average.fit$coef[,1]
 
     table[,'P.Value'] <- p.values
     table[,'adj.P.Val'] <- fdrs
+    
+    table[,'noise.P.Value'] <- fit$noise.p.values
     
     if (!is.null(fit$elist) && !is.null(fit$elist$genes)) {
         genes <- fit$elist$genes
@@ -609,6 +677,8 @@ test.fit <- function(fit, coefs=NULL, contrasts=NULL, sort=TRUE) {
     
     table
 }
+
+
 
 
 

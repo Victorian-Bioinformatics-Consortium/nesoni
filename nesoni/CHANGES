@@ -1,4 +1,6 @@
 
+0.124 - Fix bug checking for JAR availability.
+
 0.123 - Add fitnoise.R
         Fix bug in annotation.Annotation.relative_to for strand==-1
         Report memory use in log files

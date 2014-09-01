@@ -26,44 +26,21 @@ class Depth(object):
         return self.size
     
     def __iter__(self):
-        #delta = [ 0 ] * (self.size+1)
-        #for key, value in self.starts.iteritems():
-        #    delta[key] += value
-        #for key, value in self.ends.iteritems():
-        #    delta[key] -= value
-        #depth = 0
-        #for i in xrange(self.size):
-        #    depth += delta[i]
-        #    yield depth
-        
         value = 0
-        starts = self.starts
-        ends = self.ends
         for i in xrange(self.size):
-            if i in starts: value += starts[i]
-            if i in ends:   value -= ends[i]
+            value += self.starts.get(i,0)
+            value -= self.ends.get(i,0)
             yield value
+        
 
     def iter_starts(self):
         """ How many start at this base position """
-        #result = [ 0 ] * self.size
-        #for key, value in self.starts.iteritems():
-        #    result[key] += value
-        #for i in xrange(self.size):
-        #    yield result[i]
-            
         starts = self.starts
         for i in xrange(self.size):
             yield starts.get(i,0)
     
     def iter_ends(self):
         """ How many end at this base position """
-        #result = [ 0 ] * (self.size+1)
-        #for key, value in self.ends.iteritems():
-        #    result[key] += value
-        #for i in xrange(1,self.size+1):
-        #    yield result[i]
-            
         ends = self.ends
         for i in xrange(1,self.size+1):
             yield ends.get(i,0)
@@ -75,6 +52,35 @@ class Depth(object):
         for pos, value in self.ends.iteritems():
             total -= value*(self.size-pos)
         return total
+
+    def maximum(self):
+        value = 0
+        maximum = 0        
+        for i in sorted(set(self.starts) | set(self.ends)):
+            value += self.starts.get(i,0)
+            value -= self.ends.get(i,0)
+            if value > maximum: 
+                maximum = value
+        return maximum
+    
+    def __mul__(self, scale):
+        result = Depth(self.size)
+        for i,value in self.starts.iteritems():
+            result.starts[i] = value*scale
+        for i,value in self.ends.iteritems():
+            result.ends[i] = value*scale
+        return result
+
+    def __add__(self, other):
+        result = Depth(self.size)
+        result.starts = self.starts.copy()
+        result.ends = self.ends.copy()
+        for i,value in other.starts.iteritems():
+            result.starts[i] = result.starts.get(i,0) + value
+        for i,value in other.ends.iteritems():
+            result.ends[i] = result.ends.get(i,0) + value
+        return result
+            
 
 
 #class Depth_v2(object):

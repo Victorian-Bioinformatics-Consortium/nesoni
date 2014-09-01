@@ -12,6 +12,8 @@ def cleanup(text):
     del lines[1]
     return '\n'.join(lines)
 
+VERSION = nesoni.VERSION
+
 README = open('README','rb').read().split('~')
 REQUIREMENTS = cleanup(README[1])
 INSTALL = cleanup(README[2])
@@ -203,6 +205,110 @@ Nesoni provides the following specific usage information when run with no parame
 <!--#include virtual="bot.html" -->
 """
 
+
+
+
+
+FITNOISE_PAGE = r"""<!--#include virtual="top.html" -->
+
+<h2>fitnoise.R</h2>
+
+<p>%(date)s, from Nesoni version %(VERSION)s:
+
+<ul>
+<li><a href="fitnoise.R">fitnoise.R</a>
+</ul>
+
+<p>
+fitnoise.R is distributed as part of 
+<a href="nesoni.shtml">Nesoni</a>, 
+but also works as a standalone R+ module.
+
+
+<h3>Basic usage</h3>
+
+<p>
+Say you have a dgelist, mydgelist, and a design matrix mydesign, and a set of coefficients, testcoefs, to test:
+
+<p>
+H1 is all columns in the design matrix. H0 is those columns not named in testcoefs.
+
+<p>Run R+ with:
+
+<pre>
+OPENBLAS_NUM_THREADS=1 R
+</pre>
+
+<pre>
+...
+
+source("fitnoise.R")
+
+# voom from limma to calculate weights
+myelist <- voom(mydgelist, mydesign)
+
+myfit <- fit.elist(myelist, mydesign, model=model.t.standard, cores=16)
+
+#examine noise fit
+myfit
+
+#produce a toptable-like result data-frame
+result <- test.fit(myfit, coefs=testcoefs)
+
+</pre>
+
+<p>
+The novel feature of fitnoise.R is the availability of different noise models. 
+Above we used model.t.standard, which performs moderated t tests or F tests similarly to limma.
+Also available are:
+<ul>
+<li>model.t.independent, which simply performs independent t tests or F tests
+<li>model.normal.standard, which performs z tests or chi-square tests
+<li>model.t.patseq and model.normal.patseq, for PAT-seq poly(A) tail length data
+</ul>
+
+<p>
+Writing new noise models is straightforward.
+
+<p>
+fitnoise.R handles missing data gracefully.
+
+<h3>Use without replicates</h3>
+
+Say mydesign represents a null hypothesis H0.
+We seek genes that are outliers given a noise model.
+t-distribution based models allow for outliers,
+so we instead use a normal-distribution based model.
+This is effectively asserting that genes have fixed biological variability.
+This is a poor assertion to make.
+
+<pre>
+myfit <- fit.elist(myelist, mydesign, model=model.normal.standard, cores=16)
+
+#produce a toptable-like result data-frame based on surprising deviation 
+#from the noise model in individual genes
+result <- test.fit(myfit)
+</pre>
+
+<p>
+Note how we never specified an alternative hypothesis H1.
+
+<p>
+This produces a ranking of genes by interest, taking into account uncertainty
+in their expression levels. <b>p-values / FDR-values are for ranking purposes only.</b>
+This method can not distinguish highly variable genes from truly differentially expressed genes.
+Now go and tell your collaborator to produce replicates next time.
+
+<!--#include virtual="bot.html" -->
+"""
+
+
+
+
+
+
+
+
 old = [ ]
 for item in os.listdir('/home/websites/vicbioinformatics.com'):
     if item.startswith('nesoni-') and item.endswith('.tar.gz'):
@@ -274,14 +380,18 @@ try:
         sh('python setup.py sdist')
         
         sh('cp dist/%s /home/websites/vicbioinformatics.com' % release_tarball_name)
+        f = open('/home/websites/vicbioinformatics.com/software.nesoni.shtml','wb')
+        f.write(PAGE % locals())
+        f.close()
 
     date = datetime.date.today().strftime('%e %B %Y')
     
     sh('cd doc && make html')
     sh('cp -r doc/_build/html/* /home/websites/vicbioinformatics.com/nesoni-cookbook/')    
-    
-    f = open('/home/websites/vicbioinformatics.com/software.nesoni.shtml','wb')
-    f.write(PAGE % locals())
+
+    sh('cp nesoni/nesoni-r/R/fitnoise.R /home/websites/vicbioinformatics.com/')
+    f = open('/home/websites/vicbioinformatics.com/software.fitnoise.shtml','wb')
+    f.write(FITNOISE_PAGE % locals())
     f.close()
     
     #assert os.path.exists(release_tarball_name), release_tarball_name + ' failed to build'

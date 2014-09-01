@@ -31,7 +31,8 @@ setup(
     
     package_data = {
         'nesoni' : [
-            'nesoni-r/*',
+            'nesoni-r/DESCRIPTION',
+            'nesoni-r/NAMESPACE',
             'nesoni-r/R/*',
             'CHANGES',
             ],

@@ -68,6 +68,9 @@ def run_script(script, only_tell=False, silent=False, **kwargs):
     else:
         stdout = None
  
+    env = os.environ.copy()
+    env['OPENBLAS_NUM_THREADS'] = '1' #Necessary to use BLAS with mclapply as at 6/8/2014
+ 
     process = subprocess.Popen(
         ['Rscript', '-'],
         bufsize=1<<24,
@@ -75,6 +78,7 @@ def run_script(script, only_tell=False, silent=False, **kwargs):
         stdout=stdout,
         stderr=stdout,
         close_fds=True,
+        env=env,
     )
     process.stdin.write(script)
     process.stdin.close()

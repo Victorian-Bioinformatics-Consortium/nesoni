@@ -16,6 +16,16 @@ def iter_add(a,b):
     for a,b in itertools.izip(a,b):
         yield a+b
 
+def my_max(iterator):
+    """ max is slow in pypy for some reason """
+    maximum = 0
+    for item in iterator:
+        if item > maximum: 
+            maximum = item
+    return maximum
+
+
+
 
 @config.help("""\
 Create an IGV .genome file from sequences and annotations, \
@@ -141,7 +151,7 @@ class IGV_plots(config.Action_with_prefix):
                     yield name, pos, item
     
     def iter_over_unstranded(self, access_func, zeros=True):
-        return self.iter_over(lambda item: iter_add(access_func(item)[0],access_func(item)[1]), zeros)        
+        return self.iter_over(access_func(item)[0] + access_func(item)[1], zeros)        
 
     def calculate_norm_mult(self):
         grace.status('Calculating normalization')
@@ -230,20 +240,20 @@ class IGV_plots(config.Action_with_prefix):
         #    grace.status('Finding maximum depth %s %s' % (name, self.sample_names[i]))
         #    this = future()
         #    maximum = max(maximum, this)
-        #    norm_maximum = max(maximum, self.norm_mult[i] * this)
+        #    norm_maximum = max(norm_maximum, self.norm_mult[i] * this)
 
         for name in self.chromosome_names:
             for i, depth in enumerate(self.depths):
                 grace.status('Finding maximum depth %s %s' % (name, self.sample_names[i]))
                 if self.strand_specific:
                     this = max(
-                        max(depth[name].ambiguous_depths[0]),
-                        max(depth[name].ambiguous_depths[1])
+                        depth[name].ambiguous_depths[0].maximum(),
+                        depth[name].ambiguous_depths[1].maximum()
                         )
                 else:
-                    this = max(iter_add(depth[name].ambiguous_depths[0],depth[name].ambiguous_depths[1]))
+                    this = (depth[name].ambiguous_depths[0] + depth[name].ambiguous_depths[1]).maximum()
                 maximum = max(maximum, this)
-                norm_maximum = max(maximum, self.norm_mult[i] * this)
+                norm_maximum = max(norm_maximum, self.norm_mult[i] * this)
         
         self.maximum = maximum
         self.norm_maximum = norm_maximum
@@ -270,6 +280,9 @@ class IGV_plots(config.Action_with_prefix):
         grace.status('')
         
         if self.genome:
+            #One igvtools process at a time
+            self.wait_for_igv()
+
             p = io.run([
                 'igvtools', 'tile',
                 filename, 
@@ -277,17 +290,19 @@ class IGV_plots(config.Action_with_prefix):
                 self.genome,
                 '-f', 'max,mean'
             ], stdin=None, stdout=None)
-            #Hangs, not sure why:
-            #self.processes.append((p, filename))
-            #One at a time it is.
-            assert p.wait() == 0, 'igvtools tile failed'
-            if self.delete_igv:
-                os.unlink(filename)
+
+            self.processes.append((p, filename))
+            
+            #assert p.wait() == 0, 'igvtools tile failed'
+            #if self.delete_igv:
+            #    os.unlink(filename)
             
     def wait_for_igv(self):
         while self.processes:
             p, filename = self.processes.pop()
+            grace.status('igvtools processing '+filename)
             assert p.wait() == 0, 'igvtools tile failed'
+            grace.status('')
             if self.delete_igv:
                 os.unlink(filename)
                 

@@ -1,5 +1,16 @@
 
+import re
+
 from nesoni import grace
+
+def term_specification(term):
+    if '=' not in term: return term
+    return term.split('=',1)[0]
+
+def term_name(term):
+    if '=' not in term: return term
+    return term.split('=',1)[1]
+
 
 def matches(expression, tags):
     tokens = list('[]-:/^')
@@ -71,6 +82,19 @@ def select_and_sort(select_expression, sort_expression, items, get_tags=lambda i
     
     return items
 
+
+def weight(expression, tags):
+    parts = expression.split(',')
+    total = 0.0
+    for part in parts:
+        weight = 1.0
+        match = re.match('^{(.*)}(.*)$',part)
+        if match:
+            weight = float(match.group(1))
+            part = match.group(2)
+        if matches(part, tags):
+            total += weight
+    return total
 
 
 class Matchable_set(set):

@@ -25,7 +25,7 @@ def find_jar(jarname, extra_help=''):
         filename = os.path.join(dirname, jarname)
         if os.path.isabs(dirname) and os.path.exists(filename):
             return filename
-    raise Error('Couldn\'t find "%s". Directories listed in JARPATH and PATH were searched. %s' % (jarname, extra_help))
+    raise grace.Error('Couldn\'t find "%s". Directories listed in JARPATH and PATH were searched. %s' % (jarname, extra_help))
 
 
 def symbolic_link(source, link_name):
