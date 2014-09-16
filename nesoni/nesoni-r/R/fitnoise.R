@@ -31,6 +31,17 @@ invert.matrix <- function(A) {
         A #Empty matrix. As usual R+ fails to handle an edge case correctly.
 }
 
+
+ensure.columns.named <- function(mat, prefix) {
+    if (is.null(colnames(mat))) {
+        col.names <- character()
+        for(i in seq_len(ncol(mat)))
+            col.names[i] <- sprintf('%s%d', prefix, i)
+        colnames(mat) <- col.names
+    }
+    mat
+}
+
 ##################################
 # Multivariate distribution classes
 ##################################
@@ -386,21 +397,18 @@ fit.noise <- function(data, design, get.dist, initial, cores=1) {
 # Some coef.dist may be NULL
 #
 fit.coef <- function(fit, design) {
-    if (is.null(colnames(design))) {
-        coef.names <- character()
-        for(i in seq_len(ncol(design)))
-            coef.names[i] <- sprintf('coef%d', i)
-        colnames(design) <- coef.names
-    }
+    design <- ensure.columns.named(design, 'coef')
 
     data <- fit$data
     dist <- fit$dist
 
     coef.dist <- list()
     length(coef.dist) <- nrow(data)
+    names(coef.dist) <- rownames(data)
     
     coef <- matrix(as.double(NA),nrow=nrow(data),ncol=ncol(design))
     colnames(coef) <- colnames(design)
+    rownames(coef) <- rownames(data)
     
     for(i in seq_len(nrow(data))) {        
         retain <- seq_len(ncol(data))[ is.finite(data[i,]) & good(dist[[i]]) ]
@@ -429,7 +437,7 @@ fit.coef <- function(fit, design) {
             coef[i,] <- expect(coef.dist[[i]])
         }
     }
-
+    
     fit$coef <- coef
     fit$coef.dist <- coef.dist
     
@@ -475,11 +483,20 @@ p.values.contrasts <- function(fit, contrasts) {
     p.values
 }
 
-p.values.coefs <- function(fit, coefs) {
-    contrasts <- matrix(0, nrow=ncol(fit$coef), ncol=length(coefs))
-    for(i in seq_len(length(coefs)))
-        contrasts[coefs[i],i] <- 1
 
+coefs.as.contrasts <- function(fit, coefs) {
+    contrasts <- matrix(0, nrow=ncol(fit$coef), ncol=length(coefs))
+    col.names <- character()
+    for(i in seq_len(length(coefs))) {
+        contrasts[coefs[i],i] <- 1
+        col.names[i] <- colnames(fit$coef)[coefs[i]]
+    }
+    colnames(contrasts) <- col.names
+    contrasts
+}
+
+p.values.coefs <- function(fit, coefs) {
+    contrasts <- coefs.as.contrasts(fit, coefs)
     p.values.contrasts(fit, contrasts)
 }
 
@@ -639,24 +656,26 @@ test.fit <- function(fit, coefs=NULL, contrasts=NULL, sort=TRUE) {
     stopifnot(is.null(coefs) + is.null(contrasts) <= 1)
     
     if (!is.null(coefs))
-        p.values <- p.values.coefs(fit, coefs)
-    else if (!is.null(contrasts))
+        contrasts <- coefs.as.contrasts(fit, coefs)
+            
+    if (!is.null(contrasts)) {
+        contrasts <- ensure.columns.named(contrasts, 'contrast')
         p.values <- p.values.contrasts(fit, contrasts)
-    else
+    } else
         p.values <- fit$noise.p.values
     
     fdrs <- p.adjust(p.values, method='fdr')
     
-    # Handle weighting correctly
-    average.fit <- fit.coef(fit, cbind(rep(1,ncol(fit$data))))
-
-
     table <- data.frame(matrix(nrow=length(p.values),ncol=0))
     
-    for(i in seq_len(ncol(fit$coef)))
-        table[,colnames(fit$coef)[i]] <- fit$coef[,i]
+    # for(i in seq_len(ncol(fit$coef)))
+    #    table[,colnames(fit$coef)[i]] <- fit$coef[,i]
     
-    table[,'AveExpr'] <- average.fit$coef[,1]
+    if (!is.null(contrasts))
+        for(i in seq_len(ncol(contrasts)))
+            table[,colnames(contrasts)[i]] <- fit$coef %*% contrasts[,i]
+    
+    table[,'AveExpr'] <- rowMeans(fit$data, na.rm=TRUE)
 
     table[,'P.Value'] <- p.values
     table[,'adj.P.Val'] <- fdrs

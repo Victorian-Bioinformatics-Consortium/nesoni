@@ -48,7 +48,7 @@ read.counts <- function(filename, min.total=0, min.max=0, keep=NULL, norm.file=N
     maximums <- mapply(function(i) max(counts[i,]), 1:nrow(counts))    
     good <- totals >= min.total & maximums >= min.max
 
-    if (!quiet)
+    if (!quiet && (min.total > 0 || min.max > 0))
         cat(sprintf("%d genes after filtering\n", sum(good)))
     
     result <- DGEList(counts=counts[good,], gene=gene[good,])

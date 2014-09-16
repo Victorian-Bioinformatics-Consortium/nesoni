@@ -1,4 +1,9 @@
 
+0.125 - test-counts: modes common and trend were incorrectly outputting ln fold changes,
+            now correctly output log2 fold changes
+        heatmap: now always filters out genes with identical expression in all samples,
+            rather than crashing
+
 0.124 - Fix bug checking for JAR availability.
 
 0.123 - Add fitnoise.R

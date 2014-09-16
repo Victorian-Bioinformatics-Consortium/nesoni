@@ -338,6 +338,8 @@ if do_upload:
 
 def sh(cmd): assert 0 == os.system(cmd)
 
+date = datetime.date.today().strftime('%e %B %Y')
+
 try:
     #assert 0 == os.system('cd test && pypy test_nesoni.py')
     
@@ -384,8 +386,6 @@ try:
         f.write(PAGE % locals())
         f.close()
 
-    date = datetime.date.today().strftime('%e %B %Y')
-    
     sh('cd doc && make html')
     sh('cp -r doc/_build/html/* /home/websites/vicbioinformatics.com/nesoni-cookbook/')    
 

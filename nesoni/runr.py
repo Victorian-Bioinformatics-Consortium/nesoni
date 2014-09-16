@@ -525,9 +525,10 @@ if (nrow(dgelist$counts) == 0) {
     #}
     
     for(i in 1:N_TO_TEST) {
-        result[, colnames(design)[i]] <- lrt$coefficients[,i] 
+        result[, colnames(design)[i]] <- lrt$coefficients[,i] / log(2)
         #10/9/2012: Coefficients full now appears to be in log2
         #26/9/2013: Renamed coefficients.full -> coefficients
+        #16/9/2014: coefficients is back to being in natural log, unsure when this happened
     }
                     
     #result$p <- lrt$table$p.value
@@ -1574,7 +1575,14 @@ if (length(ORDER)) {
 #elist <- voom(dgelist, normalize.method=if(QUANTILE) 'quantile' else 'none')
 elist <- glog2.rpm.counts(dgelist, GLOG_MODERATION)
 
-hmap.elist(PREFIX, elist, min.sd=MIN_SD, min.span=MIN_SPAN, min.svd=MIN_SVD, svd.rank=SVD_RANK, reorder.columns=REORDER_COLUMNS)
+hmap.elist(
+    PREFIX, 
+    elist, 
+    min.sd=MIN_SD, 
+    min.span=MIN_SPAN, 
+    min.svd=MIN_SVD, 
+    svd.rank=SVD_RANK, 
+    reorder.columns=REORDER_COLUMNS)
 
 """
 

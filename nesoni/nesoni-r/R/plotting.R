@@ -103,8 +103,6 @@ multiplot <- function(plots, labels) {
     
     weights <- as.vector( mapply(function(i)i$weight, plots) )
     cumweights <- c(0,cumsum(weights))
-    
-    print(cumweights)
 
     annotation.x <- 0.5
     x1 <- numeric(n.plot)
@@ -390,14 +388,15 @@ hmap.elist <- function(filename.prefix, elist,
 
     keep <- rep(TRUE, nrow(elist$E))
 
+    span <- row.apply(elist$E, max) - row.apply(elist$E, min)
+    keep <- (keep & span > 0.0) #Always filter genes that are exactly identical in all
+    if (min.span > 0.0) {
+        keep <- (keep & span >= min.span)
+    }
+    
     if (min.sd > 0.0) {
         sd <- sqrt(row.apply(elist$E, var))
         keep <- (keep & sd >= min.sd)
-    }
-    
-    if (min.span > 0.0) {    
-        span <- row.apply(elist$E, max) - row.apply(elist$E, min)
-        keep <- (keep & span >= min.span)
     }
     
     if (min.svd > 0.0) {
@@ -413,6 +412,8 @@ hmap.elist <- function(filename.prefix, elist,
     }
     
     elist <- elist[keep,]
+    
+    cat(sprintf("%d genes shown\n", nrow(elist)))
     
     averages <- rowMeans(elist$E)
     
