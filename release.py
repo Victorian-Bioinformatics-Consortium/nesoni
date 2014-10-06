@@ -211,7 +211,24 @@ Nesoni provides the following specific usage information when run with no parame
 
 FITNOISE_PAGE = r"""<!--#include virtual="top.html" -->
 
-<h2>fitnoise.R</h2>
+<style>
+pre { padding: 1em; margin: 1em; border: 1px solid #888; width: 60em; }
+</style>
+
+<h2>Fitnoise</h2>
+
+<div style="float:right; margin-right:1em;">
+<a href="documents/Fitnoise-poster-ABiC-October-2014.pdf">
+<img width="150" src="documents/Fitnoise-poster-ABiC-October-2014.png">
+<br/>Poster describing Fitnoise
+</a>
+</div>
+
+Fitnoise is R+ software for Empirical Bayesian linear modelling.
+It has capabilities very similar to 
+<a href="http://bioinf.wehi.edu.au/limma/">Limma</a>
+but allows parametric noise models with an arbitrary number of parameters.
+
 
 <p>%(date)s, from Nesoni version %(VERSION)s:
 
@@ -221,9 +238,13 @@ FITNOISE_PAGE = r"""<!--#include virtual="top.html" -->
 
 <p>
 fitnoise.R is distributed as part of 
-<a href="nesoni.shtml">Nesoni</a>, 
+<a href="software.nesoni.shtml">Nesoni</a>, 
 but also works as a standalone R+ module.
 
+<p>
+A unique feature of Fitnoise is its ability to
+detect differential poly(A) tail length in PAT-Seq data. 
+See also <a href="software.tail-tools.shtml">Tail Tools</a>.
 
 <h3>Basic usage</h3>
 
@@ -239,39 +260,43 @@ H1 is all columns in the design matrix. H0 is those columns not named in testcoe
 OPENBLAS_NUM_THREADS=1 R
 </pre>
 
-<pre>
+<p>
 ...
 
+<pre>
 source("fitnoise.R")
 
 # voom from limma to calculate weights
 myelist <- voom(mydgelist, mydesign)
 
-myfit <- fit.elist(myelist, mydesign, model=model.t.standard, cores=16)
+myfit <- fit.elist(myelist, mydesign, model=model.t.standard, cores=8)
 
 #examine noise fit
 myfit
 
 #produce a toptable-like result data-frame
 result <- test.fit(myfit, coefs=testcoefs)
-
 </pre>
 
+<h3>Noise models</h3>
+
 <p>
-The novel feature of fitnoise.R is the availability of different noise models. 
+The novel feature of Fitnoise is the availability of different noise models. 
 Above we used model.t.standard, which performs moderated t tests or F tests similarly to limma.
+The weights matrix is used if present in the EList.
 Also available are:
 <ul>
-<li>model.t.independent, which simply performs independent t tests or F tests
-<li>model.normal.standard, which performs z tests or chi-square tests
-<li>model.t.patseq and model.normal.patseq, for PAT-seq poly(A) tail length data
+<li>model.t.independent, which simply performs independent t tests or F tests.
+<li>model.normal.standard, which performs z tests or chi-square tests.
+The weights matrix is used if present in the EList.
+<li>model.t.patseq and model.normal.patseq, for PAT-Seq poly(A) tail length data.
 </ul>
 
 <p>
 Writing new noise models is straightforward.
 
 <p>
-fitnoise.R handles missing data gracefully.
+Fitnoise handles missing data gracefully.
 
 <h3>Use without replicates</h3>
 

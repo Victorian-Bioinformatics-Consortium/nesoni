@@ -11,11 +11,15 @@ library(Matrix)
 library(limma)  # EList class, p.adjust
 library(parallel)
 
+
 ##################################
 # Utility functions
 ##################################
 
 optim.positive <- function(initial, func) {
+    if (length(initial) == 0)
+        return(list(par=initial))
+
     result <- optim(rep(0,length(initial)), function(x) func(exp(x)*initial))
     result$par <- exp(result$par) * initial
     result
@@ -41,6 +45,7 @@ ensure.columns.named <- function(mat, prefix) {
     }
     mat
 }
+
 
 ##################################
 # Multivariate distribution classes
@@ -289,7 +294,10 @@ fit.noise <- function(data, design, get.dist, initial, cores=1) {
     #}     
     #
     #result <- optim.positive(initial, scorer)
-        
+
+    #
+    # Precompute QR decompositions, allowing for missing data        
+    #
     indicies <- c()
     retains <- list()
     z2s <- list()
@@ -313,40 +321,41 @@ fit.noise <- function(data, design, get.dist, initial, cores=1) {
         }
     }
 
-    if (length(initial) == 0) {
-        result <- list(par=initial)
-    } else {
-        if (cores <= 1) {
-            scorer <- function(param) {
-                total <- 0.0
-                for(i in indicies) {
-                    dist <- transformed(
-                        marginal(
-                            get.dist(i, param), 
-                            retains[[i]]), 
-                        tQ2s[[i]])
-                    total <- total + log.density(dist, z2s[[i]])
-                }
-                -total
-            }     
-        } else {
-            scorer <- function(param) {
-                score.one <- function(i) {
-                    dist <- transformed(
-                        marginal(
-                            get.dist(i, param), 
-                            retains[[i]]), 
-                        tQ2s[[i]]
-                        )
-                    log.density(dist, z2s[[i]])
-                }
-                
-                -sum(unlist(mclapply(indicies, score.one, mc.cores=cores)))
-            }        
-        }
 
-        result <- optim.positive(initial, scorer)
-    }    
+    #
+    # Perform optimization
+    #
+    score.one <- function(i, param) {
+        dist <- transformed(
+            marginal(
+                get.dist(i, param), 
+                retains[[i]]), 
+            tQ2s[[i]]
+            )
+        log.density(dist, z2s[[i]])
+    }
+    
+    scorer <- function(param) {                
+        #result <- mclapply(indicies, score.one, param=param, mc.cores=cores)
+        
+        if (cores > 1)
+            result <- parLapply(cluster, indicies, score.one, param=param)
+        else
+            result <- lapply(indicies, score.one, param=param)
+        -sum(unlist(result))
+    }
+    
+    if (cores > 1) {
+        on.exit(stopCluster(cluster))
+        cluster <- makeForkCluster(cores)
+    }
+    
+    result <- optim.positive(initial, scorer)
+
+
+    #
+    # Assemble output
+    #
     
     dist <- lapply(seq_len(nrow(data)), function(i) get.dist(i, result$par))
 
@@ -630,7 +639,7 @@ fit.elist <- function(
         initial = model$initial(elist),
         noise.design = noise.design,
         cores = cores
-    )    
+        )    
     result$elist <- elist    
     result$noise.description <- sprintf(
         "%s\n%s", 
@@ -667,9 +676,6 @@ test.fit <- function(fit, coefs=NULL, contrasts=NULL, sort=TRUE) {
     fdrs <- p.adjust(p.values, method='fdr')
     
     table <- data.frame(matrix(nrow=length(p.values),ncol=0))
-    
-    # for(i in seq_len(ncol(fit$coef)))
-    #    table[,colnames(fit$coef)[i]] <- fit$coef[,i]
     
     if (!is.null(contrasts))
         for(i in seq_len(ncol(contrasts)))

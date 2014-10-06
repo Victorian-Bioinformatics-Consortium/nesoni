@@ -1602,8 +1602,14 @@ You will need to use at least one of --min-sd, --min-span, or --min-svd.
     'Amount of moderation used in log transformation.'
     ' See "glog" mode in "test-counts:".'
     )
-@config.Int_flag('min_total', 'Expression level filter:\nExclude genes with less than this total number of reads')
-@config.Int_flag('min_max', 'Expression level filter:\nExclude genes with no sample having at least this many reads')
+@config.Int_flag('min_total', 
+    'Expression level filter:\n'
+    'Exclude genes with less than this total number of reads.\n'
+    'Applied before --select.')
+@config.Int_flag('min_max', 
+    'Expression level filter:\n'
+    'Exclude genes with no sample having at least this many reads.\n'
+    'Applied before --select.')
 @config.Float_flag('min_sd', 'Fold change filter:\nExclude genes with less than this standard deviation of log2 expression levels')
 @config.Float_flag('min_span', 'Fold change filter:\nExclude genes where there is no pair of samples that differ in log2 expression by this much')
 @config.Float_flag('min_svd', 'Fold change filter:\nUsing the SVD of log2 expression levels, '
