@@ -7,7 +7,7 @@ Produce files for use with IGV
 
 """
 
-from nesoni import config, io, grace, legion, workspace, \
+from nesoni import config, io, grace, legion, workspace, spanner, \
                    trivia, annotation, working_directory, reference_directory
 
 import itertools, math, os
@@ -153,6 +153,15 @@ class IGV_plots(config.Action_with_prefix):
     def iter_over_unstranded(self, access_func, zeros=True):
         return self.iter_over(access_func(item)[0] + access_func(item)[1], zeros)        
 
+
+    def spanners_over(self, access_func):
+        for name in self.chromosome_names:
+            yield name, spanner.zip_spanners(*[ access_func(item[name]) for item in self.depths ])
+
+    def spanners_over_unstranded(self, access_func):
+        return self.spanners_over(lambda item: (access_func(item)[0] + access_func(item)[1]).spanner())
+
+
     def calculate_norm_mult(self):
         grace.status('Calculating normalization')
         
@@ -198,6 +207,11 @@ class IGV_plots(config.Action_with_prefix):
         normalize = self.normalizer()
         for name, pos, depths in iterator:
             yield name, pos, normalize(depths)
+
+    def normalize_spanners(self, spanners):
+        normalize = self.normalizer()
+        for name, a_spanner in spanners:
+            yield name, spanner.map_spanner(normalize, a_spanner)
 
     def find_maximum_depth(self):
         grace.status('Finding maximum depth')        
@@ -284,7 +298,55 @@ class IGV_plots(config.Action_with_prefix):
             self.wait_for_igv()
 
             p = io.run([
-                'igvtools', 'tile',
+                'igvtools', 'toTDF',
+                filename, 
+                self.prefix + plots_name + '.tdf',
+                self.genome,
+                '-f', 'max,mean'
+            ], stdin=None, stdout=None)
+
+            self.processes.append((p, filename))
+            
+            #assert p.wait() == 0, 'igvtools tile failed'
+            #if self.delete_igv:
+            #    os.unlink(filename)
+
+    def make_plot_spanners(self, plots_name, plot_names, spanners, maximum, color='0,0,0', scale_type='log', windowing='maximum'):
+        grace.status('Write '+plots_name)
+        filename = self.prefix + plots_name + '.igv'
+        f = open(filename, 'wb')
+        
+        height = max(10,int(100.0/math.sqrt(len(plot_names)))) #...
+        
+        print >> f, '#track viewLimits=0:%(maximum)f autoScale=off scaleType=%(scale_type)s windowingFunction=%(windowing)s maxHeightPixels=200:%(height)d:1 color=%(color)s' % locals()
+        print >> f, '\t'.join(
+            [ 'Chromosome', 'Start', 'End', 'Feature'] + [ self.label_prefix + item for item in plot_names ]
+        )
+        for name, spanner in spanners:
+            pos = 0
+            for length, depths in spanner:
+                if length > 0:
+                    print >> f, '\t'.join(
+                        [ name, str(pos), str(pos+length), 'F' ] +
+                        [ str(item) for item in depths ]
+                    )
+                    pos += length
+                #for i in xrange(length):
+                #    print >> f, '\t'.join(
+                #        [ name, str(pos), str(pos+1), 'F' ] +
+                #        [ str(item) for item in depths ]
+                #    )
+                #    pos += 1
+        
+        f.close()
+        grace.status('')
+        
+        if self.genome:
+            #One igvtools process at a time
+            self.wait_for_igv()
+
+            p = io.run([
+                'igvtools', 'toTDF',
                 filename, 
                 self.prefix + plots_name + '.tdf',
                 self.genome,
@@ -316,12 +378,36 @@ class IGV_plots(config.Action_with_prefix):
             else:
                 yield name, pos, (1.0 - float(sum(depths)) / total_ambiguous,)
 
+    def spanner_ambiguity(self):
+        def ambiguity((depths, ambiguous_depths)):
+            total_ambiguous = sum(ambiguous_depths)
+            if not total_ambiguous:
+                return (0.0,)
+            else:
+                return (1.0 - float(sum(depths)) / total_ambiguous,)
+    
+        for (name, spanner_depths), (name1, spanner_ambiguous_depths) in itertools.izip(
+            self.spanners_over_unstranded(lambda item: item.depths),
+            self.spanners_over_unstranded(lambda item: item.ambiguous_depths)):
+            yield name, spanner.map_spanner(ambiguity, spanner.zip_spanners(spanner_depths, spanner_ambiguous_depths))
+
+
     def iter_total(self):
         for (name,pos,depths_fwd), (name1,pos1,depths_rev) in itertools.izip(
             self.iter_over(lambda item: item.ambiguous_depths[0]),
             self.iter_over(lambda item: item.ambiguous_depths[1])
         ):
             yield name, pos, (sum(depths_fwd), sum(depths_rev))
+
+    def spanners_total(self):
+        for (name,fwd_spanner),(name1,rev_spanner) in itertools.izip(
+            self.spanners_over(lambda item: item.ambiguous_depths[0].spanner()),
+            self.spanners_over(lambda item: item.ambiguous_depths[1].spanner())
+            ):
+            yield name, spanner.zip_spanners(
+                spanner.map_spanner(sum, fwd_spanner),
+                spanner.map_spanner(sum, rev_spanner),
+                )
 
     def iter_5prime(self):
         for (name,pos,depths_fwd), (name1,pos1,depths_rev) in itertools.izip(
@@ -330,12 +416,34 @@ class IGV_plots(config.Action_with_prefix):
         ):
             yield name, pos, (sum(depths_fwd), sum(depths_rev))
 
+    def spanners_5prime(self):
+        for (name, spanners_fwd), (name1, spanners_rev) in itertools.izip(
+            self.spanners_over(lambda item: item.ambiguous_depths[0].spanner_starts()),
+            self.spanners_over(lambda item: item.ambiguous_depths[1].spanner_ends()),
+            ):
+            yield name, spanner.zip_spanners(
+                spanner.map_spanner(sum, spanners_fwd),
+                spanner.map_spanner(sum, spanners_rev),
+                )
+
+
     def iter_3prime(self):
         for (name,pos,depths_fwd), (name1,pos1,depths_rev) in itertools.izip(
             self.iter_over(lambda item: item.ambiguous_depths[0].iter_ends()),
             self.iter_over(lambda item: item.ambiguous_depths[1].iter_starts())
         ):
             yield name, pos, (sum(depths_fwd), sum(depths_rev))
+
+    def spanners_3prime(self):
+        for (name, spanners_fwd), (name1, spanners_rev) in itertools.izip(
+            self.spanners_over(lambda item: item.ambiguous_depths[0].spanner_ends()),
+            self.spanners_over(lambda item: item.ambiguous_depths[1].spanner_starts()),
+            ):
+            yield name, spanner.zip_spanners(
+                spanner.map_spanner(sum, spanners_fwd),
+                spanner.map_spanner(sum, spanners_rev),
+                )
+
 
     def setup(self):
         grace.status('Load depths')
@@ -378,42 +486,73 @@ class IGV_plots(config.Action_with_prefix):
         names_fwd = [ item + ' fwd' for item in self.sample_names ]
         names_rev = [ item + ' rev' for item in self.sample_names ]
 
+        maximum = self.maximum * len(self.working_dirs)
+        #self.make_plot('-total', ['Total fwd', 'Total rev'], self.iter_total(), maximum, '64,0,64')        
+        self.make_plot_spanners('-total', ['Total fwd', 'Total rev'], self.spanners_total(), maximum, '64,0,64')        
+        #self.make_plot('-5prime-ends', ['5p fwd', '5p rev'], self.iter_5prime(), maximum, '64,0,64')
+        self.make_plot_spanners('-5prime-ends', ['5p fwd', '5p rev'], self.spanners_5prime(), maximum, '64,0,64')
+        #self.make_plot('-3prime-ends', ['3p fwd', '3p rev'], self.iter_3prime(), maximum, '64,0,64')
+        self.make_plot_spanners('-3prime-ends', ['3p fwd', '3p rev'], self.spanners_3prime(), maximum, '64,0,64')
+
+        #self.make_plot('-mapping-ambiguity', ['Ambiguity'], self.iter_ambiguity(), 1.0, '196,0,0', scale_type='linear', windowing='mean')
+        self.make_plot_spanners('-mapping-ambiguity', ['Ambiguity'], self.spanner_ambiguity(), 1.0, '196,0,0', scale_type='linear', windowing='mean')
+
         if self.raw:
             if self.strand_specific:
-                self.make_plot('-reads-raw-fwd', names_fwd, self.iter_over(lambda item: item.ambiguous_depths[0]), self.maximum, '0,128,0')        
-                self.make_plot('-reads-raw-rev', names_rev, self.iter_over(lambda item: item.ambiguous_depths[1]), self.maximum, '0,0,128')                
+                #self.make_plot('-reads-raw-fwd', names_fwd, self.iter_over(lambda item: item.ambiguous_depths[0]), self.maximum, '0,128,0')        
+                self.make_plot_spanners('-reads-raw-fwd', names_fwd, 
+                    self.spanners_over(lambda item: item.ambiguous_depths[0].spanner()), self.maximum, '0,128,0')        
+                #self.make_plot('-reads-raw-rev', names_rev, self.iter_over(lambda item: item.ambiguous_depths[1]), self.maximum, '0,0,128')                
+                self.make_plot_spanners('-reads-raw-rev', names_rev, 
+                    self.spanners_over(lambda item: item.ambiguous_depths[1].spanner()), self.maximum, '0,0,128')                
                 if self.any_pairs:        
-                    self.make_plot('-fragments-raw-fwd', names_fwd, self.iter_over(lambda item: item.ambiguous_pairspan_depths[0]), self.maximum, '0,128,0')        
-                    self.make_plot('-fragments-raw-rev', names_rev, self.iter_over(lambda item: item.ambiguous_pairspan_depths[1]), self.maximum, '0,0,128')                
+                    #self.make_plot('-fragments-raw-fwd', names_fwd, self.iter_over(lambda item: item.ambiguous_pairspan_depths[0]), self.maximum, '0,128,0')        
+                    self.make_plot_spanners('-fragments-raw-fwd', names_fwd, 
+                        self.spanners_over(lambda item: item.ambiguous_pairspan_depths[0].spanner()), self.maximum, '0,128,0')        
+                    #self.make_plot('-fragments-raw-rev', names_rev, self.iter_over(lambda item: item.ambiguous_pairspan_depths[1]), self.maximum, '0,0,128')                
+                    self.make_plot_spanners('-fragments-raw-rev', names_rev, 
+                        self.spanners_over(lambda item: item.ambiguous_pairspan_depths[1].spanner()), self.maximum, '0,0,128')                
             else:
-                self.make_plot('-reads-raw', self.sample_names, self.iter_over_unstranded(lambda item: item.ambiguous_depths), self.maximum, '0,128,128')
+                #self.make_plot('-reads-raw', self.sample_names, self.iter_over_unstranded(lambda item: item.ambiguous_depths), self.maximum, '0,128,128')
+                self.make_plot_spanners('-reads-raw', self.sample_names, 
+                    self.spanners_over_unstranded(lambda item: item.ambiguous_depths), self.maximum, '0,128,128')
                 if self.any_pairs:
-                    self.make_plot('-fragments-raw', self.sample_names, self.iter_over_unstranded(lambda item: item.ambiguous_pairspan_depths), self.maximum, '0,128,128')
+                    #self.make_plot('-fragments-raw', self.sample_names, self.iter_over_unstranded(lambda item: item.ambiguous_pairspan_depths), self.maximum, '0,128,128')
+                    self.make_plot_spanners('-fragments-raw', self.sample_names, 
+                        self.spanners_over_unstranded(lambda item: item.ambiguous_pairspan_depths), self.maximum, '0,128,128')
 
         if self.norm:
             if self.strand_specific:
-                self.make_plot('-reads-normalized-fwd', names_fwd, self.normalize_iter(self.iter_over(lambda item: item.ambiguous_depths[0])), self.norm_maximum, '0,128,0')        
-                self.make_plot('-reads-normalized-rev', names_rev, self.normalize_iter(self.iter_over(lambda item: item.ambiguous_depths[1])), self.norm_maximum, '0,0,128')
+                #self.make_plot('-reads-normalized-fwd', names_fwd, self.normalize_iter(self.iter_over(lambda item: item.ambiguous_depths[0])), self.norm_maximum, '0,128,0')        
+                self.make_plot_spanners('-reads-normalized-fwd', names_fwd, 
+                    self.normalize_spanners(self.spanners_over(lambda item: item.ambiguous_depths[0].spanner())), self.norm_maximum, '0,128,0')        
+                #self.make_plot('-reads-normalized-rev', names_rev, self.normalize_iter(self.iter_over(lambda item: item.ambiguous_depths[1])), self.norm_maximum, '0,0,128')
+                self.make_plot_spanners('-reads-normalized-rev', names_rev, 
+                    self.normalize_spanners(self.spanners_over(lambda item: item.ambiguous_depths[1].spanner())), self.norm_maximum, '0,0,128')
                 if self.any_pairs:        
-                    self.make_plot('-fragments-normalized-fwd', names_fwd, self.normalize_iter(self.iter_over(lambda item: item.ambiguous_pairspan_depths[0])), self.norm_maximum, '0,128,0')        
-                    self.make_plot('-fragments-normalized-rev', names_rev, self.normalize_iter(self.iter_over(lambda item: item.ambiguous_pairspan_depths[1])), self.norm_maximum, '0,0,128')
+                    #self.make_plot('-fragments-normalized-fwd', names_fwd, self.normalize_iter(self.iter_over(lambda item: item.ambiguous_pairspan_depths[0])), self.norm_maximum, '0,128,0')        
+                    self.make_plot_spanners('-fragments-normalized-fwd', names_fwd, 
+                        self.normalize_spanners(self.spanners_over(lambda item: item.ambiguous_pairspan_depths[0].spanner())), self.norm_maximum, '0,128,0')        
+                    #self.make_plot('-fragments-normalized-rev', names_rev, self.normalize_iter(self.iter_over(lambda item: item.ambiguous_pairspan_depths[1])), self.norm_maximum, '0,0,128')
+                    self.make_plot_spanners('-fragments-normalized-rev', names_rev, 
+                        self.normalize_spanners(self.spanners_over(lambda item: item.ambiguous_pairspan_depths[1].spanner())), self.norm_maximum, '0,0,128')
             else:
-                self.make_plot('-reads-normalized', self.sample_names, self.normalize_iter(self.iter_over_unstranded(lambda item: item.ambiguous_depths)), self.norm_maximum, '0,128,128')
+                #self.make_plot('-reads-normalized', self.sample_names, self.normalize_iter(self.iter_over_unstranded(lambda item: item.ambiguous_depths)), self.norm_maximum, '0,128,128')
+                self.make_plot('-reads-normalized', self.sample_names, 
+                    self.normalize_spanners(self.spanners_over_unstranded(lambda item: item.ambiguous_depths)), self.norm_maximum, '0,128,128')
                 if self.any_pairs:
-                    self.make_plot('-fragments-normalized', self.sample_names, self.normalize_iter(self.iter_over_unstranded(lambda item: item.ambiguous_pairspan_depths)), self.norm_maximum, '0,128,128')
+                    #self.make_plot('-fragments-normalized', self.sample_names, self.normalize_iter(self.iter_over_unstranded(lambda item: item.ambiguous_pairspan_depths)), self.norm_maximum, '0,128,128')
+                    self.make_plot_spanners('-fragments-normalized', self.sample_names, 
+                        self.normalize_spanners(self.spanners_over_unstranded(lambda item: item.ambiguous_pairspan_depths)), self.norm_maximum, '0,128,128')
         
         if self.three_prime:
             if self.strand_specific:
-                self.make_plot('-reads-3prime-fwd', names_fwd, self.iter_over(lambda item: item.ambiguous_depths[0].iter_ends()), self.maximum, '0,128,0')        
-                self.make_plot('-reads-3prime-rev', names_rev, self.iter_over(lambda item: item.ambiguous_depths[1].iter_starts()), self.maximum, '0,0,128')                
-        
-        
-        self.make_plot('-mapping-ambiguity', ['Ambiguity'], self.iter_ambiguity(), 1.0, '196,0,0', scale_type='linear', windowing='mean')
-
-        maximum = self.maximum * len(self.working_dirs)
-        self.make_plot('-total', ['Total fwd', 'Total rev'], self.iter_total(), maximum, '64,0,64')        
-        self.make_plot('-5prime-ends', ['5p fwd', '5p rev'], self.iter_5prime(), maximum, '64,0,64')
-        self.make_plot('-3prime-ends', ['3p fwd', '3p rev'], self.iter_3prime(), maximum, '64,0,64')
+                #self.make_plot('-reads-3prime-fwd', names_fwd, self.iter_over(lambda item: item.ambiguous_depths[0].iter_ends()), self.maximum, '0,128,0')        
+                self.make_plot_spanners('-reads-3prime-fwd', names_fwd, 
+                    self.spanners_over(lambda item: item.ambiguous_depths[0].spanner_ends()), self.maximum, '0,128,0')        
+                #self.make_plot('-reads-3prime-rev', names_rev, self.iter_over(lambda item: item.ambiguous_depths[1].iter_starts()), self.maximum, '0,0,128')                
+                self.make_plot_spanners('-reads-3prime-rev', names_rev, 
+                    self.spanners_over(lambda item: item.ambiguous_depths[1].spanner_starts()), self.maximum, '0,0,128')                
         
         self.setdown()
         

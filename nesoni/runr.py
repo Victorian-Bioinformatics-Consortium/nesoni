@@ -233,52 +233,55 @@ Test for an interaction between A and B
 
 
 MODE_HELP = {
+#=====================================
 'voom' : """   
 Uses BioConductor package limma, with voom, to perform moderated t-tests.
 
 The empirical prior on within group variance is a function of overall expression.
 
-A plot ...-voom.png is produced showing the relation of within-group 
+A plot ...-voom.png is produced showing the relation of within-group \
 variance to expression level.
 
-"voomed" columns in the output are log2 reads per million,
+"voomed" columns in the output are log2 reads per million, \
 normalized using EdgeR's Trimmed Mean normalization.
 
 
 References:
 
-Smyth, G. K. (2004). Linear models and empirical Bayes methods for assessing 
-differential expression in microarray experiments. Statistical Applications 
+Smyth, G. K. (2004). Linear models and empirical Bayes methods for assessing \
+differential expression in microarray experiments. Statistical Applications \
 in Genetics and Molecular Biology 3, No. 1, Article 3.
 
-Law, CW, Chen, Y, Shi, W, and Smyth, GK (2014). Voom: precision weights
-unlock linear model analysis tools for RNA-seq read counts. Genome Biology,
+Law, CW, Chen, Y, Shi, W, and Smyth, GK (2014). Voom: precision weights \
+unlock linear model analysis tools for RNA-seq read counts. Genome Biology, \
 Vol 15(2).
 """,  
+#=====================================
 'nullvoom' : """    
-Uses BioConductor package limma, with voom, to fit the null model 
-to the data. A scaled chi-square distribution is then fitted to 
-the residual variance, using maximum likelihood. Genes where the 
-residual is significantly larger than would be expected from
+Uses BioConductor package limma, with voom, to fit the null model \
+to the data. A scaled chi-square distribution is then fitted to \
+the residual variance, using maximum likelihood. Genes where the \
+residual is significantly larger than would be expected from \
 the fitted chi-square distribution are reported as significant.
 
-Use this when your biologist (bless them) has not done any 
+Use this when your biologist (bless them) has not done any \
 biological replicates.
 
-This mode is unable to distinguish differentially expressed genes from 
+This mode is unable to distinguish differentially expressed genes from \
 genes with high variability between samples.
 
-This mode gives quite conservative p-values. Also note that this is
+This mode gives quite conservative p-values. Also note that this is \
 not a method endorsed by WEHI, it's just something I made up.
 
-A plot ...-voom.png is produced showing the relation of variance 
+A plot ...-voom.png is produced showing the relation of variance \
 to expression level.
 
-A plot ...-qq.png is produced showing how well the chi-square 
+A plot ...-qq.png is produced showing how well the chi-square \
 distribution fits the residual variance.
 """,
+#=====================================
 'glog' : """
-This is a simpler alternative to voom. Counts are converted to 
+This is a simpler alternative to voom. Counts are converted to \
 log2 Reads Per Million using a variance stabilised transformation.
 
 Let the generalised logarithm with moderation m be
@@ -295,36 +298,37 @@ The log2 RPM values are then tested using limma.
 
 References:
 
-B.P. Durbin, J.S. Hardin, D.M. Hawkins and D.M. Rocke (2002)
-A variance-stabilizing transformation for gene-expression microarray data.
+B.P. Durbin, J.S. Hardin, D.M. Hawkins and D.M. Rocke (2002) \
+A variance-stabilizing transformation for gene-expression microarray data. \
 Bioinformatics (2002) 18 (suppl 1): S105-S110. 
 
 Smyth, G. K. (2004). 
-Linear models and empirical Bayes methods for assessing 
-differential expression in microarray experiments. 
+Linear models and empirical Bayes methods for assessing \
+differential expression in microarray experiments. \
 Statistical Applications in Genetics and Molecular Biology 3, No. 1, Article 3.
 """,
 'nullglog' : """
-Uses BioConductor package limma, after tranformation as in the "glog" method, 
-to fit the null model to the data. A scaled chi-square distribution is then 
-fitted to the residual variance, using maximum likelihood. Genes where the 
-residual is significantly larger than would be expected from the fitted 
+Uses BioConductor package limma, after tranformation as in the "glog" method, \
+to fit the null model to the data. A scaled chi-square distribution is then \
+fitted to the residual variance, using maximum likelihood. Genes where the \
+residual is significantly larger than would be expected from the fitted \
 chi-square distribution are reported as significant.
 
-Use this when your biologist (bless them) has not done any 
+Use this when your biologist (bless them) has not done any \
 biological replicates.
 
-This mode is unable to distinguish differentially expressed genes from 
+This mode is unable to distinguish differentially expressed genes from \
 genes with high variability between samples.
 
-This mode gives quite conservative p-values. Also note that this is
+This mode gives quite conservative p-values. Also note that this is \
 not a method endorsed by WEHI, it's just something I made up.
 
-A plot ...-qq.png is produced showing how well the chi-square 
+A plot ...-qq.png is produced showing how well the chi-square \
 distribution fits the residual variance.
 """,
+#=====================================
 'poisson' : """     
-Uses BioConductor package EdgeR to look for differential expression 
+Uses BioConductor package EdgeR to look for differential expression \
 with a Poisson noise model.
 
 This will certainly give misleading results, and should not be used.
@@ -332,13 +336,14 @@ This will certainly give misleading results, and should not be used.
 
 References:
 
-Robinson MD, McCarthy DJ and Smyth GK (2010). edgeR: a Bioconductor
-package for differential expression analysis of digital gene
+Robinson MD, McCarthy DJ and Smyth GK (2010). edgeR: a Bioconductor \
+package for differential expression analysis of digital gene \
 expression data. Bioinformatics 26, 139-140
 """,
+#=====================================
 'common' : """      
-Uses BioConductor package EdgeR to look for differential expression
-using a negative binomial model. A global estimate of overdispersion
+Uses BioConductor package EdgeR to look for differential expression \
+using a negative binomial model. A global estimate of overdispersion \
 is blended with a per-gene estimate.
 
 Uses the default EdgeR df.prior (10).
@@ -346,14 +351,15 @@ Uses the default EdgeR df.prior (10).
 
 References:
 
-Robinson MD, McCarthy DJ and Smyth GK (2010). edgeR: a Bioconductor
-package for differential expression analysis of digital gene
+Robinson MD, McCarthy DJ and Smyth GK (2010). edgeR: a Bioconductor \
+package for differential expression analysis of digital gene \
 expression data. Bioinformatics 26, 139-140
 """,
+#=====================================
 'trend' : """       
-Uses BioConductor package EdgeR to look for differential expression
-using a negative binomial model, with a global model of overdispersion 
-is a smoothly varying function of overall intensity. This overall model
+Uses BioConductor package EdgeR to look for differential expression \
+using a negative binomial model, with a global model of overdispersion \
+is a smoothly varying function of overall intensity. This overall model \
 is blended with a per-gene estimate of overdispersion.
 
 Uses the default EdgeR df.prior (10).
@@ -361,10 +367,24 @@ Uses the default EdgeR df.prior (10).
 
 References:
 
-Robinson MD, McCarthy DJ and Smyth GK (2010). edgeR: a Bioconductor
-package for differential expression analysis of digital gene
-expression data. Bioinformatics 26, 139-140
-"""
+Robinson MD, McCarthy DJ and Smyth GK (2010). edgeR: a Bioconductor \
+package for differential expression analysis of digital gene \
+expression data. Bioinformatics 26, 139-140 \
+""",
+
+#=====================================
+'fitnoise' : """       
+Uses voom and then Fitnoise.
+
+Fitnoise is very similar to limma, however hyperparameters are estimated by \
+Maximum Likelihood.
+
+This mode can be quite slow to run.
+
+See:
+http://vicbioinformatics.com/software.fitnoise.shtml
+
+""",
 }
 
 
@@ -723,19 +743,12 @@ if (MODE == 'glog' || MODE == 'nullglog') {
     dev.off()
 }
 
-fit <- lmFit(y, design)
 
-#if (USE_CONTRAST) {
-#    fit <- contrasts.fit(fit, CONTRAST_WEIGHTS)
-#    coef <- data.frame('log2 contrast' = fit$coefficients[,1], check.names=FALSE)
-#} else {
-
-coef <- fit$coefficients[,1:N_TO_TEST, drop=FALSE]
-
-#}
-
-if (MODE != 'nullvoom' && MODE != 'nullglog') {
+if (MODE == 'voom' || MODE == 'glog') {
+    fit <- lmFit(y, design)
+    coef <- fit$coefficients[,1:N_TO_TEST, drop=FALSE]
     fit <- eBayes(fit)
+    ave_expr <- fit$Amean
     
     #if (USE_CONTRAST) {
     #    top <- topTable(fit, coef=1, sort.by='none', confint=TRUE, number=Inf)
@@ -748,8 +761,18 @@ if (MODE != 'nullvoom' && MODE != 'nullglog') {
     ordering <- order(top$P.Value)
     p <- top$P.Value
 
-} else {
-    #stopifnot(!USE_CONTRAST) #Not supported.
+} else if (MODE == 'fitnoise') {
+    fit <- fit.elist(y, design, model=model.t.standard, cores=8)
+    top <- test.fit(fit, coef=1:N_TO_TEST, sort=FALSE)
+    coef <- fit$coef[,1:N_TO_TEST, drop=FALSE]
+    p <- top$P.Value
+    ordering <- order(p)
+    ave_expr <- top$AveExpr
+
+} else if (MODE == 'nullvoom' || mode == 'nullglog') {
+    fit <- lmFit(y, design)
+    coef <- fit$coefficients[,1:N_TO_TEST, drop=FALSE]
+    ave_expr <- fit$Amean
 
     fit <- lmFit(y, null.design)
     fit <- eBayes(fit)
@@ -795,11 +818,14 @@ if (MODE != 'nullvoom' && MODE != 'nullglog') {
     
     ordering <- order(s2, decreasing=TRUE) 
     p <- pchisq(s2*scale, df, lower.tail=FALSE)
+
+} else {
+    stop('Unsupported mode.')
 }
 
 result <- data.frame(Feature = rownames(y$genes), row.names=rownames(y$genes))
 
-result$'average expression (log2 reads-per-million)' <- fit$Amean
+result$'average expression (log2 reads-per-million)' <- ave_expr
 
 for(i in basic.seq(ncol(coef))) {
     result[,colnames(coef)[i]] <- coef[,i]
@@ -909,9 +935,13 @@ cat(dgelist$original.number.of.genes, 'features\n')
 cat('Discarded', dgelist$original.number.of.genes-nrow(dgelist$counts), 'features with total count less than', MIN_COUNT, '\n')
 cat('Kept', nrow(dgelist$counts), 'features\n')
 
-#if (MODE == 'voom' || MODE == 'glog') {
-cat(fit$df.prior, 'prior df (the prior is like this many extra samples)\n')
-#}
+if (MODE == 'voom' || MODE == 'glog') {
+    cat(fit$df.prior, 'prior df (the prior is like this many extra samples)\n')
+}
+
+if (MODE == 'fitnoise') {
+    print(fit)
+}
 
 cat('\nWith', describe.significant(), '\n\n')
 cat(' ', sum(significant), 'genes called as differentially expressed\n\n')
@@ -1088,7 +1118,7 @@ This is an ANOVA style test that is potentially more sensitive than comparing ea
         '='*20 +
         '\n--mode %s \n' % mode +
         MODE_HELP[mode]        
-        for mode in ('voom', 'glog', 'nullvoom', 'nullglog', 'poisson', 'common', 'trend')
+        for mode in ('voom', 'glog', 'nullvoom', 'nullglog', 'poisson', 'common', 'trend', 'fitnoise')
 ))
 @config.String_flag('mode', 'Analysis mode. See below.')
 @config.Float_flag('glog_moderation', 
@@ -1159,7 +1189,7 @@ class Test_counts(config.Action_with_prefix):
     
         log = grace.Log()
     
-        assert mode in ('voom', 'glog', 'nullvoom', 'nullglog', 'poisson', 'common', 'trend')
+        assert mode in ('voom', 'glog', 'nullvoom', 'nullglog', 'poisson', 'common', 'trend', 'fitnoise')
         
         assert test_terms, 'No terms to test'
         
@@ -1214,16 +1244,16 @@ class Test_counts(config.Action_with_prefix):
         log.log('\n')    
         
         
-        assert len(all_terms) <= n_all_samples, 'Can\'t have more linear model terms than samples.'
+        assert len(all_terms) <= n_samples, 'Can\'t have more linear model terms than samples.'
         if mode not in ('poisson','nullvoom','nullglog'):
-            assert len(all_terms) < n_all_samples, (
+            assert len(all_terms) < n_samples, (
                 'Can\'t have as many linear model terms as samples, within group variation can\'t be estimated. '
-                'I wouldn\'t recommend using --mode poisson or --mode nullvoom, '
+                'I wouldn\'t recommend using --mode nullvoom, '
                 'you should go and sequence some more samples.'
             )
         
         
-        log.log('Analysis mode: %s\n%s\n'%(mode,MODE_HELP[mode]))
+        log.log('Analysis mode: %s\n%s\n\n'%(mode,config.wrap(MODE_HELP[mode], 70)))
         
         log_filename = output_prefix + '-info.txt'
         design_columns = [ 'log2 '+term_name(item) for item in all_terms ]
@@ -1232,7 +1262,7 @@ class Test_counts(config.Action_with_prefix):
         log.attach(open(log_filename,'wb'))
         log.close()    
         
-        if mode in ('voom', 'glog', 'nullvoom', 'nullglog'):
+        if mode in ('voom', 'glog', 'nullvoom', 'nullglog', 'fitnoise'):
             script = LIMMA
         else:
             script = EDGER

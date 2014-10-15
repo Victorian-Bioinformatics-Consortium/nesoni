@@ -256,44 +256,46 @@ conditional.mvt <- function(self, i1, i2, x2) {
 
 
 #
-# Input:
+#Input:
 #
-# get.dist(i, param)
-# - i is feature number (row number of data)
-# - param is a parameter vector
-# - optimization is constrained to all param positive,
+#  data is a matrix of observations
+#
+#  design is a design matrix
+#
+#  get.dist(i, param)
+#  - i is feature number (row number of data)
+#  - param is a parameter vector
+#  - optimization is constrained to all param positive,
 #   starting from initial
 #
-# Output:
+#  Optional:
+#  controls is a logical vector specifying negative control genes
+#  control.design is a design matrix for control genes (ie your null hypothesis)
+#  - defaults to a single column of ones
 #
-# Some dist may not be all(good( ))
+#Output:
 #
-fit.noise <- function(data, design, get.dist, initial, cores=1) {
-    #decomp <- qr(design)
-    #i2 <- ncol(design)+seq_len(nrow(design)-ncol(design))
-    #Q <- qr.Q(decomp, complete=TRUE)
-    #Q2 <- Q[, i2, drop=FALSE]
-    #tQ2 <- t(Q2)
-    #
-    #z2 <- data %*% Q2
-    #
-    #is.good <- rep(TRUE, nrow(data))
-    #for(i in seq_len(nrow(data)))
-    #    if (!all(is.finite(data[i,])) ||
-    #        !all(good(get.dist(i, initial))))
-    #        is.good[i] <- FALSE    
-    #
-    #scorer <- function(param) {
-    #    total <- 0.0
-    #    for(i in seq_len(nrow(data))) 
-    #        if (is.good[i]) {
-    #            dist <- transformed(get.dist(i, param), tQ2)
-    #            total <- total + log.density(dist, z2[i,])
-    #        }
-    #    -total
-    #}     
-    #
-    #result <- optim.positive(initial, scorer)
+#  A fitnoise object, for use with fit.coef
+#
+#  Some dist may not be all(good( ))
+#
+#
+fit.noise <- function(data, design, get.dist, initial, 
+        controls=NULL, control.design=NULL, cores=1) {
+
+    if (is.null(controls))
+        controls <- rep(FALSE, nrow(data))
+    if (is.null(control.design))
+        control.design <- matrix(rep(1,ncol(data)))
+    
+    stopifnot(is.matrix(data))
+    stopifnot(is.matrix(design))
+    stopifnot(ncol(data) == nrow(design))
+    
+    stopifnot(is.logical(controls))
+    stopifnot(is.matrix(control.design))
+    stopifnot(ncol(data) == nrow(control.design))
+    
 
     #
     # Precompute QR decompositions, allowing for missing data        
@@ -304,12 +306,17 @@ fit.noise <- function(data, design, get.dist, initial, cores=1) {
     tQ2s <- list()    
 
     for(i in seq_len(nrow(data))) {
+        if (controls[i])
+            this.design <- control.design
+        else
+            this.design <- design
+
         retain <- seq_len(ncol(data))[ is.finite(data[i,]) & good(get.dist(i, initial)) ]
         
         # Does enough data remain?
-        if (length(retain) > ncol(design)) {
-            decomp <- qr(design[retain,,drop=FALSE])
-            i2 <- ncol(design)+seq_len(length(retain)-ncol(design))
+        if (length(retain) > ncol(this.design)) {
+            decomp <- qr(this.design[retain,,drop=FALSE])
+            i2 <- ncol(this.design)+seq_len(length(retain)-ncol(this.design))
             Q <- qr.Q(decomp, complete=TRUE)
             tQ2 <- t(Q[, i2, drop=FALSE])            
             z2 <- tQ2 %*% data[i,retain]
@@ -378,7 +385,7 @@ fit.noise <- function(data, design, get.dist, initial, cores=1) {
     #noise.combined.p.value <- pnorm(sum(qnorm(good.noise.p.values)) / sqrt(length(good.noise.p.values)), lower.tail=T)
     
     
-    noise.description <- sprintf('noise p-value = %g  (small is bad)', noise.combined.p.value)
+    noise.description <- sprintf('noise combined p-value = %g', noise.combined.p.value)
 
     
     object <- list(
@@ -455,11 +462,16 @@ fit.coef <- function(fit, design) {
 
 
 
-fit <- function(data, design, get.dist, initial, noise.design=NULL, cores=1) {
+fit <- function(data, design, get.dist, initial, noise.design=NULL, 
+        controls=NULL, control.design=NULL,
+        cores=1) {
     if (is.null(noise.design))
         noise.design <- design
     
-    fit.coef(fit.noise(data, noise.design, get.dist, initial, cores=cores), design)
+    fitted <- fit.noise(data, noise.design, get.dist, initial, 
+        controls=controls, control.design=control.design, cores=cores)
+    
+    fit.coef(fitted, design)
 }
 
 
@@ -543,6 +555,7 @@ normal.model.to.t <- function(model) list(
     }
 )
 
+
 model.normal.standard <- list(
     # elist$weights if present is taken as proportional to 1.0/variance
 
@@ -581,6 +594,30 @@ model.t.independent <- list(
     
     describe = function(elist, param) { 'Independent t-tests.' }
 )
+
+
+model.normal.per.sample.var <- list(
+    get.dist = function(elist, i, param) {
+        if (is.null(elist$weights))
+            var <- param
+        else
+            var <- param / elist$weights[i,]
+        
+        mvnormal(rep(0,ncol(elist)), as.diagonal.matrix(var))
+    },
+
+    initial = function(elist) rep(1.0, ncol(elist)),
+    
+    describe = function(elist, param) {
+        paste(
+            sprintf('%s variance = %g', 
+                colnames(ensure.columns.named(elist$E,'sample')), 
+                param),
+            collapse = '\n')
+    }
+)
+
+model.t.per.sample.var <- normal.model.to.t(model.normal.per.sample.var)
 
 
 model.normal.patseq <- list(
@@ -631,6 +668,8 @@ model.t.quadratic <- normal.model.to.t(model.normal.quadratic)
 fit.elist <- function(
         elist, design, model=model.t.standard, 
         noise.design=NULL,
+        controls=NULL,
+        control.design=NULL,
         cores=1) {
     result <- fit(
         data = elist$E,
@@ -638,6 +677,8 @@ fit.elist <- function(
         get.dist = function(i,param) model$get.dist(elist,i,param),
         initial = model$initial(elist),
         noise.design = noise.design,
+        controls = controls,
+        control.design= control.design,
         cores = cores
         )    
     result$elist <- elist    

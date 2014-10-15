@@ -217,18 +217,22 @@ pre { padding: 1em; margin: 1em; border: 1px solid #888; width: 60em; }
 
 <h2>Fitnoise</h2>
 
-<div style="float:right; margin-right:1em;">
+<div style="float:right; margin-right:2em;">
 <a href="documents/Fitnoise-poster-ABiC-October-2014.pdf">
-<img width="150" src="documents/Fitnoise-poster-ABiC-October-2014.png">
-<br/>Poster describing Fitnoise
+<div style="border: 1px solid black; padding: 1em">
+<img width="150" 
+     src="documents/Fitnoise-poster-ABiC-October-2014.png">
+</div>
+Poster describing Fitnoise 
 </a>
+<br/>presented at <a href="http://bioinformatics.net.au/abic2014/">ABiC 2014</a>
 </div>
 
 Fitnoise is R+ software for Empirical Bayesian linear modelling.
 It has capabilities very similar to 
 <a href="http://bioinf.wehi.edu.au/limma/">Limma</a>
 but allows parametric noise models with an arbitrary number of parameters.
-
+Parameters are fitted using <a href="https://en.wikipedia.org/wiki/Restricted_maximum_likelihood">REML</a>.
 
 <p>%(date)s, from Nesoni version %(VERSION)s:
 
@@ -278,18 +282,34 @@ myfit
 result <- test.fit(myfit, coefs=testcoefs)
 </pre>
 
+<p>
+<b>When examining myfit, if the "noise combined p-value" is low this indicates a poor
+fit by the noise model.</b> A more accurate noise model may be required.
+
 <h3>Noise models</h3>
 
 <p>
 The novel feature of Fitnoise is the availability of different noise models. 
 Above we used model.t.standard, which performs moderated t tests or F tests similarly to limma.
-The weights matrix is used if present in the EList.
-Also available are:
+Available are:
 <ul>
+
+<li>model.t.standard, attempts to closely emulate limma.
+The weights matrix is used if present in the EList.
+
 <li>model.t.independent, which simply performs independent t tests or F tests.
+
 <li>model.normal.standard, which performs z tests or chi-square tests.
 The weights matrix is used if present in the EList.
+
 <li>model.t.patseq and model.normal.patseq, for PAT-Seq poly(A) tail length data.
+
+<li><b>Experiemental:</b> model.t.per.sample.var and model.normal.per.sample.var
+fit per-sample variances, similar to arrayWeights in limma.
+The weights matrix is used if present in the EList.
+Would suggest only using this with an absolute minimum of three samples per group, 
+or with negative controls (see below).
+
 </ul>
 
 <p>
@@ -319,10 +339,44 @@ result <- test.fit(myfit)
 Note how we never specified an alternative hypothesis H1.
 
 <p>
+Equivalently, you can call fit.elist with H1 as the design and an extra parameter "noise.design"
+giving H0, then call test.fit normally. This will give identical p-values,
+and the output will include coefficient estimates.
+
+<p>
 This produces a ranking of genes by interest, taking into account uncertainty
 in their expression levels. <b>p-values / FDR-values are for ranking purposes only.</b>
 This method can not distinguish highly variable genes from truly differentially expressed genes.
 Now go and tell your collaborator to produce replicates next time.
+
+
+<h3>Experimental: negative control features</h3>
+
+<p>
+A negative control feature is one in which the noise distribution
+is typical, and which is believed to not have been changed by the experiment.
+Constitutively expressed housekeeping genes would make good negative controls.
+Spiked in RNA would <i>not</i> make good negative controls as they
+will not have typical biological noise.
+Empirically chosen negative controls 
+might underestimate or misestimate the noise distribution, use with caution
+(eg features chosen from non-significant features from a differential test without negative controls).
+
+<p>
+A logical vector of negative control features can be passed to fit.elist
+as parameter "controls". 
+You can also pass your null hypothesis design as "control.design"
+(this defaults to a single column of ones).
+
+<p>
+Negative controls, if known, allow noise to be fitted more accurately.
+For example they may be useful for model.t.per.sample.var if you have few samples.
+If the noise model is covariant between samples
+with covariance spanning experimental groups,
+negative controls are absolutely necessary
+(none of the current noise models use this.)
+
+<br/><br/><br/><br/><br/>
 
 <!--#include virtual="bot.html" -->
 """

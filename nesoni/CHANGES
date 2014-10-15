@@ -1,4 +1,8 @@
 
+0.127 - test-counts: now has a mode for fitnoise 
+        norm-from-samples: optimized
+        igv-plots: optimized
+
 0.126 - fitnoise.R now uses makeForkCluster
 
 0.125 - test-counts: modes common and trend were incorrectly outputting ln fold changes,

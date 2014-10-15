@@ -31,7 +31,20 @@ class Depth(object):
             value += self.starts.get(i,0)
             value -= self.ends.get(i,0)
             yield value
-        
+    
+    def spanner(self):
+        start = 0
+        value = self.starts.get(0,0)-self.ends.get(0,0)
+        positions = set(self.starts)
+        positions.update(self.ends)
+        positions.add(self.size)
+        if 0 in positions: positions.remove(0)
+        positions = sorted(positions)
+        for i in positions:
+            yield i-start, value
+            start = i
+            value += self.starts.get(i,0)
+            value -= self.ends.get(i,0)
 
     def iter_starts(self):
         """ How many start at this base position """
@@ -39,11 +52,37 @@ class Depth(object):
         for i in xrange(self.size):
             yield starts.get(i,0)
     
+    def spanner_starts(self):
+        pos = 0
+        for i in sorted(self.starts):
+            if pos != i:
+                yield i-pos, 0
+            yield 1, self.starts[i]
+            pos = i+1
+        if pos < self.size:
+            yield self.size-pos, 0
+    
     def iter_ends(self):
         """ How many end at this base position """
         ends = self.ends
         for i in xrange(1,self.size+1):
             yield ends.get(i,0)
+
+    def spanner_ends(self):
+        pos = 0
+        for i in sorted(self.ends):
+            value = self.ends[i]
+            i -= 1
+            if i < 0: continue
+            
+            if pos != i:
+                yield i-pos, 0
+            yield 1, value
+            pos = i+1
+        
+        if pos < self.size:
+            yield self.size-pos, 0
+    
 
     def total(self):
         total = 0
