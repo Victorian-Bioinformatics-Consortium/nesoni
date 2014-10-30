@@ -78,8 +78,8 @@ verify.p.values <- function(dist) {
 
 mvnormal <- function(mean,covar) {
     object <- list(
-        mean=as.matrix(mean),
-        covar=as.matrix(covar)
+        mean=matrix(mean),
+        covar=covar
         )
     class(object) <- 'mvnormal'
     object    
@@ -105,14 +105,14 @@ random.mvnormal <- function(self) {
 }
 
 p.value.mvnormal <- function(self, x) {
-   offset <- as.matrix(x) - self$mean
+   offset <- matrix(x) - self$mean
    df <- nrow(self$covar)
    q <- t(offset) %*% solve(self$covar, offset)
    pchisq(c(q), df, lower.tail=FALSE)
 }
 
 log.density.mvnormal <- function(self, x) {
-   offset <- as.matrix(x) - self$mean
+   offset <- matrix(x) - self$mean
    
    -0.5*( 
      log(2*pi)*nrow(self$covar)
@@ -136,7 +136,7 @@ marginal.mvnormal <- function(self, i) {
 }
 
 conditional.mvnormal <- function(self, i1, i2, x2) {
-    x2 <- as.matrix(x2)
+    x2 <- matrix(x2)
     
     mean1 <- self$mean[i1]
     mean2 <- self$mean[i2]
@@ -161,8 +161,8 @@ conditional.mvnormal <- function(self, i1, i2, x2) {
 
 mvt <- function(mean,covar,df) {
     object <- list(
-        mean=as.matrix(mean),
-        covar=as.matrix(covar),
+        mean=matrix(mean),
+        covar=covar,
         df=df
         )
     class(object) <- 'mvt'
@@ -189,22 +189,33 @@ random.mvt <- function(self) {
 }
 
 p.value.mvt <- function(self, x) {
-   offset <- as.matrix(x) - self$mean
+   offset <- x - self$mean
    p <- nrow(self$covar)
    q <- (t(offset) %*% solve(self$covar, offset)) / p
    pf(c(q), p, self$df, lower.tail=FALSE)
 }
 
 log.density.mvt <- function(self, x) {
-   offset <- as.matrix(x) - self$mean
+   offset <- x - self$mean
    p <- nrow(self$covar)
    v <- self$df
+   
+   #(
+   #   lgamma(0.5*(v+p))
+   #   - lgamma(0.5*v) 
+   #   - (0.5*p)*log(pi*v)
+   #   - 0.5*log(det(self$covar))
+   #   - (0.5*(v+p))*log(1+c( t(offset) %*% solve(self$covar, offset) )/v)
+   #)
+   
+   qr.covar <- qr(self$covar)
+   log.det.covar <- sum(log(abs(diag(qr.covar$qr))))
    (
       lgamma(0.5*(v+p))
       - lgamma(0.5*v) 
       - (0.5*p)*log(pi*v)
-      - 0.5*log(det(self$covar))
-      - (0.5*(v+p))*log(1+c( t(offset) %*% solve(self$covar, offset) )/v)
+      - 0.5*log.det.covar
+      - (0.5*(v+p))*log(1+c( t(offset) %*% solve.qr(qr.covar, offset) )/v)
    )
 }
 
@@ -225,7 +236,7 @@ marginal.mvt <- function(self, i) {
 }
 
 conditional.mvt <- function(self, i1, i2, x2) {
-    x2 <- as.matrix(x2)
+    x2 <- matrix(x2)
     p2 <- length(i2)
     
     mean1 <- self$mean[i1]
@@ -344,12 +355,13 @@ fit.noise <- function(data, design, get.dist, initial,
     
     scorer <- function(param) {                
         #result <- mclapply(indicies, score.one, param=param, mc.cores=cores)
-        
         if (cores > 1)
             result <- parLapply(cluster, indicies, score.one, param=param)
         else
             result <- lapply(indicies, score.one, param=param)
-        -sum(unlist(result))
+        result <- -sum(unlist(result))
+        #cat(param, result, '\n')
+        result
     }
     
     if (cores > 1) {
@@ -390,6 +402,8 @@ fit.noise <- function(data, design, get.dist, initial,
     
     object <- list(
         design = design,
+        control.design = control.design,
+        controls = controls,
         optim.output = result,
         param = result$par,
         data = data,
@@ -572,9 +586,9 @@ model.normal.standard <- list(
     
     describe = function(elist, param) {
         if (is.null(elist$weights))
-            sprintf('variance = %g', param[1])
+            sprintf('s.d. = %g', sqrt(param[1]))
         else
-            sprintf('variance = %g / weight', param[1])
+            sprintf('s.d. = %g / sqrt(weight)', sqrt(param[1]))
     }
 )
 
@@ -610,9 +624,9 @@ model.normal.per.sample.var <- list(
     
     describe = function(elist, param) {
         paste(
-            sprintf('%s variance = %g', 
+            sprintf('%s s.d. = %g', 
                 colnames(ensure.columns.named(elist$E,'sample')), 
-                param),
+                sqrt(param)),
             collapse = '\n')
     }
 )
@@ -632,11 +646,40 @@ model.normal.patseq <- list(
     initial = function(elist) { c(250.0, 0.001) },
     
     describe = function(elist, param) {
-        sprintf('variance = %.1f / polya_read_count + %.6f * tail_length^2',param[1],param[2])
+        sprintf('variance = %.1f^2 / polya_read_count + %.6f^2 * tail_length^2',sqrt(param[1]),sqrt(param[2]))
     }
 )
 
 model.t.patseq <- normal.model.to.t(model.normal.patseq)
+
+
+model.normal.patseq.per.sample.var <- list(
+    # elist$E is average read tail length
+    # elist$other$counts is polya read count
+
+    get.dist = function(elist, i, param) {
+        var <- param[1] / elist$other$counts[i,] + (elist$E[i,]**2) * param[-1]
+        mvnormal(rep(0,ncol(elist)), as.diagonal.matrix(var))
+    },
+    
+    initial = function(elist) { 
+        m <- ncol(elist)
+        c(250.0, rep(0.001,m)) 
+    },
+    
+    describe = function(elist, param) {
+        sprintf('variance = %.1f^2 / polya_read_count + sample_s.d.^2 * tail_length^2 \n%s',
+            sqrt(param[1]),
+            paste(
+                sprintf('%s s.d. = %g', 
+                    colnames(ensure.columns.named(elist$E,'sample')), 
+                    sqrt(param[-1])),
+                collapse = '\n')            
+            )
+    }
+)
+
+model.t.patseq.per.sample.var <- normal.model.to.t(model.normal.patseq.per.sample.var)
 
 
 model.normal.quadratic <- list(
@@ -728,6 +771,9 @@ test.fit <- function(fit, coefs=NULL, contrasts=NULL, sort=TRUE) {
     table[,'adj.P.Val'] <- fdrs
     
     table[,'noise.P.Value'] <- fit$noise.p.values
+    
+    if (any(fit$controls))
+        table[,'control'] <- fit$controls
     
     if (!is.null(fit$elist) && !is.null(fit$elist$genes)) {
         genes <- fit$elist$genes

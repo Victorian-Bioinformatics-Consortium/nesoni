@@ -117,6 +117,7 @@ class Modify_features(config.Action_with_prefix):
                 elif item.strand == -1:
                     item.end -= shift_start
                     item.start -= shift_end
+                item.start = max(0, item.start) #IGV complains
                 
                 item.strand = strand_changer[item.strand]
                 

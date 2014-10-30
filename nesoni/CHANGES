@@ -1,4 +1,6 @@
 
+0.128 - modify-features: feature start can't be shifted to negative location
+
 0.127 - test-counts: now has a mode for fitnoise 
         norm-from-samples: optimized
         igv-plots: optimized
