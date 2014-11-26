@@ -1035,10 +1035,9 @@ def report_exception():
     
     brief = False
     
-    if isinstance(exception, EnvironmentError) and \
-       exception.strerror in [ 
-           'No such file or directory' 
-           ]:
+    if (isinstance(exception, EnvironmentError) and \
+        exception.strerror == 'No such file or directory' and \
+        exception.filename):
        brief = True
     
     if isinstance(exception, Error) and len(exception.args) > 0:
