@@ -1,4 +1,6 @@
 
+0.129 - slight tweak to error reporting
+
 0.128 - modify-features: feature start can't be shifted to negative location
 
 0.127 - test-counts: now has a mode for fitnoise 
