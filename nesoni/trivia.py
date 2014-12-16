@@ -102,7 +102,7 @@ class Stats(config.Action_with_optional_output):
             if info.matches('annotations'):
                 total = 0
                 counts = { }
-                for item in annotation.read_annotations(filename):
+                for item in annotation.read_annotations(filename, "/"):
                     total += 1
                     counts[item.type] = counts.get(item.type,0)+1
                                 

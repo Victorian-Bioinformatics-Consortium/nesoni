@@ -65,16 +65,20 @@ def run(args, stdin=None, stdout=PIPE, stderr=None, cwd=None, no_display=False, 
         if 'DISPLAY' in env:
             del env['DISPLAY']
     
-    return subprocess.Popen(
-        args,
-        bufsize=1<<24,
-        stdin=stdin,        
-        stdout=stdout,
-        stderr=stderr,
-        cwd=cwd,
-        env=env,
-        close_fds=True,
-        )
+    try:
+        return subprocess.Popen(
+            args,
+            bufsize=1<<24,
+            stdin=stdin,        
+            stdout=stdout,
+            stderr=stderr,
+            cwd=cwd,
+            env=env,
+            close_fds=True,
+            )
+
+    except OSError, err:
+         raise grace.Error("Failed to run: %s" % (' '.join(args)))
     
 
 @contextlib.contextmanager

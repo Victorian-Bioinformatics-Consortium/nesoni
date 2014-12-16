@@ -179,7 +179,7 @@ def link_up_annotations(annotations):
 
 gff3_kw_pat = re.compile("\w+=")
 
-def split_keyvals(keyval_str):
+def split_keyvals(keyval_str, joiner):
     """Split key-value pairs in a GFF2, GTF and GFF3 compatible way.
 
     GFF3 has key value pairs like:
@@ -238,8 +238,12 @@ def split_keyvals(keyval_str):
         if (len(val) > 0 and val[0] == '"' and val[-1] == '"'):
             val = val[1:-1]
 
-        assert key not in quals
-        quals[key] = val
+        if key not in quals:
+            quals[key] = val
+        elif joiner is not None:
+            quals[key] = quals[key]+joiner+val
+        else:
+            assert False, "Duplicate attribute: "+key
 
     for key, val in quals.items():
         quals[key] = urllib.unquote(val)
@@ -261,7 +265,7 @@ def encode_keyvals(quals):
 
 
 
-def read_gff(filename):
+def read_gff(filename, joiner=None):
     f = io.open_possibly_compressed_file(filename)
     for line in f:
         line = line.rstrip()
@@ -285,7 +289,7 @@ def read_gff(filename):
         result.score = None if parts[5] == '.' else float(parts[5])
         result.strand = strand_from_gff[parts[6]]
         result.phase = None if parts[7] == '.' else int(parts[7])
-        result.attr = { } if len(parts) < 9 else split_keyvals(parts[8])
+        result.attr = { } if len(parts) < 9 else split_keyvals(parts[8], joiner)
         
         yield result        
 
@@ -332,7 +336,7 @@ def read_genbank(filename):
     f.close()
 
 
-def read_annotations(filename):
+def read_annotations(filename, joiner=None):
     f = io.open_possibly_compressed_file(filename)
     peek = f.read(1024)
     f.close()
@@ -340,7 +344,7 @@ def read_annotations(filename):
     if peek.startswith('LOCUS'):
         return read_genbank(filename)
     elif peek.startswith('##gff') or peek.split('\n')[0].count('\t') in (7,8):
-        return read_gff(filename)
+        return read_gff(filename, joiner)
     else:
         raise grace.Error('Not an annotation file.')
 
