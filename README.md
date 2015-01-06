@@ -1,29 +1,27 @@
-==========
-  Nesoni 
-==========
+Nesoni 
+======
 
-Nesoni is a high-throughput sequencing data analysis toolset,
-which the VBC has developed to cope with the flood of Illumina, 
-454, and SOLiD data now being produced. 
+With the closure of the Victorian Bioinformatics Consortium, I anticipate little further development on Nesoni.
 
-Our work is largely with bacterial genomes, and the design tradeoffs 
-in nesoni reflect this.
+Nesoni still serves as the basis for "Tail Tools", which remains under development. The parallel processing code is also used by "Demakein".
 
-Nesoni focusses on analysing the alignment of reads to a reference 
-genome. Use of the SHRiMP and Bowtie2 read aligners is automated by 
-nesoni. We use SHRiMP as it is able to detect small insertions and 
-deletions in addition to SNPs. Output from other aligners may be 
-imported in SAM format.
-
-Nesoni can call a consensus of read alignments, taking care to
-indicate ambiguity. This can then be used in various ways: to determine
-the protein level changes resulting from SNPs and indels, to find 
-differences between multiple strains, or to produce n-way comparison data 
-suitable for phylogenetic analysis in SplitsTree4.
+- Paul Harrison, January 2015
 
 
-~ Requirements
-==============
+What Nesoni does
+----------------
+
+Nesoni is a high-throughput sequencing data analysis toolset, which the Victorian Bioinformatics Consortium developed to cope with the flood of Illumina, 454, and SOLiD data being produced. 
+
+The VBC's work was largely with bacterial genomes, and the design tradeoffs in Nesoni reflect this.
+
+Nesoni focusses on analysing the alignment of reads to a reference genome. Use of the SHRiMP and Bowtie2 read aligners is automated by nesoni. We use SHRiMP as it is able to detect small insertions and deletions in addition to SNPs. Output from other aligners may be imported in SAM format.
+
+Nesoni can call a consensus of read alignments, taking care to indicate ambiguity. This can then be used in various ways: to determine the protein level changes resulting from SNPs and indels, to find differences between multiple strains, or to produce n-way comparison data suitable for phylogenetic analysis in SplitsTree4.
+
+
+Requirements
+============
 
 Python 2.7 or higher. Use of PyPy where possible is highly recommended 
 for performance.
@@ -60,8 +58,8 @@ R libraries required by R-based tools (mostly for RNA-seq):
     environment variables $PATH and $JARPATH.
 
 
-~ Installation
-==============
+Installation
+============
 
 The easy way to install or upgrade:
 
@@ -72,8 +70,8 @@ Then type "nesoni" and follow the command to install the R module.
 See below for more ways to install nesoni.
 
 
- Advanced Installation 
------------------------
+Advanced Installation 
+---------------------
 
 From source, download and untar the source tarball, then:
 
@@ -101,25 +99,8 @@ You can also set up a CPython virtualenv like this:
     my-python-env/bin/pip install -I nesoni
 
 
- Installing older versions
----------------------------
-
-The interface and API for nesoni may change between versions (I try to
-keep this to a minimum). In order to run a script or python program
-that needs an older version, I suggest setting up a virtualenv.
-
-For example, if you want version 0.95:
-
-    virtualenv -p pypy my-old-env
-    my-old-env/bin/pip install -I biopython 
-    my-old-env/bin/pip install -I nesoni==0.95
-
-(Note: I don't have a neat way to make this work with the R components 
-of nesoni.)
-
-
-~ Using nesoni
-==============
+Using nesoni
+============
 
 Type
 
