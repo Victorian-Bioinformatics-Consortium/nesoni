@@ -1,5 +1,6 @@
 
 0.129 - slight tweak to error reporting
+        don't require SplitsTree to be installed
 
 0.128 - modify-features: feature start can't be shifted to negative location
 

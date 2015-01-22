@@ -1795,16 +1795,21 @@ class Similarity(config.Action_with_prefix):
             ORDER=samples,
         )
 
-        io.execute(
-            'SplitsTree +g -i INPUT -x COMMAND',
-            no_display=True,
-            INPUT=self.prefix + '.nex',
-            COMMAND='UPDATE; '
-                    'SAVE FILE=\'%s.nex\' REPLACE=yes; '
-                    'EXPORTGRAPHICS format=svg file=\'%s.svg\' REPLACE=yes TITLE=\'NeighborNet of expression levels\'; ' 
-                    'QUIT' 
-                    % (self.prefix, self.prefix),
-            )
+        try:
+            io.execute(
+                'SplitsTree +g -i INPUT -x COMMAND',
+                no_display=True,
+                INPUT=self.prefix + '.nex',
+                COMMAND='UPDATE; '
+                        'SAVE FILE=\'%s.nex\' REPLACE=yes; '
+                        'EXPORTGRAPHICS format=svg file=\'%s.svg\' REPLACE=yes TITLE=\'NeighborNet of expression levels\'; ' 
+                        'QUIT' 
+                        % (self.prefix, self.prefix),
+                )
+        except grace.Error:
+            #It's ok if it's not installed.
+            pass
+
 
     def report(self, reporter):    
         reporter.heading('Sample similarity')
@@ -1822,14 +1827,15 @@ class Similarity(config.Action_with_prefix):
                 )
             )
         
-        reporter.p(
-            reporter.get(self.prefix + '.svg',
-                title = 'Split Network visualization of sample similarity.',
-                image = True
-                ) +
-            '<br>(Visualization of euclidean distances as a split network. '
-            'Note: This is <i>not</i> a phylogenetic network.)'
-            )
+        if os.path.exists(self.prefix+'.svg'):
+            reporter.p(
+                reporter.get(self.prefix + '.svg',
+                    title = 'Split Network visualization of sample similarity.',
+                    image = True
+                    ) +
+                '<br>(Visualization of euclidean distances as a split network. '
+                'Note: This is <i>not</i> a phylogenetic network.)'
+                )
 
 
 

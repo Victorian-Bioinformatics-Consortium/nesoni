@@ -53,6 +53,9 @@ class Annotation(object):
              #' '.join( key+'='+val for key,val in self.attr.items() )
         ) 
 
+    def copy(self):
+        return copy.deepcopy(self)
+
     def get_id(self):
         for key in ('ID','id','locus_tag'):
             if key in self.attr:
