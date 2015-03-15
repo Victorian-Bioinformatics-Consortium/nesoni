@@ -81,14 +81,8 @@ class Multicontext(object):
 def status(string):
     """ Display a status string. """
     from nesoni import legion
-    legion.coordinator().set_status( legion.process_identity(), string )
-    #if sys.stderr.isatty():
-    #    #Show in terminal title
-    #    sys.stderr.write('\x1b]2;'+string+'\x07')
-    #    sys.stderr.flush()
-    #    
-    #    #sys.stderr.write('\r\x1b[K\x1b[34m' + string + '\x1b[m\r')
-    #    #sys.stderr.flush()
+    return legion.coordinator().set_status( legion.process_identity(), string )
+
 
 def load(module_name):
     status('Loading')

@@ -287,6 +287,7 @@ class My_coordinator:
         self.trade_cores(0,1)
 
     def set_status(self, identity, value):
+        old = self.statuses.get(identity,"")
         if value:
             self.statuses[identity] = value
         elif identity in self.statuses:
@@ -305,6 +306,8 @@ class My_coordinator:
             #Show in terminal title
             sys.stderr.write('\x1b]2;'+status+'\x07')
             sys.stderr.flush()
+        
+        return old
 
     def job(self, func, *args, **kwargs):
         number = self.set_mail((func,args,kwargs))
@@ -870,11 +873,11 @@ def _make_inner(action):
         if LOCAL.abort_make and not selection.matches(LOCAL.do_selection, [action.shell_name()]):
             raise grace.Error('%s would be run. Stopping here.' % action.ident())
         
-        grace.status(action.ident())
+        old_status = grace.status(action.shell_name())
         try:
             _run_and_save_state(action, timestamp)
         finally:
-            grace.status('')
+            grace.status(old_status)
     finally:
         if cores > 1:
             coordinator().trade_cores(cores, 1)

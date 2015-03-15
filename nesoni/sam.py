@@ -224,6 +224,8 @@ class Bam_reader(object):
 
 def bam_iter_fragments(filename, status_text='Processing'):
     reader = Bam_reader(filename)
+    
+    old_status = grace.status(status_text)
 
     n = 0
     n_ambiguous = 0
@@ -280,7 +282,7 @@ def bam_iter_fragments(filename, status_text='Processing'):
         
         yield read_name, pairs + unpaired, unmapped
     
-    grace.status('')
+    grace.status(old_status)
     if n_ambiguous:
         print >> sys.stderr 
         print >> sys.stderr, 'The alignment pairing was unclear %s times, and alignments were paired arbitrarily.' % grace.pretty_number(n_ambiguous)

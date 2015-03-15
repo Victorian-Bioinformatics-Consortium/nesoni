@@ -1,4 +1,6 @@
 
+0.130 - grace.status returns old status, bam reader restores old status after finishing
+
 0.129 - slight tweak to error reporting
         don't require SplitsTree to be installed
 
