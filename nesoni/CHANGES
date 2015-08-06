@@ -1,4 +1,6 @@
 
+0.131 - Ignore spurious whitespace when loading GFF files.
+
 0.130 - grace.status returns old status, bam reader restores old status after finishing
 
 0.129 - slight tweak to error reporting

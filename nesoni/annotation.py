@@ -6,7 +6,7 @@ Some code taken from https://github.com/chapmanb/bcbb
 
 from nesoni import grace, io, bio
 
-import sys, re, urllib, os, os.path, copy
+import sys, re, urllib, os, os.path
 
 strand_to_gff = { 1:'+', -1:'-', 0:'.', None:'?' }
 strand_from_gff = { '+':1, '-':-1, '.':0, '?':None }
@@ -54,7 +54,17 @@ class Annotation(object):
         ) 
 
     def copy(self):
-        return copy.deepcopy(self)
+        return Annotation(
+            seqid=self.seqid,
+            source=self.source,
+            type=self.type,
+            start=self.start,
+            end=self.end,
+            strand=self.strand,
+            score=self.score,
+            phase=self.phase,
+            attr=self.attr.copy(),
+            )
 
     def get_id(self):
         for key in ('ID','id','locus_tag'):
@@ -62,6 +72,10 @@ class Annotation(object):
                 return self.attr[key]
 
         return '%s:%s%s%d..%d' % (self.type,self.seqid,strand_to_gff[self.strand],self.start+1,self.end)
+
+
+    def get_length(self):
+        return self.end - self.start
 
     def overlaps(self, other, allowance=0, check_strand=True):
         return (
@@ -93,7 +107,7 @@ class Annotation(object):
         ])
     
     def shifted(self, shift_5prime, shift_3prime):
-        result = copy.deepcopy(self)
+        result = self.copy()
         if self.strand < 0:
             result.end -= shift_5prime
             result.start -= shift_3prime
@@ -103,7 +117,7 @@ class Annotation(object):
         return result
     
     def five_prime(self):
-        result = copy.deepcopy(self)
+        result = self.copy()
         if result.strand < 0:
             result.start = result.end
         else:
@@ -111,24 +125,29 @@ class Annotation(object):
         return result
 
     def three_prime(self):
-        result = copy.deepcopy(self)
+        result = self.copy()
         if result.strand < 0:
             result.end = result.start
         else:
             result.start = result.end
         return result
     
+    def reversed(self):
+        result = self.copy()
+        result.strand = { -1:1, 0:-1, 1:-1 }[ result.strand ]
+        return result
+    
     def span_with(self, other):
         assert self.seqid == other.seqid
         assert self.strand * other.strand >= 0
-        result = copy.deepcopy(self)
+        result = self.copy()
         result.start = min(self.start, other.start)
         result.end = max(self.end, other.end)
         return result
     
     def relative_to(self, other):
         assert self.seqid == other.seqid
-        result = copy.deepcopy(self)
+        result = self.copy()
         result.seqid = other.get_id()
         if other.strand >= 0:
             result.start = self.start - other.start
@@ -281,6 +300,9 @@ def read_gff(filename, joiner=None):
         
         parts = line.split('\t')
         assert len(parts) >= 8, parts
+        
+        # Be nice, ignore spaces at start or end, eg in seqid
+        parts = [ item.strip() for item in parts ]
 
         result = Annotation()
         
