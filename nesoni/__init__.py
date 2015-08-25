@@ -16,7 +16,7 @@ from nway_diff import Nway
 from fisher_diff import Fisher
 from core import Core
 from samcount import Count, Merge_counts
-from runr import Test_counts, Plot_counts, Test_power, Heatmap, Similarity, Compare_tests, Norm_from_counts, Glog, NMF
+from runr import Test_counts, Plot_counts, Test_power, Heatmap, Similarity, Compare_tests, Norm_from_counts, Glog, Vst, NMF
 from normalize import Norm_from_samples
 from trivia import Test, As_fasta, As_gff, Sample, Stats
 from shred import Shred

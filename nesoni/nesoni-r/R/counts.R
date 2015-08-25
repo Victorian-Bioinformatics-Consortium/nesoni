@@ -57,8 +57,15 @@ read.counts <- function(filename, min.total=0, min.max=0, keep=NULL, norm.file=N
 
     if (!have.norm) {
         if (use.tmm) {
-            result <- calcNormFactors(result)
-        } else {
+            # Can fail if too small counts matrix
+            # Can produce NaNs
+            try( result <- calcNormFactors(result) )
+        }
+        
+        # If we didn't want norm factors or calcNormFactorsFailed
+        # then set all to 1.
+        if (is.null(result$samples$norm.factors) || 
+            !all(is.finite(result$samples$norm.factors))) {
             result$samples$norm.factors <- rep(1, n_samples)
         }
         
@@ -130,7 +137,20 @@ glog2.rpm.counts <- function(dgelist, moderation=5.0) {
 }
 
 
+vst.rpm.counts <- function(dgelist, method="anscombe.nb") {
+    if (method == "glog")
+        return( glog2.rpm.counts(dgelist) )
 
+    lib.size <- dgelist$samples$lib.size * dgelist$samples$norm.factors
+    e <- varistran::vst(dgelist$counts, method=method, lib.size=lib.size, cpm=TRUE)
+    
+    out <- list()
+    out$E <- e
+    out$lib.size <- lib.size
+    out$genes <- dgelist$genes
+    out$targets <- dgelist$samples
+    new("EList", out)
+}
 
 
 row.apply <- function(data, func) {

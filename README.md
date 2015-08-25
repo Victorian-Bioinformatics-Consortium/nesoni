@@ -45,8 +45,9 @@ External programs:
 
 R libraries required by R-based tools (mostly for RNA-seq):
 * Required:
+  * varistran from https://github.com/MonashBioinformaticsPlatform/varistran
   * limma, edgeR (3.2.4 or higher) from BioConductor
-  * seriation
+  * seriation from CRAN
 * Optional:
   * goseq from BioConductor
 

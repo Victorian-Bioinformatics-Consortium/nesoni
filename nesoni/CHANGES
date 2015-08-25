@@ -1,5 +1,8 @@
 
-0.131 - Ignore spurious whitespace when loading GFF files.
+0.131 - Log transformation is now performed using Varistran.
+        Ignore spurious whitespace when loading GFF files.
+        Default to norm factors of 1 if calcNormFactors fails
+            (can happen if counts contains one row).
 
 0.130 - grace.status returns old status, bam reader restores old status after finishing
 

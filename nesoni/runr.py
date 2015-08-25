@@ -1603,7 +1603,7 @@ if (length(ORDER)) {
 }
 
 #elist <- voom(dgelist, normalize.method=if(QUANTILE) 'quantile' else 'none')
-elist <- glog2.rpm.counts(dgelist, GLOG_MODERATION)
+elist <- vst.rpm.counts(dgelist, VST_METHOD)
 
 hmap.elist(
     PREFIX, 
@@ -1628,10 +1628,7 @@ Hierachical clustering and ordering of rows is performed using the "seriation" p
 
 You will need to use at least one of --min-sd, --min-span, or --min-svd.
 """)
-@config.Float_flag('glog_moderation', 
-    'Amount of moderation used in log transformation.'
-    ' See "glog" mode in "test-counts:".'
-    )
+@config.String_flag('vst_method')
 @config.Int_flag('min_total', 
     'Expression level filter:\n'
     'Exclude genes with less than this total number of reads.\n'
@@ -1653,7 +1650,7 @@ You will need to use at least one of --min-sd, --min-span, or --min-svd.
 @config.String_flag('sort', 'A sort expression to sort samples (see main help text).')
 #@config.Section('order', 'Optionally, specify an order to show the columns in.')
 class Heatmap(config.Action_with_prefix):
-    glog_moderation = 5.0
+    vst_method = "anscombe.nb"
     counts = None
     min_total = 0
     min_max = 0
@@ -1685,7 +1682,7 @@ class Heatmap(config.Action_with_prefix):
 
         run_script(HEATMAP_SCRIPT,
             PREFIX=self.prefix,
-            GLOG_MODERATION=self.glog_moderation,
+            VST_METHOD=self.vst_method,
             COUNTS=self.counts,
             MIN_TOTAL=self.min_total,
             MIN_MAX=self.min_max,
@@ -1712,8 +1709,11 @@ if (length(ORDER)) {
     dgelist <- dgelist[, ORDER]
 }
 
-elist <- glog2.rpm.counts(dgelist, GLOG_MODERATION)
-mat <- elist$E
+elist <- vst.rpm.counts(dgelist, VST_METHOD)
+
+good <- rowSums(dgelist$counts) > 0
+elist_good <- elist[good,]
+mat <- elist_good$E
 
 sink(sprintf("%s.nex", PREFIX))
 cat("#NEXUS\n")
@@ -1741,8 +1741,16 @@ cat("end;\n")
 sink()
 
 library(limma)
-png(sprintf("%s-plotMDS.png",PREFIX),width=800,height=800)
-plotMDS(elist)
+png(sprintf("%s-plotMDS.png",PREFIX),width=1000,height=1000,res=100)
+plotMDS(elist_good)
+dev.off()
+
+png(sprintf("%s-varistran-biplot.png",PREFIX),width=1000,height=1000,res=100)
+print( varistran::plot_biplot(mat, feature_labels=elist_good$genes$gene) )
+dev.off()
+
+png(sprintf("%s-varistran-stability.png",PREFIX),width=1000,height=1000,res=100)
+print( varistran::plot_stability(mat, dgelist$counts[good,]) )
 dev.off()
 
 """
@@ -1757,16 +1765,13 @@ The similarity/difference between samples is visualized in several ways:
 
 These plots may be helpful in identifying contaminated or mislabeled samples.
 """)
-@config.Float_flag('glog_moderation', 
-    'Amount of moderation used in log transformation.'
-    ' See "glog" mode in "test-counts:".'
-    )
+@config.String_flag('vst_method')
 @config.String_flag('norm_file', 'Use normalization produced by "norm-from-counts:".')
 @config.Positional('counts', 'File containing output from "nesoni count:"')
 @config.String_flag('select', 'Selection expression (see main help text). Which samples to use.')
 #@config.String_flag('sort', 'A sort expression to sort samples (see main help text).')
 class Similarity(config.Action_with_prefix):
-    glog_moderation = 5.0
+    vst_method = "anscombe.nb"
     counts = None
     norm_file = None
     select = 'all'
@@ -1789,7 +1794,7 @@ class Similarity(config.Action_with_prefix):
 
         run_script(SIMILARITY_SCRIPT,
             PREFIX=self.prefix,
-            GLOG_MODERATION=self.glog_moderation,
+            VST_METHOD=self.vst_method,
             COUNTS=self.counts,
             NORM_FILE=self.norm_file,
             ORDER=samples,
@@ -1822,7 +1827,14 @@ class Similarity(config.Action_with_prefix):
         
         reporter.p(
             reporter.get(self.prefix + '-plotMDS.png',
-                title = 'limma\'s "plotMDS" Multi-Dimensional Scaling plot of sample similarity',
+                title = 'limma\'s Multi-Dimensional Scaling plot of sample similarity',
+                image = True
+                )
+            )
+
+        reporter.p(
+            reporter.get(self.prefix + '-varistran-biplot.png',
+                title = 'varistran\'s biplot, similar to plotMDS but shows genes on the same plot',
                 image = True
                 )
             )
@@ -1975,6 +1987,38 @@ class Glog(config.Action_with_prefix):
             NORM_FILE=self.norm_file,
             COUNTS=self.counts,
             )
+
+
+VST_SCRIPT = r"""
+library(nesoni)
+dgelist <- read.counts(COUNTS, norm.file=NORM_FILE)
+elist <- vst.rpm.counts(dgelist, VST_METHOD)
+
+sink(sprintf("%s.json",PREFIX))
+cat(sprintf('{ "dispersion" : %f }\n', attr(elist$E,"dispersion")))  
+sink()
+
+write.csv(elist$E, sprintf("%s.csv",PREFIX))
+"""
+
+@config.help("Variance stabilizing transform using varistran, Anscombe's negative binomial transformation.")
+@config.String_flag("vst_method")
+@config.String_flag('norm_file', 'Use normalization produced by "norm-from-counts:".')
+@config.Positional('counts', 'File containing output from "nesoni count:"')
+class Vst(config.Action_with_prefix):
+    vst_method = "anscombe.nb"
+    prefix = None
+    norm_file = None
+    counts = None
+
+    def run(self):
+        run_script(VST_SCRIPT,
+            PREFIX=self.prefix,
+            VST_METHOD=self.vst_method,
+            NORM_FILE=self.norm_file,
+            COUNTS=self.counts,
+            )
+
 
 
 
