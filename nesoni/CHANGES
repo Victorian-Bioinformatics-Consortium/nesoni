@@ -1,4 +1,7 @@
 
+0.132 - link_up_annotations forgiving of duplicated ID if ID not used.
+        Execute can have a specified location for state and log files.
+
 0.131 - Log transformation is now performed using Varistran.
         Ignore spurious whitespace when loading GFF files.
         Default to norm factors of 1 if calcNormFactors fails

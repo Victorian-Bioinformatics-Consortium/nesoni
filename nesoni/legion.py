@@ -967,6 +967,7 @@ and optionally sending stdout to a file.
 """)
 @config.Int_flag('cores','Advise how many cores the command will use.', 
     affects_output=False)
+@config.String_flag('prefix','Location of state and log files.')
 @config.Main_section('command','Command to execute', allow_flags=True, empty_is_ok=False)
 @config.Section('execution_options',
     'Extra options to add to start of command, eg to set the number of cores to use. '
@@ -976,6 +977,19 @@ class Execute(config.Action_filter):
     cores = 1
     command = [ ]
     execution_options = [ ]
+    prefix = None
+
+
+    def log_filename(self):
+        if self.prefix is None: 
+            return None
+        return self.prefix + '_log.txt'
+
+    def state_filename(self):
+        if self.prefix is None: 
+            return super(Execute,self).state_filename()
+        return self.prefix + '.state'
+    
 
     def cores_required(self):
         return self.cores

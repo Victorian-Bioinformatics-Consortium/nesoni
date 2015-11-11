@@ -176,18 +176,23 @@ class Annotation(object):
 def link_up_annotations(annotations):
     """ Link up GFF3 annotations using parent/child relationships """
     index = { }
+    bad = set()
     for item in annotations:
         item.children = [ ]
         if 'ID' not in item.attr: continue
         ID = item.attr['ID']
-        assert ID not in index, 'Annotations contain a duplicated ID: '+ID
+        #assert ID not in index, 'Annotations contain a duplicated ID: '+ID
+        if ID in index: 
+            bad.add(ID)
         index[ID] = item
         
     for item in annotations:
         if 'Parent' not in item.attr:
             item.parents = [ ]
         else:
-            item.parents = [ index[parent_id] for parent_id in item.attr['Parent'].split(',') ]
+            parent_ids = item.attr['Parent'].split(',')
+            assert bad.isdisjoint(parent_ids), "Duplicate ID used as Parent in GFF file: "+",".join(bad&set(parent_ids))
+            item.parents = [ index[parent_id] for parent_id in parent_ids if parent_id in index ]
             for parent in item.parents:
                 parent.children.append(item)
                 
@@ -388,6 +393,9 @@ def write_gff3_header(f):
     print >> f, '##gff-version 3'
 
 def write_gff3(filename, items):
+    # IGV likes to index large GFFs, and needs them to be sorted for this
+    items = sorted(items, key=lambda item: (item.seqid, item.start))
+    
     with io.open_possibly_compressed_writer(filename) as f:
         write_gff3_header(f)
         for item in items:
