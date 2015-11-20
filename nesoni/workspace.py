@@ -78,8 +78,9 @@ class Workspace(object):
         os.rename(temp_filename, self._object_filename(path))
 
     def path_as_relative_path(self, path):        
-        if os.path.isabs(path):
-            return path
+        #Breaks thumbnails if outputing to absolute output dir
+        #if os.path.isabs(path):
+        #    return path
 
         #assert os.path.sep == '/' #Someone else can work this out on windows and mac   
         sep = os.path.sep
