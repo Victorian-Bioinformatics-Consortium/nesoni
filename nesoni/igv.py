@@ -142,7 +142,11 @@ class IGV_plots(config.Action_with_prefix):
     norm_file = None    
     
     label_prefix = ''
-    
+
+    # IGVTools can be memory intensive, run serially
+    def cores_required(self):
+        return legion.coordinator().get_cores()
+  
     def iter_over(self, access_func, zeros=True):
         for name in self.chromosome_names:
             this_depths = [ iter(access_func(item[name])) for item in self.depths ]
