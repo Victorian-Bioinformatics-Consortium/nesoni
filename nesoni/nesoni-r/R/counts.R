@@ -44,8 +44,8 @@ read.counts <- function(filename, min.total=0, min.max=0, keep=NULL, norm.file=N
         n_samples <- ncol(counts)
     }
     
-    totals <- mapply(function(i) sum(counts[i,]), 1:nrow(counts))
-    maximums <- mapply(function(i) max(counts[i,]), 1:nrow(counts))    
+    totals <- mapply(function(i) sum(counts[i,]), seq_len(nrow(counts)))
+    maximums <- mapply(function(i) max(counts[i,]), seq_len(nrow(counts)))    
     good <- totals >= min.total & maximums >= min.max
 
     if (!quiet && (min.total > 0 || min.max > 0))
@@ -83,7 +83,7 @@ read.counts <- function(filename, min.total=0, min.max=0, keep=NULL, norm.file=N
         cat('                        Sample    Library size   Further         Normalizing\n')
         cat('                                                 norm factor     multiplier\n')
         for(i in 1:n_samples) {
-            cat(sprintf("%30s %15d %10.2f %15.2f\n", colnames(result$counts)[i], result$samples$lib.size[i], result$samples$norm.factors[i], result$samples$normalizing.multiplier[i]))
+            cat(sprintf("%30s %15.0f %10.2f %15.2f\n", colnames(result$counts)[i], result$samples$lib.size[i], result$samples$norm.factors[i], result$samples$normalizing.multiplier[i]))
         }
         cat('\n\n')
     }
