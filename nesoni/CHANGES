@@ -1,5 +1,6 @@
 
 0.133 - Able to load counts file with no genes in R.
+        Able to load counts file with one gene in R.
 
 0.132 - link_up_annotations forgiving of duplicated ID if ID not used.
         Execute can have a specified location for state and log files.

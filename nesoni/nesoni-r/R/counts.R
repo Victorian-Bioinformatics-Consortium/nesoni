@@ -51,7 +51,7 @@ read.counts <- function(filename, min.total=0, min.max=0, keep=NULL, norm.file=N
     if (!quiet && (min.total > 0 || min.max > 0))
         cat(sprintf("%d genes after filtering\n", sum(good)))
     
-    result <- DGEList(counts=counts[good,], genes=gene[good,])
+    result <- DGEList(counts=counts[good,,drop=F], genes=gene[good,,drop=F])
 
     mean.lib.size <- exp(mean(log(result$samples$lib.size)))
 
