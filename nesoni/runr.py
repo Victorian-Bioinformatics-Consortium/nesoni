@@ -58,11 +58,13 @@ def run_script(script, only_tell=False, silent=False, **kwargs):
         "  options(bitmapType='cairo');\n"
         "}\n"
         '\n' +
+        'library(methods)\n' + #Weird bug in R: loaded in R but not Rscript (v3.2.2)
+        '\n' +
         script +
         '\ninvisible();\n'   #Rscript prints the return value of top level expressions. No thanks.
         '}\n'        
     )
-        
+
     if silent:
         stdout = subprocess.PIPE
     else:
