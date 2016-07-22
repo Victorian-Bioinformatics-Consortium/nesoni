@@ -4,6 +4,7 @@
         Load methods package when running Rscript (workaround for bug in R v3.2.2).
         GFF write quotes commas.
         similarity: can cope with two columns of data.
+        norm-from-counts: can cope with one column of data.
 
 0.132 - link_up_annotations forgiving of duplicated ID if ID not used.
         Execute can have a specified location for state and log files.

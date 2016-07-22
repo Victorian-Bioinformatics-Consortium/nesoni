@@ -1914,6 +1914,8 @@ NORMALIZATION_SCRIPT = """
 
 library(nesoni)
 
+failplot <- function(...) { plot.new() ; text(0,0,"Plot failed.",adj=c(0,0)) }
+
 dgelist <- read.counts(COUNTS_FILENAME, use.tmm=USE_TMM)
 
 result <- data.frame(
@@ -1927,26 +1929,35 @@ library(limma)
 
 n <- nrow(result)
 
-png(sprintf("%s-raw.png",PREFIX), width=500, height=100+20*n)
+png(sprintf("%s-raw.png",PREFIX), width=500, height=120+20*n)
 par(mar=c(5,10,4,2))
-boxplot( voom(dgelist,lib.size=1e6)$E[,n:1], horizontal=TRUE, las=1, 
-    main='Unnormalized',
-    xlab='log2 reads (voom)')
+tryCatch(
+    boxplot( voom(dgelist,lib.size=1e6)$E[,n:1], horizontal=TRUE, las=1, 
+        main='Unnormalized',
+        xlab='log2 reads (voom)'),
+    error=failplot
+)
 dev.off()
 
-png(sprintf("%s-libsize.png",PREFIX), width=500, height=100+20*n)
+png(sprintf("%s-libsize.png",PREFIX), width=500, height=120+20*n)
 par(mar=c(5,10,4,2))
-boxplot( voom(dgelist, lib.size=dgelist$samples$lib.size)$E[,n:1], horizontal=TRUE, las=1, 
-    main='Normalization by library size\n(= total count of reads aligning to genes)',
-    xlab='log2 reads-per-million (voom)')
+tryCatch(
+    boxplot( voom(dgelist, lib.size=dgelist$samples$lib.size)$E[,n:1], horizontal=TRUE, las=1, 
+        main='Normalization by library size\n(= total count of reads aligning to genes)',
+        xlab='log2 reads-per-million (voom)'),
+    error=failplot
+)        
 dev.off()
 
 if (USE_TMM) {
-    png(sprintf("%s-norm.png",PREFIX), width=500, height=100+20*n)
+    png(sprintf("%s-norm.png",PREFIX), width=500, height=120+20*n)
     par(mar=c(5,10,4,2))
-    boxplot( voom(dgelist)$E[,n:1], horizontal=TRUE, las=1, 
-        main='Normalization by TMM effective library size',
-        xlab='log2 reads-per-million (voom)')
+    tryCatch(
+        boxplot( voom(dgelist)$E[,n:1], horizontal=TRUE, las=1, 
+            main='Normalization by TMM effective library size',
+            xlab='log2 reads-per-million (voom)'),
+        error=failplot
+    )
     dev.off()
 }
 
