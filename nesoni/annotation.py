@@ -281,7 +281,7 @@ def split_keyvals(keyval_str, joiner):
 def quote(s):
     result = []
     for char in s:
-        if char in '=;%' or char < ' ':
+        if char in '=;%,' or char < ' ':
             result.append('%%%02X' % ord(char))
         else:
             result.append(char)
@@ -392,9 +392,10 @@ def is_annotation_file(filename):
 def write_gff3_header(f):    
     print >> f, '##gff-version 3'
 
-def write_gff3(filename, items):
+def write_gff3(filename, items, sort=True):
     # IGV likes to index large GFFs, and needs them to be sorted for this
-    items = sorted(items, key=lambda item: (item.seqid, item.start))
+    if sort:
+        items = sorted(items, key=lambda item: (item.seqid, item.start))
     
     with io.open_possibly_compressed_writer(filename) as f:
         write_gff3_header(f)

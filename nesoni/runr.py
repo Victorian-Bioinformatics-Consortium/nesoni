@@ -1581,7 +1581,6 @@ class Test_power(config.Action_with_prefix):
                 space/'test',
                 space/'counts.csv',
                 test=['experimental'],
-                output_all=False
                 ).run()
             
             with open(space/'test.txt', 'rb') as f:
@@ -1705,6 +1704,8 @@ SIMILARITY_SCRIPT = """
 
 library(nesoni)
 
+failplot <- function(...) { plot.new() ; text(0,0,"Plot failed.",adj=c(0,0)) }
+
 dgelist <- read.counts(COUNTS, norm.file=NORM_FILE)
 
 if (length(ORDER)) {
@@ -1744,15 +1745,24 @@ sink()
 
 library(limma)
 png(sprintf("%s-plotMDS.png",PREFIX),width=1000,height=1000,res=100)
-plotMDS(elist_good)
+tryCatch( 
+    plotMDS(elist_good), 
+    error=failplot
+)
 dev.off()
 
 png(sprintf("%s-varistran-biplot.png",PREFIX),width=1000,height=1000,res=100)
-print( varistran::plot_biplot(mat, feature_labels=elist_good$genes$gene) )
+tryCatch( 
+    print( varistran::plot_biplot(mat, feature_labels=as.character(elist_good$genes$gene)) ),
+    error=failplot
+)
 dev.off()
 
 png(sprintf("%s-varistran-stability.png",PREFIX),width=1000,height=1000,res=100)
-print( varistran::plot_stability(mat, dgelist$counts[good,]) )
+tryCatch( 
+    print( varistran::plot_stability(mat, dgelist$counts[good,]) ),
+    error=failplot
+)
 dev.off()
 
 """
