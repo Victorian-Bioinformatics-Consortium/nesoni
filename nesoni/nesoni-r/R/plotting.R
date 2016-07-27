@@ -72,6 +72,7 @@ do.dendrogram <- function(mat, enable=TRUE) {
 
 trim.labels <- function(labels) {
     labels <- as.character(labels)
+    labels <- ifelse(is.na(labels), "", labels)
     n <- max(10, min(30, ceiling( mean(nchar(labels)) * 2.0 )))
     
     for(i in basic.seq(length(labels)))
