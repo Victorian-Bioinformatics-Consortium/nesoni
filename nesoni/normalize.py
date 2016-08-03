@@ -1,7 +1,7 @@
 
 from . import grace, config, working_directory, io, spanner
 
-import os, itertools, collections
+import os, itertools, collections, math
     
 @config.help(
     'Create a normalization file based on depth of coverage.',
@@ -61,9 +61,11 @@ class Norm_from_samples(config.Action_with_prefix):
         for name, value in zip(sample_names, totals):
             self.log.datum(name, 'mean depth', float(value) / sites)
         
-        mult = 1
-        for item in totals: mult *= item
-        geomean = mult ** (1.0/len(sample_names))
+        #mult = 1
+        #for item in totals: mult *= item
+        #geomean = mult ** (1.0/len(sample_names))
+        
+        geomean = math.exp( sum( math.log(max(1,item)) for item in totals )/len(totals) )
         
         self.log.log('Geometric mean: %.3f\n' % (geomean/sites))
 

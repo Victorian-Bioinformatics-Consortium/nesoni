@@ -6,6 +6,7 @@
         similarity: can cope with two columns of data.
         norm-from-counts: can cope with one column of data.
         Bugfix in trim.labels(), cope with subtle change in behaviour in R 3.3.
+        Avoid possible overflow in Norm_from_samples.
 
 0.132 - link_up_annotations forgiving of duplicated ID if ID not used.
         Execute can have a specified location for state and log files.
