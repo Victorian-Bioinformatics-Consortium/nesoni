@@ -74,7 +74,7 @@ th { vertical-align: bottom; }
 """
 
 class Reporter(object):
-    def __init__(self, directory, title, file_prefix=''):
+    def __init__(self, directory, title, file_prefix='', style=STYLE):
         self.workspace = io.Workspace(directory, must_exist=False)
         self.file_prefix = file_prefix
         if self.file_prefix: self.file_prefix += '-'
@@ -83,7 +83,7 @@ class Reporter(object):
     
         print >> self.f, '<html><head>'
         print >> self.f, '<title>%s</title>' % title
-        print >> self.f, '<style>%s</style>' % STYLE
+        print >> self.f, '<style>%s</style>' % style
         print >> self.f, '</head><body>'
         print >> self.f, '<h1>%s</h1>' % title
         self.p( datetime.date.today().strftime('%e %B %Y') )

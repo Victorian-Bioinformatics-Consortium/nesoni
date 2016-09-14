@@ -21,6 +21,7 @@ FLAG_SECOND = 128
 FLAG_NONPRIMARY = 256
 FLAG_FAIL = 512 #Read failed platform/vendor quality checks
 FLAG_DUP = 1024 #PCR or optical duplicate
+FLAG_SUPPLEMENTARY = 2048
 
 LENGTH_CACHE = { }
 def get_length(cigar):
@@ -111,7 +112,70 @@ class Alignment(object):
             if item.startswith('AS:i:'):
                 return int(item[5:])
         
-        return self.mapq        
+        return self.mapq
+    
+    def set_tag(self, tag, format, value): #eg set_tag("NH","i","1")
+        set_to = tag + ":" + format + ":" + value
+        for i in xrange(len(self.extra)):
+            if self.extra[i].startswith(tag):
+                self.extra[i] = set_to
+                break
+        else:
+            self.extra.append(set_to)
+
+
+    # Partial pysam compatability
+    
+    @property
+    def is_paired(self): return bool(self.flag & FLAG_PAIRED)
+
+    @property
+    def is_proper_pair(self): return bool(self.flag & FLAG_PROPER)
+
+    @property
+    def is_unmapped(self): return bool(self.flag & FLAG_UNMAPPED)
+
+    @property
+    def is_mate_unmapped(self): return bool(self.flag & FLAG_MATE_UNMAPPED)
+
+    @property
+    def is_reverse(self): return bool(self.flag & FLAG_REVERSE)
+
+    @property
+    def is_mate_reverse(self): return bool(self.flag & FLAG_MATE_REVERSE)
+
+    @property
+    def is_read1(self): return bool(self.flag & FLAG_FIRST)
+
+    @property
+    def is_read2(self): return bool(self.flag & FLAG_SECOND)
+
+    @property
+    def is_secondary(self): return bool(self.flag & FLAG_NONPRIMARY)
+    
+    @property
+    def is_supplementary(self): return bool(self.flag & FLAG_SUPPLEMENTARY)
+
+    @property
+    def query_name(self): return self.qname
+
+    @property
+    def reference_name(self): return self.rname
+
+    @property
+    def reference_start(self): return self.pos
+    
+    @property
+    def reference_end(self): return self.pos+get_length(self.cigar)
+
+    @property
+    def next_reference_name(self): return self.mrnm
+
+    @property
+    def next_reference_start(self): return self.mpos
+    
+
+
 
 def alignment_from_sam(line):
     self = Alignment()
@@ -170,6 +234,21 @@ def bam_headers(filename):
     
     return headers
 
+def parsed_bam_headers(filename):
+    headers = bam_headers(filename)
+    
+    result = { }
+    for line in headers.split("\n"):
+        if not line.startswith("@"): continue
+        parts = line.split("\t")
+        rectype = parts[0][1:]
+        if rectype not in result: result[rectype] = [ ]
+        rec = { }
+        for item in parts[1:]:
+            field, value = item.split(":",1)
+            rec[field] = value
+        result[rectype].append(rec)
+    return result
 
 
 

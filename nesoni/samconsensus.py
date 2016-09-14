@@ -373,7 +373,8 @@ def filter(working_dir, infidelity_snps, is_monogamous, output_userplots, output
               fragment_alignments[i][0] >= fragment_alignments[0][0]-infidelity:
             i += 1 
         fragment_alignments = fragment_alignments[:i]        
-        fragment_is_monogamous = len(fragment_alignments) == 1
+        fragment_is_monogamous = (i == 1)
+        number_of_hits = i
         if use_random and not fragment_is_monogamous:
             #Pick randomly from equal-top alignments
             i = 0
@@ -416,7 +417,9 @@ def filter(working_dir, infidelity_snps, is_monogamous, output_userplots, output
             
             if not is_monogamous or fragment_is_monogamous: 
                 for alignment in fragment_alignment[1]:
-                        writer.write(alignment)
+                    alignment.set_tag("NH","i",str(number_of_hits))
+                    writer.write(alignment)
+                
                 if len(fragment_alignment[1]) == 1:
                     single = True
                 else:

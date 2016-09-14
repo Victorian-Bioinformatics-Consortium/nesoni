@@ -1,7 +1,7 @@
 
 # Functions for dealing with table created by "nesoni count:"
 
-read.counts <- function(filename, min.total=0, min.max=0, keep=NULL, norm.file=NULL, use.tmm=TRUE, quiet=FALSE) {    
+read.counts <- function(filename, min.total=0, min.max=0, keep=NULL, norm.file=NULL, use.tmm=TRUE, quiet=TRUE) {    
     #data <- read.delim(filename, check.names=FALSE)
     #rownames(data) <- data$Feature
     #n_samples <- grep('^RPKM', colnames(data))[1] - 2
