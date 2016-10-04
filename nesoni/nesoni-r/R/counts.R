@@ -52,8 +52,9 @@ read.counts <- function(filename, min.total=0, min.max=0, keep=NULL, norm.file=N
         cat(sprintf("%d genes after filtering\n", sum(good)))
     
     result <- DGEList(counts=counts[good,,drop=F], genes=gene[good,,drop=F])
+    result$samples$lib.size <- pmax(1, result$samples$lib.size)
 
-    mean.lib.size <- exp(mean(log(pmax(1,result$samples$lib.size))))
+    mean.lib.size <- exp(mean(log(result$samples$lib.size)))
 
     if (!have.norm) {
         if (use.tmm) {
