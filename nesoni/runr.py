@@ -1918,8 +1918,11 @@ failplot <- function(...) { plot.new() ; text(0,0,"Plot failed.",adj=c(0,0)) }
 
 dgelist <- read.counts(COUNTS_FILENAME, use.tmm=USE_TMM)
 
+nm <- dgelist$samples$normalizing.multiplier
+nm[is.na(nm)] <- 1.0
+
 result <- data.frame(
-    Normalizing.multiplier = dgelist$samples$normalizing.multiplier,
+    Normalizing.multiplier = nm,
     row.names = rownames(dgelist$samples)
 )
 
