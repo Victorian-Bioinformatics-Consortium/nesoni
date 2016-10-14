@@ -163,10 +163,10 @@ class Alignment(object):
     def reference_name(self): return self.rname
 
     @property
-    def reference_start(self): return self.pos
+    def reference_start(self): return self.pos-1
     
     @property
-    def reference_end(self): return self.pos+get_length(self.cigar)
+    def reference_end(self): return self.pos-1+get_length(self.cigar)
 
     @property
     def next_reference_name(self): return self.mrnm

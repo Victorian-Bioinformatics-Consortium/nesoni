@@ -476,6 +476,7 @@ class Transcripts(Span_finder):
         
         return result
 
+
 @config.help(
     'Call peaks that are higher than everything within "radius", '
     'and higher than some minimum depth.\n'
