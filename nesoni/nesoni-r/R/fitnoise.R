@@ -7,9 +7,9 @@
 #
 #
 
-library(Matrix)
-library(limma)  # EList class, p.adjust
-library(parallel)
+#library(Matrix)
+#library(limma)  # EList class, p.adjust
+#library(parallel)
 
 
 ##################################

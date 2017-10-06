@@ -214,14 +214,14 @@ class Make_reference(config.Action_with_output_dir):
             reference.set_annotations(annotations)
         
         with legion.Stage() as stage:
+            if self.genome:
+                stage.process(reference.build_genome, self.genome_select)
+            if config.apply_ifavailable_program(self.bowtie, 'bowtie2-build'):
+                stage.process(reference.build_bowtie_index)
             if config.apply_ifavailable_program(self.ls, 'gmapper-ls'):
                 stage.process(reference.build_shrimp_mmap, False)
             if config.apply_ifavailable_program(self.cs, 'gmapper-cs'):
                 stage.process(reference.build_shrimp_mmap, True)
-            if config.apply_ifavailable_program(self.bowtie, 'bowtie2-build'):
-                stage.process(reference.build_bowtie_index)
-            if self.genome:
-                stage.process(reference.build_genome, self.genome_select)
             if config.apply_ifavailable_jar(self.snpeff, 'snpEff.jar'):
                 stage.process(reference.build_snpeff)
             

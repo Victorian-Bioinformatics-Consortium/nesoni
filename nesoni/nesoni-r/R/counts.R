@@ -10,6 +10,10 @@ read.counts <- function(filename, min.total=0, min.max=0, keep=NULL, norm.file=N
     
     data <- read.grouped.table(filename, require=c('Count'), default.group='Count')
     counts <- as.matrix( data$Count )
+
+    # Can happen with empty data
+    if (storage.mode(counts) == "logical")
+        storage.mode(counts) <- "numeric"
     
     gene <- data.frame(row.names=rownames(counts), locus_tag=rownames(counts))
     
