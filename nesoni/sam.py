@@ -401,10 +401,14 @@ def sort_bam(in_filename, out_prefix, by_name=False, cores=8):
     cores = min(cores, legion.coordinator().get_cores())
     megs = max(10, 800 // cores)
     
+    #io.execute(
+    #    [ 'samtools', 'sort', '-@', '%d' % cores, '-m', '%dM' % megs ] +
+    #    ([ '-n' ] if by_name else [ ]) +
+    #    [ in_filename, out_prefix ], cores=cores)
     io.execute(
         [ 'samtools', 'sort', '-@', '%d' % cores, '-m', '%dM' % megs ] +
         ([ '-n' ] if by_name else [ ]) +
-        [ in_filename, out_prefix ], cores=cores)
+        [ "-o", out_prefix+".bam", in_filename ], cores=cores)
 
 def sort_and_index_bam(in_filename, out_prefix, cores=8):
     sort_bam(in_filename, out_prefix, cores=cores)
