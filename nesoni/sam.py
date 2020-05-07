@@ -174,6 +174,22 @@ class Alignment(object):
     @property
     def next_reference_start(self): return self.mpos
     
+    def get_blocks(self):
+        pos = self.reference_start
+
+        blocks = [ ]
+        n = 0
+        for char in self.cigar:
+            if '0' <= char <= '9':
+                n = n*10+(ord(char)-48)
+            else:
+                if char == 'M':
+                    blocks.append((pos,pos+n))
+                if char in ('M','D','N','P','=','X'): #'MDNP=X':
+                    pos += n
+                n = 0
+        
+        return blocks
 
 
 
