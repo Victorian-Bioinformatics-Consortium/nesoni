@@ -305,21 +305,19 @@ def check_installation(f=sys.stdout):
     if ok[0]:
         try: 
             runr.run_script(
-                'library(nesoni)\n'
-                'stopifnot(nesoni_version() == version)',
+                'library(nesoni)\n',
             silent=True,version=nesoni.VERSION)
         except AssertionError:
             path = os.path.join(os.path.dirname(__file__),'nesoni-r')
-            report('Nesoni R module not installed or wrong version. To install:')
-            report('  R CMD INSTALL '+path)
+            report('Nesoni R module not installed.')
         
     try: require_samtools()
     except Error:
         report('samtools not installed.')
     
-    try: require_shrimp_2()
-    except Error:
-        report('SHRiMP not installed.')
+    #try: require_shrimp_2()
+    #except Error:
+    #    report('SHRiMP not installed.')
     
     return ok
     
