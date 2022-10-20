@@ -220,7 +220,7 @@ def split_keyvals(keyval_str, joiner):
         return quals
     
     # ensembl GTF has a stray semi-colon at the end
-    if keyval_str[-1] == ';':
+    if keyval_str and keyval_str[-1] == ';':
         keyval_str = keyval_str[:-1]
     
     # GFF2/GTF has a semi-colon with at least one space after it.
