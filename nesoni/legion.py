@@ -88,7 +88,7 @@ __all__ = """
 
 import multiprocessing 
 from multiprocessing import managers
-import threading, sys, os, signal, atexit, time, base64, socket, warnings, re, marshal
+import threading, sys, os, signal, atexit, time, base64, socket, warnings, re, marshal, gc
 import cPickle as pickle
 
 from nesoni import grace, config, selection
@@ -242,19 +242,34 @@ class My_coordinator:
 
     def _update(self):
         with self.lock:
-            #Conservative policy: use no more than the given cores
-            #for i in xrange(len(self.waiters)-1,-1,-1):
-            #    if self.waiters[i][0] + self.used <= self.cores:
-            #        self.used += self.waiters[i][0]
-            #        self.waiters[i][1].set()
-            #        del self.waiters[i]
+            #Conservative policy: 
+            #  Use no more than the given cores.
+            #  Prefer biggest first, then earliest first.
+            self.waiters.sort(key=lambda item: -item[0])
+            i = 0
+            while i < len(self.waiters):
+                if self.waiters[i][0] + self.used <= self.cores:
+                    self.used += self.waiters[i][0]
+                    self.waiters[i][1].set()
+                    del self.waiters[i]
+                else:
+                    i = i + 1
             
-            #Greedy policy: whenever there are cores free, start something up, 
-            #               even if it uses more cores than available
-            while self.waiters and self.used < self.cores:
-                self.used += self.waiters[-1][0]
-                self.waiters[-1][1].set()
-                del self.waiters[-1]
+            #Greedy policy: 
+            #  Whenever there are cores free, start something up, 
+            #  even if it uses more cores than available.
+            #while self.waiters and self.used < self.cores:
+            #    self.used += self.waiters[-1][0]
+            #    self.waiters[-1][1].set()
+            #    del self.waiters[-1]
+            
+            #Conservative and biggest first policy:
+            #  Wait until there are enough cores free to do the largest job.
+            #self.waiters.sort(key=lambda item: item[0])
+            #while self.waiters and self.used + self.waiters[-1][0] <= self.cores:
+            #    self.used += self.waiters[-1][0]
+            #    self.waiters[-1][1].set()
+            #    del self.waiters[-1]
     
     def set_cores(self, n):
         with self.lock:
@@ -402,10 +417,7 @@ def coordinator():
 # =======================================
 
 class Stage(object):
-    """ All the world's a stage,
-        And all the men and women merely players 
-    
-        Use this class to 
+    """ Use this class to 
         - synchronize with sets of processes that you start.
         - enter context managers without deeply nesting "with"
           statements.
@@ -864,6 +876,8 @@ def _make_inner(action):
     timestamp = coordinator().time()
     assert timestamp > LOCAL.time, 'Time running in reverse.'
     
+    gc.collect()
+    
     cores = action.cores_required()
     if cores > 1:
         coordinator().trade_cores(1, cores)
@@ -879,9 +893,11 @@ def _make_inner(action):
         finally:
             grace.status(old_status)
     finally:
+        gc.collect()
+        
         if cores > 1:
             coordinator().trade_cores(cores, 1)
-    
+
 
 
 def make(action):

@@ -1,6 +1,7 @@
 
 0.134 - Updated usage of samtools sort.
         Less picky installation check.
+        Conservative CPU core usage.
 
 0.133 - Able to load counts file with no genes in R.
         Able to load counts file with one gene in R.
