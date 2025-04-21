@@ -294,7 +294,7 @@ class My_coordinator:
         # so it can free up memory and quit.
         if new <= old:
             with self.lock:
-                self.used = self.used + old - new
+                self.used = self.used - old + new
                 self._update()
             return
         
