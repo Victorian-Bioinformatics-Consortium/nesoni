@@ -290,6 +290,14 @@ class My_coordinator:
         self.change_cores_used(-1)
 
     def trade_cores(self, old, new):
+        # If cores being released, allow process to continue,
+        # so it can free up memory and quit.
+        if new <= old:
+            with self.lock:
+                self.used = self.used + old - new
+                self._update()
+            return
+        
         with self.lock:
             #assert new <= self.cores, 'Don\'t have %d cores.' % new
             self.used -= old
